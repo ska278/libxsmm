@@ -71,7 +71,7 @@ make OFFLOAD=1
 
 <p>By default, only the non-coprocessor target is built (OFFLOAD=0 and MIC=0). In general, the subfolders of the 'lib' directory are separating the build targets where the 'mic' folder is containing the native library (MIC=1) targeting the Intel Xeon Phi coprocessor ("KNC"), and the 'intel64' folder is storing either the hybrid archive made of CPU and coprocessor code (OFFLOAD=1), or an archive which is only containing the CPU code. By default, all libraries are built statically (STATIC=1).</p>
 
-<p>To remove intermediate files (<code>make install</code> is a shortcut for <code>make; make clean</code>) or to remove all generated files and folder (including the interface and the library archives), run one of the following commands:</p>
+<p>To remove intermediate files (<code>make install</code> is a shortcut for <code>make; make clean</code>) or to remove all generated files and folders (including the interface and the library archives), run one of the following commands:</p>
 
 <pre><code>make clean
 make install
@@ -166,6 +166,59 @@ make realclean
 <p>A binary search is implemented when a sparsity (calculated at construction time of the library) is above the given SPARSITY value. Raising the given value prevents generating a binary search (and generates a direct lookup) whereas a value below or equal one is generating the binary search. Furthermore, the size of the direct lookup table is limited to 512 KB (currently hardcoded). The overhead of auto-dispatched multiplications based on the binary search becomes negligible with reasonable problem sizes (above ~20x20 matrices), but may be significant for very small auto-dispatched matrix-matrix multiplication.</p>
 
 <h3>
+<a id="directly-invoking-the-generator-backend" class="anchor" href="#directly-invoking-the-generator-backend" aria-hidden="true"><span class="octicon octicon-link"></span></a>Directly invoking the generator backend</h3>
+
+<p>In some special, extremely performance-critical situations it might be useful to bypass LIBXSMM's frontend entirely and to directly call into the generated code. This is possible by either invoking the code generator after a regular build process (as described above) or by just building the backend and invoking the generator:</p>
+
+<pre><code>make generator
+bin/generator
+</code></pre>
+
+<p>The generator application requires following inputs:</p>
+
+<ol>
+<li>dense/dense_asm/sparse (dense create C file, dense_asm creates ASM)</li>
+<li>Filename to append</li>
+<li>Routine name to be created in 2.</li>
+<li>M parameter</li>
+<li>N parameter</li>
+<li>K parameter</li>
+<li>LDA (0 when 1. is "sparse" indicates A is sparse)</li>
+<li>LDB (0 when 1. is "sparse" indicates B is sparse)</li>
+<li>LDC parameter</li>
+<li>alpha (currently only 1)</li>
+<li>beta (0 or 1)</li>
+<li>Alignment override for A (1 auto, 0 no alignment)</li>
+<li>Alignment override for C ( 1 auto, 0 no alignment)</li>
+<li>Prefetching mode (just dense &amp; dense_asm, see next list)</li>
+<li>SP/DP single or double precision</li>
+<li>CSC file (just required when 1. is "sparse"). Matrix market format.</li>
+</ol>
+
+<p>The prefetch specifier can be:</p>
+
+<ol>
+<li>"nopf": no prefetching at all, just 3 inputs (*A, *B, *C)</li>
+<li>"pfsigonly": just prefetching signature, 6 inputs (*A, *B, *C, *A’, *B’, *C’)</li>
+<li>"BL2viaC": uses accesses to *C to prefetch *B’</li>
+<li>"AL2": uses accesses to *A to prefetch *A’</li>
+<li>"curAL2": prefetches current *A ahead in the kernel</li>
+<li>"AL2_BL2viaC": combines AL2 and BL2viaC</li>
+<li>"curAL2_BL2viaC": combines curAL2 and BL2viaC</li>
+<li>"AL2jpst": aggressive *A’ prefetch of first rows without any structure</li>
+<li>"AL2jpst_BL2viaC": combines AL2jpst and BL2viaC</li>
+</ol>
+
+<p>Since this is a complicated, here come some examples:</p>
+
+<pre><code>bin/generator dense foo.c foo 16 16 16 32 32 32 1 1 1 1 hsw nopf DP
+bin/generator dense_asm foo.c foo 16 16 16 32 32 32 1 1 1 1 knl AL2_BL2viaC DP
+bin/generator sparse foo.c foo 16 16 16 32 0 32 1 1 1 1 hsw nopf DP bar.csc
+</code></pre>
+
+<p>Please note, in samples/generator and samples/seissol examples are shown that directly use LIBXSMM's generator backend.</p>
+
+<h3>
 <a id="results" class="anchor" href="#results" aria-hidden="true"><span class="octicon octicon-link"></span></a>Results</h3>
 
 <p>The library does not claim to be "optimal" or "best-performing", and the presented results are modeling certain applications which are not representative "in general". Instead, information on how to reproduce the results are given for each of the reported cases.</p>
@@ -182,10 +235,10 @@ make realclean
 <p>This plot summarizes the performance of the generated kernels by averaging the results over K (and therefore the bar on the right hand side may not show the same maximum when compared to other plots). The performance is well-tuned across the parameter space with no "cold islands", and the lower left "cold" corner is fairly limited. Please refer to the first figure on how to reproduce the results.</p>
 </blockquote>
 
-<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/3-cp2k-specialized.png" alt='This plot shows the arithmetic average of the performance with respect to groups of problem sizes (MNK). The problem sizes are binned into three groups according to the shown intervals: "Small", "Medium", and "Larger" (notice that "larger" may still not be a large problem size). Please refer to the first figure on how to reproduce the results.'></p>
+<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/3-cp2k-specialized.png" alt='This plot shows the arithmetic average (non-sliding) of the performance with respect to groups of problem sizes (MNK). The problem sizes are binned into three groups according to the shown intervals: "Small", "Medium", and "Larger" (notice that "larger" may still not be a large problem size). Please refer to the first figure on how to reproduce the results.'></p>
 
 <blockquote>
-<p>This plot shows the arithmetic average of the performance with respect to groups of problem sizes (MNK). The problem sizes are binned into three groups according to the shown intervals: "Small", "Medium", and "Larger" (notice that "larger" may still not be a large problem size). Please refer to the first figure on how to reproduce the results.</p>
+<p>This plot shows the arithmetic average (non-sliding) of the performance with respect to groups of problem sizes (MNK). The problem sizes are binned into three groups according to the shown intervals: "Small", "Medium", and "Larger" (notice that "larger" may still not be a large problem size). Please refer to the first figure on how to reproduce the results.</p>
 </blockquote>
 
 <p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/4-cp2k-specialized.png" alt='In order to further summarize the previous plots, this graph shows the cumulative distribution function (CDF) of the performance across all cases. Similar to the median value at 50%, one can read for example that 100% of the cases are yielding less or equal the largest discovered value. The value highlighted by the arrows is usually the median value, the [plot script](https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-perf.plt) however attempts to highlight a single "fair performance value" representing all cases by linearly fitting the CDF, projecting onto the x-axis, and taking the midpoint of the projection (usually at 50%). Please note, that this diagram shows a statistical distribution and does not allow to identify any particular kernel. Moreover at any point of the x-axis ("Probability"), the "Compute Performance" and the "Memory Bandwidth" graph do not necessarily belong to the same kernel! Please refer to the first figure on how to reproduce the results.'></p>
@@ -218,15 +271,13 @@ make realclean
 <h2>
 <a id="applications-and-references" class="anchor" href="#applications-and-references" aria-hidden="true"><span class="octicon octicon-link"></span></a>Applications and References</h2>
 
-<p><strong>[1] <a href="http://cp2k.org/">http://cp2k.org/</a></strong>: Open Source Molecular Dynamics which (optionally) uses LIBXSMM. The application is generating batches of small matrix-matrix multiplications ("matrix stack") out of a problem-specific distributed block-sparse matrix (see <a href="https://github.com/cp2k/cp2k/tree/intel">https://github.com/cp2k/cp2k/tree/intel</a>).</p>
+<p><strong>[1] <a href="http://cp2k.org/">http://cp2k.org/</a></strong>: Open Source Molecular Dynamics which (optionally) uses LIBXSMM. The application is generating batches of small matrix-matrix multiplications ("matrix stack") out of a problem-specific distributed block-sparse matrix (see <a href="https://github.com/hfp/libxsmm/raw/master/documentation/cp2k.pdf">https://github.com/hfp/libxsmm/raw/master/documentation/cp2k.pdf</a>).</p>
 
-<p><strong>[2] <a href="http://www.seissol.org/">http://www.seissol.org/</a></strong>: SeisSol is one of the leading codes for earthquake scenarios, in particular for simulating dynamic rupture processes. LIBXSMM provides highly optimized assembly kernels which form the computational back-bone of SeisSol (see <a href="https://github.com/TUM-I5/seissol_kernels/tree/lts_compressed">https://github.com/TUM-I5/seissol_kernels/tree/lts_compressed</a>).</p>
+<p><strong>[2] <a href="https://github.com/SeisSol/SeisSol/">https://github.com/SeisSol/SeisSol/</a></strong>: SeisSol is one of the leading codes for earthquake scenarios, in particular for simulating dynamic rupture processes. LIBXSMM provides highly optimized assembly kernels which form the computational back-bone of SeisSol (see <a href="https://github.com/TUM-I5/seissol_kernels/">https://github.com/TUM-I5/seissol_kernels/</a>).</p>
 
-<p><strong>[3] <a href="https://github.com/TUM-I5/GemmCodeGenerator">https://github.com/TUM-I5/GemmCodeGenerator</a></strong>: Code generator for matrix-matrix multiplications used as an infrastructure to develop LIBXSMM's assembly code generator.</p>
+<p><strong>[3] <a href="http://software.intel.com/xeonphicatalog">http://software.intel.com/xeonphicatalog</a></strong>: Intel Xeon Phi Applications and Solutions Catalog.</p>
 
-<p><strong>[4] <a href="http://software.intel.com/xeonphicatalog">http://software.intel.com/xeonphicatalog</a></strong>: Intel Xeon Phi Applications and Solutions Catalog.</p>
-
-<p><strong>[5] <a href="https://software.intel.com/en-us/articles/intel-and-third-party-tools-and-libraries-available-with-support-for-intelr-xeon-phitm">http://goo.gl/qsnOOf</a></strong>: Intel 3rd Party Tools and Libraries.</p>
+<p><strong>[4] <a href="https://software.intel.com/en-us/articles/intel-and-third-party-tools-and-libraries-available-with-support-for-intelr-xeon-phitm">http://goo.gl/qsnOOf</a></strong>: Intel 3rd Party Tools and Libraries.</p>
       </section>
       <footer>
         <p><small>Hosted on <a href="https://pages.github.com">GitHub Pages</a> using the Dinky theme</small></p>
