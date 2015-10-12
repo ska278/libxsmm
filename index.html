@@ -33,7 +33,7 @@
         <h1>
 <a id="libxsmm" class="anchor" href="#libxsmm" aria-hidden="true"><span class="octicon octicon-link"></span></a>LIBXSMM</h1>
 
-<p>Library for small matrix-matrix multiplications targeting Intel Architecture (x86). The library generates code for the following instruction set extensions: Intel SSE3, Intel AVX, Intel AVX2, IMCI (KNCni) for Intel Xeon Phi coprocessors ("KNC"), and Intel AVX-512 as found in the Intel Xeon Phi processor family ("KNL") and future Intel Xeon processors. Historically the library was solely targeting the Intel Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all fore mentioned instruction set extensions. [<a href="https://github.com/hfp/libxsmm/raw/master/documentation/libxsmm.pdf">pdf</a>] [<a href="https://github.com/hfp/libxsmm/archive/0.9.1.zip">src</a>]</p>
+<p>Library for small matrix-matrix multiplications targeting Intel Architecture (x86). The library generates code for the following instruction set extensions: Intel SSE3, Intel AVX, Intel AVX2, IMCI (KNCni) for Intel Xeon Phi coprocessors ("KNC"), and Intel AVX-512 as found in the Intel Xeon Phi processor family ("KNL") and future Intel Xeon processors. Historically the library was solely targeting the Intel Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all fore mentioned instruction set extensions. [<a href="https://github.com/hfp/libxsmm/raw/master/documentation/libxsmm.pdf">pdf</a>] [<a href="https://github.com/hfp/libxsmm/archive/0.9.1.zip">src</a>] <a href="https://github.com/hfp/libxsmm/archive/master.zip"><img src="https://travis-ci.org/hfp/libxsmm.svg?branch=master" alt="online-only" title="Master branch build status"></a></p>
 
 <p><strong>What is a small matrix-matrix multiplication?</strong> When characterizing the problem size using the M, N, and K parameters, a problem size suitable for LIBXSMM falls approximately within (M N K)^(1/3) &lt;= 60 (which illustrates that non-square matrices or even "tall and skinny" shapes are covered as well). However the code generator only generates code up to the specified <a href="#auto-dispatch">threshold</a>. Raising the threshold may not only generate excessive amounts of code (due to unrolling), but also miss to implement a tiling scheme to effectively utilize the L2 cache. For problem sizes above the configurable threshold, LIBXSMM is falling back to BLAS.</p>
 
@@ -44,7 +44,11 @@
 
 <p>The interface of the library is <em>generated</em> according to the <a href="#build-instructions">Build Instructions</a>, and is therefore <strong>not</strong> stored in the code repository. Instead, one may have a look at the code generation template files for <a href="https://github.com/hfp/libxsmm/blob/master/src/libxsmm.template.h">C/C++</a> and <a href="https://github.com/hfp/libxsmm/blob/master/src/libxsmm.template.f90">FORTRAN</a>. To perform the matrix-matrix multiplication <em>c</em><sub><em>m</em> x <em>n</em></sub> = <em>c</em><sub><em>m</em> x <em>n</em></sub> + <em>a</em><sub><em>m</em> x <em>k</em></sub> * <em>b</em><sub><em>k</em> x <em>n</em></sub>, the following interfaces can be used:</p>
 
-<div class="highlight highlight-C"><pre><span class="pl-c">/** If non-zero function pointer is returned, call (*function)(M, N, K). */</span>
+<div class="highlight highlight-source-c"><pre><span class="pl-c">/** Initialization function to set up LIBXSMM's dispatching table. On may </span>
+<span class="pl-c">    call this routine to avoid lazy initialization overhead in the first </span>
+<span class="pl-c">    call to a LIBXSMM kernel routine */</span>
+<span class="pl-k">void</span> <span class="pl-en">libxsmm_build_static</span>(); 
+<span class="pl-c">/** If non-zero function pointer is returned, call (*function)(M, N, K). */</span>
 libxsmm_smm_function <span class="pl-en">libxsmm_smm_dispatch</span>(<span class="pl-k">int</span> m, <span class="pl-k">int</span> n, <span class="pl-k">int</span> k);
 libxsmm_dmm_function <span class="pl-en">libxsmm_dmm_dispatch</span>(<span class="pl-k">int</span> m, <span class="pl-k">int</span> n, <span class="pl-k">int</span> k);
 <span class="pl-c">/** Automatically dispatched matrix-matrix multiplication. */</span>
@@ -58,6 +62,9 @@ libxsmm_dmm_function <span class="pl-en">libxsmm_dmm_dispatch</span>(<span class
 <span class="pl-k">void</span> <span class="pl-en">libxsmm_dblasmm</span>(<span class="pl-k">int</span> m, <span class="pl-k">int</span> n, <span class="pl-k">int</span> k, <span class="pl-k">const</span> <span class="pl-k">double</span>* a, <span class="pl-k">const</span> <span class="pl-k">double</span>* b, <span class="pl-k">double</span>* c);</pre></div>
 
 <p>With C++ and FORTRAN function overloading, the library allows to omit the 's' and 'd' prefixes denoting the numeric type in the above C interface. Further, in C++ a type 'libxsmm_mm_dispatch&lt;<em>type</em>&gt;' can be used to instantiate a functor rather than making a distinction for the numeric type in 'libxsmm_?mm_dispatch'.</p>
+
+<p>Note: Function overloading in FORTRAN is just recommended when using automatically dispatched calls. When querying function pointers, please use the type 
+specific versions as the poly-morph version relies on C_LOC on arrays which GNU Fortran (gfortran) refuses to digest (as it is not specified in the FORTRAN standard).</p>
 
 <h2>
 <a id="build-instructions" class="anchor" href="#build-instructions" aria-hidden="true"><span class="octicon octicon-link"></span></a>Build Instructions</h2>
@@ -78,9 +85,9 @@ make install
 make realclean
 </code></pre>
 
-<p>The library can be configured to accept row-major (default) or column-major order matrices. This is accomplished using the variable ROW_MAJOR (0 for column-major, and row-major order otherwise). The following configures the column-major format:</p>
+<p>The library can be configured to accept row-major or column-major (default) order matrices. The row-major storage scheme is accomplished by setting ROW_MAJOR=1 (0 for column-major, and row-major otherwise):</p>
 
-<pre><code>make ROW_MAJOR=0
+<pre><code>make ROW_MAJOR=1
 </code></pre>
 
 <p>By default, LIBXSMM is not optimized for particular matrix sizes (M, N, and K values). Specializing the library for certain matrix sizes (and therefore optimizing the performance) can be achieved in the following way:</p>
@@ -126,7 +133,7 @@ make realclean
 <h3>
 <a id="tuning" class="anchor" href="#tuning" aria-hidden="true"><span class="octicon octicon-link"></span></a>Tuning</h3>
 
-<p>The build system allows to conveniently select the target system using an AVX flag when invoking 'make'. The default is to generate code according to the feature bits of the host system running the compiler. The device-side defaults to "MIC" targeting the Intel Xeon Phi family of coprocessors ("KNC"). However beside of generating all supported host code paths (and letting the compiler pick the one representing the host), specifying a particular code path will not only save some time when generating the code ("printing"), but also enable cross-compilation for a target that is different from the compiler's host: SSE=3 (in fact SSE!=0), AVX=1, AVX=2 (with FMA), and AVX=3 are supported. The latter is targeting the Intel Knights Landing processor family ("KNL") and future Intel Xeon processors using Intel AVX-512 foundational instructions (AVX-512F):</p>
+<p>The build system allows to conveniently select the target system using an AVX flag when invoking 'make'. The default is to generate code according to the feature bits of the host system running the compiler. The device-side defaults to "MIC" targeting the Intel Xeon Phi family of coprocessors ("KNC"). However beside of generating all supported host code paths (and letting the compiler pick the one representing the host), specifying a particular code path will not only save some time when generating the code ("printing"), but also enable cross-compilation for a target that is different from the compiler's host: SSE=3 (in fact SSE!=0), AVX=1, AVX=2 (with FMA), and AVX=3 are supported. The latter is targeting the Intel Knights Landing processor family ("KNL") and future Intel Xeon processors using Intel AVX-512 foundation instructions (AVX-512F):</p>
 
 <pre><code>make AVX=3
 </code></pre>
@@ -158,12 +165,29 @@ make realclean
 <pre><code>make THRESHOLD=$((24 * 24 * 24))
 </code></pre>
 
-<p>The maximum of the given threshold and the largest requested specialization refines the value of the threshold. If a problem size falls below the threshold, dispatching the code requires to figure out whether a specialized routine exists or not. This can be implemented by bisecting a table of all specialized functions (binary search). At the expense of storing function pointers for the entire problem space below the threshold, a direct lookup can be used instead. The actual behavior can be configured using for example:</p>
+<p>The maximum of the given threshold and the largest requested specialization refines the value of the threshold. If a problem size falls below the threshold, dispatching the code requires to figure out whether a specialized routine exists or not.</p>
 
-<pre><code>make SPARSITY=2
+<h3>
+<a id="jit-backend" class="anchor" href="#jit-backend" aria-hidden="true"><span class="octicon octicon-link"></span></a>JIT Backend</h3>
+
+<p>There might be situations in which it is up-front not clear which problem sizes will be needed during an application run. In order to leverage LIBXSMM's
+high-performance kernels here, LIBXSMM offers an experimental JIT (just-in-time) backend which generates the requested kernels on the fly. This is done by emitting the
+corresponding byte-code directly into an executable buffer to ensure highest performance during the generation process. As the JIT backend is still experimental,
+some limitations are in place:</p>
+
+<ol>
+<li>there is no support for ALIGNED_STORE/ALIGNED_LOAD build options</li>
+<li>there is no support for SSE3 (Intel Xeon 5500/5600 series) and IMCI (Intel Xeon Phi coprocessor code-named Knights Corner) instruction set extensions</li>
+<li>LIBXSMM MUST NOT be called from several PTHREADS, but OpenMP is fine (we use an OpenMP critical section to proctect code buffers), therefore OpenMP is mandatory 
+when building the JIT backend</li>
+</ol>
+
+<p>The JIT backend version of the LIBXSMM can be built by:</p>
+
+<pre><code>make JIT=1
 </code></pre>
 
-<p>A binary search is implemented when a sparsity (calculated at construction time of the library) is above the given SPARSITY value. Raising the given value prevents generating a binary search (and generates a direct lookup) whereas a value below or equal one is generating the binary search. Furthermore, the size of the direct lookup table is limited to 512 KB (currently hardcoded). The overhead of auto-dispatched multiplications based on the binary search becomes negligible with reasonable problem sizes (above ~20x20 matrices), but may be significant for very small auto-dispatched matrix-matrix multiplication.</p>
+<p>You can use the aforementioned THRESHOLD parameter to control the matrix sizes for which the JIT compilation will be performed.</p>
 
 <h3>
 <a id="directly-invoking-the-generator-backend" class="anchor" href="#directly-invoking-the-generator-backend" aria-hidden="true"><span class="octicon octicon-link"></span></a>Directly invoking the generator backend</h3>
@@ -264,7 +288,6 @@ bin/generator sparse foo.c foo 16 16 16 32 0 32 1 1 1 1 hsw nopf DP bar.csc
 
 <ul>
 <li>Full xGEMM interface, and extended code dispatcher</li>
-<li>Just-in-Time (JIT) runtime dynamic code generation</li>
 <li>API supporting sparse matrices and other cases</li>
 </ul>
 
