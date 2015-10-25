@@ -33,9 +33,9 @@
         <h1>
 <a id="libxsmm" class="anchor" href="#libxsmm" aria-hidden="true"><span class="octicon octicon-link"></span></a>LIBXSMM</h1>
 
-<p>LIBXSMM is a library for small matrix-matrix multiplications targeting Intel Architecture (x86). The library generates code for the following instruction set extensions: Intel SSE3, Intel AVX, Intel AVX2, IMCI (KNCni) for Intel Xeon Phi coprocessors ("KNC"), and Intel AVX-512 as found in the Intel Xeon Phi processor family ("KNL") and future Intel Xeon processors. Historically the library was solely targeting the Intel Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all fore mentioned instruction set extensions. [<a href="https://github.com/hfp/libxsmm/raw/master/documentation/libxsmm.pdf">pdf</a>] [<a href="https://github.com/hfp/libxsmm/archive/1.0.zip">src</a>] <a href="https://github.com/hfp/libxsmm/archive/master.zip"><img src="https://travis-ci.org/hfp/libxsmm.svg?branch=master" alt="status" title="Master branch build status"></a></p>
+<p>LIBXSMM is a library for small matrix-matrix multiplications targeting Intel Architecture (x86). The library generates code for the following instruction set extensions: Intel SSE3, Intel AVX, Intel AVX2, IMCI (KNCni) for Intel Xeon Phi coprocessors ("KNC"), and Intel AVX-512 as found in the Intel Xeon Phi processor family ("KNL") and future Intel Xeon processors. Historically the library was solely targeting the Intel Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all fore mentioned instruction set extensions (static code generation), and Just-In-Time (JIT) code generation supported with Intel AVX and beyond. [<a href="https://github.com/hfp/libxsmm/raw/master/documentation/libxsmm.pdf">pdf</a>] [<a href="https://github.com/hfp/libxsmm/archive/1.0.1.zip">src</a>] <a href="https://github.com/hfp/libxsmm/archive/master.zip"><img src="https://travis-ci.org/hfp/libxsmm.svg?branch=master" alt="status" title="Master branch build status"></a></p>
 
-<p><strong>What is a small matrix-matrix multiplication?</strong> When characterizing the problem size using the M, N, and K parameters, a problem size suitable for LIBXSMM falls approximately within (M N K)^(1/3) &lt;= 80 (which illustrates that non-square matrices or even "tall and skinny" shapes are covered as well). However the code generator only generates code up to the specified <a href="#auto-dispatch">threshold</a>. Raising the threshold may not only generate excessive amounts of code (due to unrolling), but also miss to implement a tiling scheme to effectively utilize the L2 cache. For problem sizes above the configurable threshold, LIBXSMM is falling back to BLAS.</p>
+<p><strong>What is a small matrix-matrix multiplication?</strong> When characterizing the problem size using the M, N, and K parameters, a problem size suitable for LIBXSMM falls approximately within (M N K)^(1/3) &lt;= 80 (which illustrates that non-square matrices or even "tall and skinny" shapes are covered as well). However the code generator only generates code up to the specified <a href="#auto-dispatch">threshold</a>. Raising the threshold may not only generate excessive amounts of code (due to unrolling in M and K dimension), but also miss to implement a tiling scheme to effectively utilize the L2 cache. For problem sizes above the configurable threshold, LIBXSMM is falling back to BLAS.</p>
 
 <p><strong>How to determine whether an application can benefit from using LIBXSMM or not?</strong> Given the application uses BLAS to carry out matrix multiplications, one may link against Intel MKL 11.2 (or higher), set the environment variable MKL_VERBOSE=1, and run the application using a representative workload (env MKL_VERBOSE=1 ./workload &gt; verbose.txt). The collected output is the starting point for evaluating the problem sizes as imposed by the workload (grep -a "MKL_VERBOSE DGEMM" verbose.txt | cut -d, -f3-5).</p>
 
@@ -44,10 +44,10 @@
 
 <p>The interface of the library is <em>generated</em> according to the <a href="#build-instructions">Build Instructions</a>, and is therefore <strong>not</strong> stored in the code repository. Instead, one may have a look at the code generation template files for <a href="https://github.com/hfp/libxsmm/blob/master/src/libxsmm.template.h">C/C++</a> and <a href="https://github.com/hfp/libxsmm/blob/master/src/libxsmm.template.f90">FORTRAN</a>. To perform the matrix-matrix multiplication <em>c</em><sub><em>m</em> x <em>n</em></sub> = <em>c</em><sub><em>m</em> x <em>n</em></sub> + <em>a</em><sub><em>m</em> x <em>k</em></sub> * <em>b</em><sub><em>k</em> x <em>n</em></sub>, the following interfaces can be used:</p>
 
-<div class="highlight highlight-source-c"><pre><span class="pl-c">/** Initialization function to set up LIBXSMM's dispatching table. On may </span>
-<span class="pl-c">    call this routine to avoid lazy initialization overhead in the first </span>
+<div class="highlight highlight-source-c"><pre><span class="pl-c">/** Initialization function to set up LIBXSMM's dispatching table. One may</span>
+<span class="pl-c">    call this routine to avoid lazy initialization overhead in the first</span>
 <span class="pl-c">    call to a LIBXSMM kernel routine */</span>
-<span class="pl-k">void</span> <span class="pl-en">libxsmm_build_static</span>(); 
+<span class="pl-k">void</span> <span class="pl-en">libxsmm_build_static</span>();
 <span class="pl-c">/** If non-zero function pointer is returned, call (*function)(M, N, K). */</span>
 libxsmm_smm_function <span class="pl-en">libxsmm_smm_dispatch</span>(<span class="pl-k">int</span> m, <span class="pl-k">int</span> n, <span class="pl-k">int</span> k);
 libxsmm_dmm_function <span class="pl-en">libxsmm_dmm_dispatch</span>(<span class="pl-k">int</span> m, <span class="pl-k">int</span> n, <span class="pl-k">int</span> k);
@@ -63,8 +63,7 @@ libxsmm_dmm_function <span class="pl-en">libxsmm_dmm_dispatch</span>(<span class
 
 <p>With C++ and FORTRAN function overloading, the library allows to omit the 's' and 'd' prefixes denoting the numeric type in the above C interface. Further, in C++ a type 'libxsmm_mm_dispatch&lt;<em>type</em>&gt;' can be used to instantiate a functor rather than making a distinction for the numeric type in 'libxsmm_?mm_dispatch'.</p>
 
-<p>Note: Function overloading in FORTRAN is just recommended when using automatically dispatched calls. When querying function pointers, please use the type 
-specific versions as the poly-morph version relies on C_LOC on arrays which GNU Fortran (gfortran) refuses to digest (as it is not specified in the FORTRAN standard).</p>
+<p>Note: Function overloading in FORTRAN is only recommended when using automatically dispatched calls. When querying function pointers, using a type-specific query function avoids to rely on using C_LOC for arrays (needed by the polymorphic version) which GNU Fortran (gfortran) refuses to digest (as it is not specified in the FORTRAN standard).</p>
 
 <h2>
 <a id="build-instructions" class="anchor" href="#build-instructions" aria-hidden="true"><span class="octicon octicon-link"></span></a>Build Instructions</h2>
@@ -106,23 +105,23 @@ make realclean
 <pre><code>make M="$(echo $(seq 2 5))" K="$(echo $(seq 2 5))"
 </code></pre>
 
-<p>An even more flexible specialization is possible by using the MNK variable when building the library. It takes a list of indices which are eventually grouped (using commas):</p>
+<p>An even more flexible specialization is possible by using the MNK variable when building the library. It takes a list of indexes which are eventually grouped (using commas):</p>
 
 <pre><code>make MNK="2 3, 23"
 </code></pre>
 
-<p>Each group of indexes is combined into all possible triplets generating the following set of (M,N,K) values:</p>
+<p>Each group of the above indexes is combined into all possible triplets generating the following set of (M,N,K) values:</p>
 
 <pre><code>(2,2,2), (2,2,3), (2,3,2), (2,3,3),
 (3,2,2), (3,2,3), (3,3,2), (3,3,3), (23,23,23)
 </code></pre>
 
-<p>Testing the generated cases means capturing the console output of the <a href="https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k.cpp">cp2k</a> code sample:</p>
+<p>Testing the generated cases can be accomplished by capturing the console output of the <a href="https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k.cpp">cp2k</a> code sample:</p>
 
 <pre><code>make MNK="2 3, 23" test
 </code></pre>
 
-<p>The recorded output file can be further evaluated. For example:</p>
+<p>The recorded output file can be further evaluated (see also <a href="https://github.com/hfp/libxsmm/blob/master/samples/cp2k/test.sh">test.sh</a>). For example:</p>
 
 <pre><code>grep "diff" samples/cp2k/cp2k-perf.txt | grep -v "diff=0.000"
 </code></pre>
@@ -133,7 +132,7 @@ make realclean
 <h3>
 <a id="tuning" class="anchor" href="#tuning" aria-hidden="true"><span class="octicon octicon-link"></span></a>Tuning</h3>
 
-<p>The build system allows to conveniently select the target system using an AVX flag when invoking 'make'. The default is to generate code according to the feature bits of the host system running the compiler. The device-side defaults to "MIC" targeting the Intel Xeon Phi family of coprocessors ("KNC"). However beside of generating all supported host code paths (and letting the compiler pick the one representing the host), specifying a particular code path will not only save some time when generating the code ("printing"), but also enable cross-compilation for a target that is different from the compiler's host: SSE=3 (in fact SSE!=0), AVX=1, AVX=2 (with FMA), and AVX=3 are supported. The latter is targeting the Intel Knights Landing processor family ("KNL") and future Intel Xeon processors using Intel AVX-512 foundation instructions (AVX-512F):</p>
+<p>By default all supported host code paths are generated (with the compiler picking the one according to the feature bits of the host). Specifying a particular code path will not only save some time when generating the static code ("printing"), but also enable cross-compilation for a target that is different from the compiler's host. The build system allows to conveniently select the target system when invoking 'make': SSE=3 (in fact SSE!=0), AVX=1, AVX=2 (with FMA), and AVX=3 are supported. The latter is targeting the Intel Knights Landing processor family ("KNL") and future Intel Xeon processors using foundational Intel AVX-512 instructions (AVX-512F):</p>
 
 <pre><code>make AVX=3
 </code></pre>
@@ -143,9 +142,16 @@ make realclean
 <pre><code>make ALIGNED_STORES=1
 </code></pre>
 
-<p>The default alignment (ALIGNMENT=64) as well as a non-default alignment for the store instructions (ALIGNED_STORES=n) can be specified when invoking 'make'. The "implicitly aligned leading dimension" optimization is not expected to have a big impact due to the relatively low amount of store instructions in the instruction mix. In contrast, supporting an "implicitly aligned leading dimension" for loading the input matrices is supposed to make a bigger impact, however this is not yet exposed by the build system because: (1) aligning a batch of input matrices implies usually larger code changes for the client code whereas accumulating into a local temporary destination matrix is a relatively minor change, and (2) today's Advanced Vector Extensions including the AVX-512 capable hardware supports unaligned load/store instructions.</p>
+<p>The general alignment (ALIGNMENT=64) as well as an alignment specific for the store instructions (ALIGNED_STORES=n) can be specified when invoking 'make' (by default ALIGNED_STORES inherits ALIGNMENT when "enabled" using ALIGNED_STORES=1). The "implicitly aligned leading dimension" optimization is not expected to have a big impact due to the relatively low amount of store instructions in the mix. In contrast, supporting an "implicitly aligned leading dimension" for loading the input matrices is supposed to make a bigger impact, however this is not exposed by the build system because: (1) aligning a batch of input matrices implies usually larger code changes for the client code whereas accumulating into a local temporary destination matrix is a relatively minor change, and (2) today's Advanced Vector Extensions including the AVX-512 capable hardware supports unaligned load/store instructions.</p>
 
-<p>The generated interface of the library also encodes the parameters the library was built for (static information). This helps optimizing client code related to the library's functionality. For example, the LIBXSMM_MAX_* and LIBXSMM_AVG_* information can be used with the LIBXSMM_PRAGMA_LOOP_COUNT macro in order to hint loop trip counts when handling matrices related to LIBXSMM's problem domain.</p>
+<p>An extended interface can generated which allows to perform software prefetches. Prefetching data might be helpful when processing batches of matrix multiplications where the next operands are farther away or otherwise unpredictable in their memory location. The prefetch strategy can be specified similar as shown in the section <a href="#directly-invoking-the-generator-backend">Directly invoking the generator backend</a> i.e., by either using the number of the shown enumeration, or by exactly using the name of the prefetch strategy. The only exception is PREFETCH=1 which is enabling a default strategy ("AL2_BL2viaC" rather than "nopf"). The following example is requesting the "AL2jpst" strategy:</p>
+
+<pre><code>make PREFETCH=8
+</code></pre>
+
+<p>The interface which is supporting software prefetches extends the signature of all kernels by three arguments (pa, pb, and pc) allowing the call-side to specify where to prefetch the operands of the "next" multiplication from (a, b, and c). There are <a href="https://github.com/hfp/libxsmm/blob/master/src/libxsmm_prefetch.h">macros</a> available (C/C++ only) allowing to call the matrix multiplication functions in a prefetch-agnostic fashion (see <a href="https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k.cpp">cp2k</a> or <a href="https://github.com/hfp/libxsmm/tree/master/samples/smm%20samples">smm</a> code samples).</p>
+
+<p>Further, the generated interface of the library also encodes the parameters the library was built for (static information). This helps optimizing client code related to the library's functionality. For example, the LIBXSMM_MAX_* and LIBXSMM_AVG_* information can be used with the LIBXSMM_PRAGMA_LOOP_COUNT macro in order to hint loop trip counts when handling matrices related to the problem domain of LIBXSMM.</p>
 
 <h3>
 <a id="auto-dispatch" class="anchor" href="#auto-dispatch" aria-hidden="true"><span class="octicon octicon-link"></span></a>Auto-dispatch</h3>
@@ -158,55 +164,45 @@ make realclean
 <li>BLAS library call.</li>
 </ol>
 
-<p>All three levels are accessible directly (see <a href="#interface">Interface</a>) allowing to customize the code dispatch. The level 2 and 3 may be supplied by the Intel Math Kernel Library (Intel MKL) 11.2 DIRECT CALL feature. Beside of the generic interface, one can also call a specific kernel e.g., 'libxsmm_dmm_4_4_4' multiplying 4x4 matrices. For the latter, the code generator generates prototypes for all specialized functions (interface).</p>
+<p>All three levels are accessible directly (see <a href="#interface">Interface</a>) allowing to customize the code dispatch. The level 2 and 3 may be supplied by the Intel Math Kernel Library (Intel MKL) 11.2 DIRECT CALL feature. Beside of the generic interface, one can also call a specific kernel e.g., 'libxsmm_dmm_4_4_4'. For statically generated kernels, the interface includes prototypes of the specialized functions.</p>
 
-<p>Further, a preprocessor symbol denotes the largest problem size (<em>M</em> x <em>N</em> x <em>K</em>) that belongs to level (1) and (2), and therefore determines if a matrix multiplication falls back to level (3) of calling the LAPACK/BLAS library alongside of LIBXSMM. This threshold can be configured using for example:</p>
+<p>Further, a preprocessor symbol denotes the largest problem size (<em>M</em> x <em>N</em> x <em>K</em>) that belongs to level (1) and (2), and therefore determines if a matrix multiplication falls back to level (3) calling into the LAPACK/BLAS library alongside of LIBXSMM. The problem size threshold can be configured by using for example:</p>
 
 <pre><code>make THRESHOLD=$((60 * 60 * 60))
 </code></pre>
 
-<p>The maximum of the given threshold and the largest requested specialization refines the value of the threshold. If a problem size falls below the threshold, dispatching the code requires to figure out whether a specialized routine exists or not.</p>
+<p>The maximum of the given threshold and the largest requested specialization refines the value of the threshold. If a problem size is below the threshold, dispatching the code requires to figure out whether a specialized routine exists or not.</p>
 
 <h3>
 <a id="jit-backend" class="anchor" href="#jit-backend" aria-hidden="true"><span class="octicon octicon-link"></span></a>JIT Backend</h3>
 
-<p>There might be situations in which it is up-front not clear which problem sizes will be needed during an application run. In order to leverage LIBXSMM's
-high-performance kernels here, LIBXSMM offers an experimental JIT (just-in-time) backend which generates the requested kernels on the fly. This is done by emitting the
-corresponding byte-code directly into an executable buffer to ensure highest performance during the generation process. As the JIT backend is still experimental,
-some limitations are in place:</p>
+<p>There might be situations in which it is up-front not clear which problem sizes will be needed when running an application. In order to leverage LIBXSMM's high-performance kernels, the library offers an experimental JIT (just-in-time) backend which generates the requested kernels on the fly. This is accomplished by emitting the corresponding byte-code directly into an executable buffer. As the JIT backend is still experimental, some limitations are in place:</p>
 
 <ol>
 <li>There is no support for SSE3 (Intel Xeon 5500/5600 series) and IMCI (Intel Xeon Phi coprocessor code-named Knights Corner) instruction set extensions</li>
-<li>LIBXSMM uses Pthread mutexes to guard updates of the JITted code cache, make sure to link with -lpthread; building with OMP=1 employs an OpenMP critical section as an alternative locking mechanism.</li>
+<li>LIBXSMM uses Pthread mutexes to guard updates of the JITted code cache (link line with -lpthread is required); building with OMP=1 employs an OpenMP critical section as an alternative locking mechanism.</li>
+<li>There is no support for the Windows calling convention.</li>
 </ol>
 
-<p>The JIT backend version of the LIBXSMM can be built by:</p>
+<p>The JIT backend support in LIBXSMM can be enabled using:</p>
 
 <pre><code>make JIT=1
 </code></pre>
 
-<p>You can use the aforementioned THRESHOLD parameter to control the matrix sizes for which the JIT compilation will be performed. However, explicitly requested kernels (by calling libxsmm_build_jit) are not subject to a problem size threshold. Moreover, building with JIT=2 (in fact, 1&lt;JIT and JIT!=0) allows to solely rely on explicitly generating kernels at runtime.</p>
+<p>One can use the aforementioned THRESHOLD parameter to control the matrix sizes for which the JIT compilation will be automatically performed. However, explicitly requested kernels (by calling libxsmm_build_jit) are not subject to a problem size threshold. Moreover, building with JIT=2 (in fact, 1&lt;JIT and JIT!=0) allows to solely rely on explicitly generating kernels at runtime. Of course, JIT code generation can be used to accompanying statically generated code.</p>
 
-<p>Notes: Modern Linux distributions have support for transparent huge pages (THP). LIBXSMM takes care of this feature when setting execute permissions of the code
-cache's pages. However, we measured up to 30 percent slowdown when running JITted code which was stored on THP. For systems with kernel 2.6.38 or later it is possible
-to disabled the usage of THP of mmap regions. Please modify <a href="https://github.com/hfp/libxsmm/blob/master/src/libxsmm_build.c#L158">src/libxsmm_build.c</a>, if you think you got hit by this problem (you need to remove the "-c89" flag when building LIBXSMM):</p>
-
-<div class="highlight highlight-source-c"><pre><span class="pl-k">int</span> l_fd = open(<span class="pl-s"><span class="pl-pds">"</span>/dev/zero<span class="pl-pds">"</span></span>, O_RDWR);
-<span class="pl-k">void</span>* p = mmap(<span class="pl-c1">0</span>, l_code_page_size, PROT_READ|PROT_WRITE, MAP_PRIVATE, l_fd, <span class="pl-c1">0</span>);
-<span class="pl-en">close</span>(l_fd);
-<span class="pl-c">/* explicitly disable THP for this memory region */</span> 
-<span class="pl-en">madvise</span>(p, l_code_page_size, MADV_NOHUGEPAGE);</pre></div>
+<p>Note: Modern Linux kernels are supporting transparent huge pages (THP). LIBXSMM is sanitizing this feature when setting the permissions for pages holding the executable code. However, we measured up to 30% slowdown when running JITted code in cases where THP decided to deliver a huge page. For systems with Linux kernel 2.6.38 (or later) THP will be automatically disabled for the mmap'ed regions (using madvise).</p>
 
 <h3>
 <a id="directly-invoking-the-generator-backend" class="anchor" href="#directly-invoking-the-generator-backend" aria-hidden="true"><span class="octicon octicon-link"></span></a>Directly invoking the generator backend</h3>
 
-<p>In some special, extremely performance-critical situations it might be useful to bypass LIBXSMM's frontend entirely and to directly call into the generated code. This is possible by either invoking the code generator after a regular build process (as described above) or by just building the backend and invoking the generator:</p>
+<p>In rare situations it might be useful to directly incorporate generated C code (with inline assembly regions). This is accomplished by invoking a driver program (with certain command line arguments). The driver program is built as part of LIBXSMM's build process (when requesting static code generation), but also available via a separate build target:</p>
 
 <pre><code>make generator
 bin/generator
 </code></pre>
 
-<p>The generator application requires following inputs:</p>
+<p>The code generator driver program accepts the following arguments:</p>
 
 <ol>
 <li>dense/dense_asm/sparse (dense create C file, dense_asm creates ASM)</li>
@@ -227,7 +223,7 @@ bin/generator
 <li>CSC file (just required when 1. is "sparse"). Matrix market format.</li>
 </ol>
 
-<p>The prefetch specifier can be:</p>
+<p>The prefetch strategy can be:</p>
 
 <ol>
 <li>"nopf": no prefetching at all, just 3 inputs (*A, *B, *C)</li>
@@ -241,42 +237,42 @@ bin/generator
 <li>"AL2jpst_BL2viaC": combines AL2jpst and BL2viaC</li>
 </ol>
 
-<p>Since this is a complicated, here come some examples:</p>
+<p>Here are some examples of invoking the driver program:</p>
 
 <pre><code>bin/generator dense foo.c foo 16 16 16 32 32 32 1 1 1 1 hsw nopf DP
 bin/generator dense_asm foo.c foo 16 16 16 32 32 32 1 1 1 1 knl AL2_BL2viaC DP
 bin/generator sparse foo.c foo 16 16 16 32 0 32 1 1 1 1 hsw nopf DP bar.csc
 </code></pre>
 
-<p>Please note, in samples/generator and samples/seissol examples are shown that directly use LIBXSMM's generator backend.</p>
+<p>Please note, there are additional examples given in samples/generator and samples/seissol.</p>
 
 <h3>
 <a id="results" class="anchor" href="#results" aria-hidden="true"><span class="octicon octicon-link"></span></a>Results</h3>
 
-<p>The library does not claim to be "optimal" or "best-performing", and the presented results are modeling certain applications which are not representative "in general". Instead, information on how to reproduce the results are given for each of the reported cases.</p>
+<p>The library does not claim to be "optimal" or "best-performing", and the presented results (figure 1-3) are modeling a certain application which might be not representative in general. Instead, information about how to reproduce the results is given.</p>
 
-<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/1-cp2k-specialized.png" alt='This performance plot for a dual-socket Intel Xeon E5-2699v3 ("Haswell") shows a "compact selection" (to make the plot visually more appealing) out of 386 specializations as useful for CP2K Open Source Molecular Dynamics [1]. The code has been generated and built by running "./[make.sh](https://github.com/hfp/libxsmm/blob/master/make.sh) -cp2k AVX=2 -j" (for Version 1.0). This and below plots were generated by running "cd samples/cp2k ; ./[cp2k-plot.sh](https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-plot.sh) specialized cp2k-specialized.png -1". Please note that larger problem sizes (MNK) carry a higher arithmetic intensity which usually leads to higher performance (less bottlenecked by memory bandwidth).'></p>
+<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/1-cp2k-specialized.png" alt='This plot shows the performance (based on LIBXSMM 1.0) for a dual-socket Intel Xeon E5-2699v3 ("Haswell") shows a "compact selection" (to make the plot visually more appealing) out of 386 specializations as useful for CP2K Open Source Molecular Dynamics [1]. The code has been generated and built by running "./[make.sh](https://github.com/hfp/libxsmm/blob/master/make.sh) -cp2k AVX=2 test -j". This and below plots were generated by running "cd samples/cp2k ; ./[cp2k-plot.sh](https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-plot.sh) specialized cp2k-specialized.png -1". Please note, that larger problem sizes (MNK) carry a higher arithmetic intensity which usually leads to higher performance (less bottlenecked by memory bandwidth).'></p>
 
 <blockquote>
-<p>This performance plot for a dual-socket Intel Xeon E5-2699v3 ("Haswell") shows a "compact selection" (to make the plot visually more appealing) out of 386 specializations as useful for CP2K Open Source Molecular Dynamics [1]. The code has been generated and built by running "./<a href="https://github.com/hfp/libxsmm/blob/master/make.sh">make.sh</a> -cp2k AVX=2 -j" (with release 1.0). This and below plots were generated by running "cd samples/cp2k ; ./<a href="https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-plot.sh">cp2k-plot.sh</a> specialized cp2k-specialized.png -1". Please note that larger problem sizes (MNK) carry a higher arithmetic intensity which usually leads to higher performance (less bottlenecked by memory bandwidth).</p>
+<p>This plot shows the performance (based on LIBXSMM 1.0) for a dual-socket Intel Xeon E5-2699v3 ("Haswell") shows a "compact selection" (to make the plot visually more appealing) out of 386 specializations as useful for CP2K Open Source Molecular Dynamics [1]. The code has been generated and built by running "./<a href="https://github.com/hfp/libxsmm/blob/master/make.sh">make.sh</a> -cp2k AVX=2 test -j". This and below plots were generated by running "cd samples/cp2k ; ./<a href="https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-plot.sh">cp2k-plot.sh</a> specialized cp2k-specialized.png -1". Please note, that larger problem sizes (MNK) carry a higher arithmetic intensity which usually leads to higher performance (less bottlenecked by memory bandwidth).</p>
 </blockquote>
 
-<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/2-cp2k-specialized.png" alt='This plot summarizes the performance of the generated kernels by averaging the results over K (and therefore the bar on the right hand side may not show the same maximum when compared to other plots). The performance is well-tuned across the parameter space with no "cold islands", and the lower left "cold" corner is fairly limited. Please refer to the first figure on how to reproduce the results.'></p>
+<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/2-cp2k-specialized.png" alt='This plot summarizes the performance (based on LIBXSMM 1.0) of the generated kernels by averaging the results over K (and therefore the bar on the right hand side may not show the same maximum when compared to other plots). The performance is well-tuned across the parameter space with no "cold islands", and the lower left "cold" corner is fairly limited. Please refer to the first figure on how to reproduce the results.'></p>
 
 <blockquote>
-<p>This plot summarizes the performance of the generated kernels by averaging the results over K (and therefore the bar on the right hand side may not show the same maximum when compared to other plots). The performance is well-tuned across the parameter space with no "cold islands", and the lower left "cold" corner is fairly limited. Please refer to the first figure on how to reproduce the results.</p>
+<p>This plot summarizes the performance (based on LIBXSMM 1.0) of the generated kernels by averaging the results over K (and therefore the bar on the right hand side may not show the same maximum when compared to other plots). The performance is well-tuned across the parameter space with no "cold islands", and the lower left "cold" corner is fairly limited. Please refer to the first figure on how to reproduce the results.</p>
 </blockquote>
 
-<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/3-cp2k-specialized.png" alt='This plot shows the arithmetic average (non-sliding) of the performance with respect to groups of problem sizes (MNK). The problem sizes are binned into three groups according to the shown intervals: "Small", "Medium", and "Larger" (notice that "larger" may still not be a large problem size). Please refer to the first figure on how to reproduce the results.'></p>
+<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/3-cp2k-specialized.png" alt='This plot shows the arithmetic average (non-sliding) of the performance (based on LIBXSMM 1.0) with respect to groups of problem sizes (MNK). The problem sizes are binned into three groups according to the shown intervals: "Small", "Medium", and "Larger" (notice that "larger" may still not be a large problem size). Please refer to the first figure on how to reproduce the results.'></p>
 
 <blockquote>
-<p>This plot shows the arithmetic average (non-sliding) of the performance with respect to groups of problem sizes (MNK). The problem sizes are binned into three groups according to the shown intervals: "Small", "Medium", and "Larger" (notice that "larger" may still not be a large problem size). Please refer to the first figure on how to reproduce the results.</p>
+<p>This plot shows the arithmetic average (non-sliding) of the performance (based on LIBXSMM 1.0) with respect to groups of problem sizes (MNK). The problem sizes are binned into three groups according to the shown intervals: "Small", "Medium", and "Larger" (notice that "larger" may still not be a large problem size). Please refer to the first figure on how to reproduce the results.</p>
 </blockquote>
 
-<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/4-cp2k-specialized.png" alt='In order to further summarize the previous plots, this graph shows the cumulative distribution function (CDF) of the performance across all cases. Similar to the median value at 50%, one can read for example that 100% of the cases are yielding less or equal the largest discovered value. The value highlighted by the arrows is usually the median value, the [plot script](https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-perf.plt) however attempts to highlight a single "fair performance value" representing all cases by linearly fitting the CDF, projecting onto the x-axis, and taking the midpoint of the projection (usually at 50%). Please note, that this diagram shows a statistical distribution and does not allow to identify any particular kernel. Moreover at any point of the x-axis ("Probability"), the "Compute Performance" and the "Memory Bandwidth" graph do not necessarily belong to the same kernel! Please refer to the first figure on how to reproduce the results.'></p>
+<p><img src="https://raw.githubusercontent.com/hfp/libxsmm/master/samples/cp2k/results/Xeon_E5-2699v3/4-cp2k-specialized.png" alt='In order to further summarize the previous plots, this graph shows the cumulative distribution function (CDF) of the performance (based on LIBXSMM 1.0) across all cases. Similar to the median value at 50%, one can read for example that 100% of the cases are yielding less or equal the largest discovered value. The value highlighted by the arrows is usually the median value, the [plot script](https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-perf.plt) however attempts to highlight a single "fair performance value" representing all cases by linearly fitting the CDF, projecting onto the x-axis, and taking the midpoint of the projection (usually at 50%). Please note, that this diagram shows a statistical distribution and does not allow to identify any particular kernel. Moreover at any point of the x-axis ("Probability"), the "Compute Performance" and the "Memory Bandwidth" graph do not necessarily belong to the same kernel! Please refer to the first figure on how to reproduce the results.'></p>
 
 <blockquote>
-<p>In order to further summarize the previous plots, this graph shows the cumulative distribution function (CDF) of the performance across all cases. Similar to the median value at 50%, one can read for example that 100% of the cases are yielding less or equal the largest discovered value. The value highlighted by the arrows is usually the median value, the <a href="https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-perf.plt">plot script</a> however attempts to highlight a single "fair performance value" representing all cases by linearly fitting the CDF, projecting onto the x-axis, and taking the midpoint of the projection (usually at 50%). Please note, that this diagram shows a statistical distribution and does not allow to identify any particular kernel. Moreover at any point of the x-axis ("Probability"), the "Compute Performance" and the "Memory Bandwidth" graph do not necessarily belong to the same kernel! Please refer to the first figure on how to reproduce the results.</p>
+<p>In order to further summarize the previous plots, this graph shows the cumulative distribution function (CDF) of the performance (based on LIBXSMM 1.0) across all cases. Similar to the median value at 50%, one can read for example that 100% of the cases are yielding less or equal the largest discovered value. The value highlighted by the arrows is usually the median value, the <a href="https://github.com/hfp/libxsmm/blob/master/samples/cp2k/cp2k-perf.plt">plot script</a> however attempts to highlight a single "fair performance value" representing all cases by linearly fitting the CDF, projecting onto the x-axis, and taking the midpoint of the projection (usually at 50%). Please note, that this diagram shows a statistical distribution and does not allow to identify any particular kernel. Moreover at any point of the x-axis ("Probability"), the "Compute Performance" and the "Memory Bandwidth" graph do not necessarily belong to the same kernel! Please refer to the first figure on how to reproduce the results.</p>
 </blockquote>
 
 <h2>
@@ -285,9 +281,7 @@ bin/generator sparse foo.c foo 16 16 16 32 0 32 1 1 1 1 hsw nopf DP bar.csc
 <h3>
 <a id="limitations" class="anchor" href="#limitations" aria-hidden="true"><span class="octicon octicon-link"></span></a>Limitations</h3>
 
-<p>Beside of the inlinable C or optimized FORTRAN code path, the library is currently limited to a single code path which is selected at build time of the library. Without a specific flag (SSE=1, AVX=1|2|3), the assembly code generator emits code for all supported instruction set extensions. However, the compiler is picking only one of the generated code paths according to its code generation flags (or according to what is native with respect to the compiler-host). A future version of the library may be including all code paths at build time and allow for runtime-dynamic dispatch of the most suitable code path.</p>
-
-<p>A future version of the library may support an auto-tuning stage when generating the code (to find M,N,K-combinations for specialized routines which are beneficial compared to the code generated from the inlinable C or optimized FORTRAN code path). Auto-tuning the compiler code generation using a profile-guided optimization may be another option to be incorporated into the build system (Makefile). However, auto-tuning also imposes a reasonable burden (similar to profile guided optimization) and the current library is supposed to generate extremely efficient code for everything that does not rely on L2 cache blocking (below THRESHOLD), and except for very small problem sizes where a dedicated kernel may beat our implementation (e.g., MNK=4x4x4).</p>
+<p>Beside of the inlinable C code or the optimized FORTRAN code path, the library is currently limited to a single code path which is selected at build time of the library (also true for JITted code). Without a specific flag (SSE=1, AVX=1|2|3), the static code generation emits code for all supported instruction set extensions. However, the compiler is picking only one of the generated code paths according to its code generation flags (or according to what is native with respect to the compiler-host). A future version of the library may be including all code paths at build time and allow for runtime-dynamic dispatch of the most suitable code path.</p>
 
 <h3>
 <a id="roadmap" class="anchor" href="#roadmap" aria-hidden="true"><span class="octicon octicon-link"></span></a>Roadmap</h3>
