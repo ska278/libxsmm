@@ -17,7 +17,7 @@
     <div class="wrapper">
       <header>
         <h1 class="header">LIBXSMM</h1>
-        <p class="header">Library for small matrix-matrix multiplications targeting Intel Architecture (x86).</p>
+        <p class="header">Library targeting Intel Architecture (x86) for small, dense or sparse matrix multiplications, and small convolutions.</p>
 
         <ul>
           <li class="download"><a class="buttons" href="https://github.com/hfp/libxsmm/zipball/master">Download ZIP</a></li>
@@ -31,22 +31,27 @@
       </header>
       <section>
         <h1>
-<a id="libxsmm" class="anchor" href="#libxsmm" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>LIBXSMM</h1>
+<a id="libxsmm" class="anchor" href="#libxsmm" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a><a href="https://github.com/hfp/libxsmm/raw/master/documentation/libxsmm.pdf">LIBXSMM</a>
+</h1>
 
-<p>LIBXSMM is a library for small dense and small sparse matrix-matrix multiplications targeting Intel Architecture (x86). The library is generating code for the following instruction set extensions: Intel SSE, Intel AVX, Intel AVX2, IMCI (KNCni) for Intel Xeon Phi coprocessors ("KNC"), and Intel AVX‑512 as found in the <a href="https://software.intel.com/en-us/articles/what-disclosures-has-intel-made-about-knights-landing">Intel Xeon Phi processor family ("KNL")</a> and future Intel Xeon processors. Historically the library was solely targeting the Intel Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all aforementioned instruction set extensions (static code generation), and Just‑In‑Time (JIT) code generation is targeting Intel AVX and beyond. [<a href="https://github.com/hfp/libxsmm/raw/master/documentation/libxsmm.pdf">pdf</a>] [<a href="https://github.com/hfp/libxsmm/archive/1.4.4.zip">src</a>] <a href="https://github.com/hfp/libxsmm/archive/master.zip"><img src="https://travis-ci.org/hfp/libxsmm.svg?branch=master" alt="cistatus" title="Master branch build status"></a></p>
+<p><a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD-blue.svg" alt="License"></a> <a href="https://github.com/hfp/libxsmm/archive/master.zip"><img src="https://travis-ci.org/hfp/libxsmm.svg?branch=master" alt="cistatus" title="Master branch build status"></a></p>
+
+<p>LIBXSMM is a library for small dense and small sparse matrix-matrix multiplications as well as for deep learning primitives such as small convolutions targeting Intel Architecture (x86). The library is generating code for the following instruction set extensions: Intel SSE, Intel AVX, Intel AVX2, IMCI (KNCni) for Intel Xeon Phi coprocessors ("KNC"), and Intel AVX‑512 as found in the <a href="https://software.intel.com/en-us/articles/what-disclosures-has-intel-made-about-knights-landing">Intel Xeon Phi processor family ("KNL")</a> and future Intel Xeon processors. Small convolutions are currently only optimized for Intel AVX‑512. Historically the library was solely targeting the Intel Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all aforementioned instruction set extensions (static code generation), and Just‑In‑Time (JIT) code generation is targeting Intel AVX and beyond.</p>
 
 <p><strong>What is the background of the name "LIBXSMM"?</strong> The "MM" stands for Matrix Multiplication, and the "S" clarifies the working domain i.e., Small Matrix Multiplication. The latter also means the name is neither a variation of "MXM" nor an eXtreme Small Matrix Multiplication but rather about Intel Architecture (x86) - and no, the library is 64‑bit (only). The spelling of the name might follow the syllables of libx\/smm, libx'smm, or libx‑smm.</p>
 
-<p><strong>What is a small matrix multiplication?</strong> When characterizing the problem size using the M, N, and K parameters, a problem size suitable for LIBXSMM falls approximately within (M N K)<sup>1/3</sup> &lt;= 80 (which illustrates that non-square matrices or even "tall and skinny" shapes are covered as well). However the code generator only generates code up to the specified <a href="#auto-dispatch">threshold</a>. Raising the threshold may not only generate excessive amounts of code (due to unrolling in M and K dimension), but also miss to implement a tiling scheme to effectively utilize the cache hierarchy. For problem sizes above the configurable threshold, LIBXSMM is falling back to BLAS.</p>
+<p><strong>What is a small matrix multiplication?</strong> When characterizing the problem size using the M, N, and K parameters, a problem size suitable for LIBXSMM falls approximately within (M N K)<sup>1/3</sup> &lt;= 80 (which illustrates that non-square matrices or even "tall and skinny" shapes are covered as well). However, the code generator only generates code up to the specified <a href="#auto-dispatch">threshold</a>. Raising the threshold may not only generate excessive amounts of code (due to unrolling in M and K dimension), but also miss to implement a tiling scheme to effectively utilize the cache hierarchy. For problem sizes above the configurable threshold, LIBXSMM is falling back to BLAS.</p>
 
-<p><strong>What about "medium-sized" matrix multiplication?</strong> A more recent addition are GEMM routines which are parallelized using OpenMP (<code>libxsmm_omp_?gemm</code>). These routines are leveraging the same specialized kernel routines as the small matrix multiplications, in-memory code generation (JIT), and automatic code/parameter dispatch but implementing a tile-based multiplication scheme i.e., a scheme suitable for larger problem sizes.</p>
+<p><strong>What about "medium-sized" matrix multiplication?</strong> A more recent addition are GEMM routines which are parallelized using OpenMP (<code>libxsmm_?gemm_omp</code>). These routines are leveraging the same specialized kernel routines as the small matrix multiplications, in-memory code generation (JIT), and automatic code/parameter dispatch but implementing a tile-based multiplication scheme i.e., a scheme suitable for larger problem sizes.</p>
 
 <p><strong>How to determine whether an application can benefit from using LIBXSMM or not?</strong> Given the application uses BLAS to carry out matrix multiplications, one may link against <a href="https://registrationcenter.intel.com/en/forms/?productid=2558">Intel MKL 11.2</a> (or higher), set the environment variable MKL_VERBOSE=1, and run the application using a representative workload (<code>env MKL_VERBOSE=1 ./workload &gt; verbose.txt</code>). The collected output is the starting point for evaluating the problem sizes as imposed by the workload (<code>grep -a "MKL_VERBOSE DGEMM(N,N" verbose.txt | cut -d'(' -f2 | cut -d, -f3-5"</code>).</p>
 
-<h2>
-<a id="interface" class="anchor" href="#interface" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Interface</h2>
+<p><strong>What is a small convolution?</strong> In the last years, new workloads such as deep learning and more specifically convolutional neural networks (CNN) emerged, and are pushing the limits of today's hardware. One of the expensive kernels is a small convolution with certain kernel sizes (3, 5, or 7) such that calculations in the frequency space are not the most efficient method when compared with direct convolutions. LIBXSMM's current support for convolutions aims for an easy to use invocation of small (direct) convolutions, which are intended for CNN training and classification. The <a href="#interface-for-convolutions">Interface</a> is currently ramping up, and the functionality increases quickly towards a more general use.</p>
 
-<p>The interface of the library is <em>generated</em> according to the <a href="#build-instructions">Build Instructions</a>, and it is therefore <strong>not</strong> stored in the code repository. Instead, one may have a look at the code generation template files for <a href="https://github.com/hfp/libxsmm/blob/master/src/libxsmm.template.h">C/C++</a> and <a href="https://github.com/hfp/libxsmm/blob/master/src/libxsmm.template.f">FORTRAN</a>.</p>
+<h2>
+<a id="interface-for-matrix-multiplication" class="anchor" href="#interface-for-matrix-multiplication" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Interface for Matrix Multiplication</h2>
+
+<p>The interface of the library is <em>generated</em> according to the <a href="#build-instructions">Build Instructions</a>, and it is therefore <strong>not</strong> stored in the code repository. Instead, one may have a look at the code generation template files for <a href="https://github.com/hfp/libxsmm/blob/master/src/template/libxsmm.h">C/C++</a> and <a href="https://github.com/hfp/libxsmm/blob/master/src/template/libxsmm.f">FORTRAN</a>.</p>
 
 <p>In order to initialize the dispatch-table or other internal resources, one may call an explicit initialization routine in order to avoid lazy initialization overhead when calling LIBXSMM for the first time. The library deallocates internal resources at program exit, but also provides a companion to the aforementioned initialization (finalize).</p>
 
@@ -68,7 +73,7 @@ libxsmm_?gemm(<span class="pl-c1">NULL</span><span class="pl-c">/*transa*/</span
 
 <p>For the C interface (with type prefix 's' or 'd'), all arguments and in particular m, n, and k are passed by pointer. This is needed for binary compatibility with the original GEMM/BLAS interface. The C++ interface is also supplying overloaded versions where m, n, and k are allowed to be passed by‑value (making it clearer that m, n, and k are non-optional arguments).</p>
 
-<p>The FORTRAN interface supports optional arguments (without affecting the binary compatibility with the original LAPACK/BLAS interface) by allowing to omit arguments where the C/C++ interface is allows for NULL to be passed.</p>
+<p>The FORTRAN interface supports optional arguments (without affecting the binary compatibility with the original LAPACK/BLAS interface) by allowing to omit arguments where the C/C++ interface allows for NULL to be passed.</p>
 
 <div class="highlight highlight-source-fortran-modern"><pre><span class="pl-c">! Automatically dispatched dense matrix multiplication (single/double-precision).</span>
 <span class="pl-k">CALL</span> libxsmm_?gemm(m<span class="pl-k">=</span>m, n<span class="pl-k">=</span>n, k<span class="pl-k">=</span>k, a<span class="pl-k">=</span>a, b<span class="pl-k">=</span>b, c<span class="pl-k">=</span>c)
@@ -82,12 +87,12 @@ libxsmm_blas_?gemm(<span class="pl-c1">NULL</span><span class="pl-c">/*transa*/<
   <span class="pl-c1">NULL</span><span class="pl-c">/*alpha*/</span>, a<span class="pl-c">/*required*/</span>, <span class="pl-c1">NULL</span><span class="pl-c">/*lda*/</span>, b<span class="pl-c">/*required*/</span>, <span class="pl-c1">NULL</span><span class="pl-c">/*ldb*/</span>,
   <span class="pl-c1">NULL</span><span class="pl-c">/*beta*/</span>, c<span class="pl-c">/*required*/</span>, <span class="pl-c1">NULL</span><span class="pl-c">/*ldc*/</span>);</pre></div>
 
-<p>A more recently added variant of matrix multiplication is parallelized based on the OpenMP standard. The associated routines will open an internal parallel region by default, however participating on an already opened parallel region (without relying on nested parallelism) is also possible by using the environment variable LIBXSMM_GEMM=1 (0: small-sized, 1: sequential, and 2: parallelized/default). The actual parallelism is based on "classic" OpenMP by default (thread-based), but can be adjusted to OpenMP 3.0 task-based parallelism (environment variable LIBXSMM_TASKS=1). At least the latter parallelization is dynamically scheduled. Please note that these routines are hosted by the extension library (libxsmmext) keeping the main library agnostic with respect to a particular threading runtime.</p>
+<p>A more recently added variant of matrix multiplication is parallelized based on the OpenMP standard. The associated routines will open an internal parallel region by default, however participating on an already opened parallel region (without relying on nested parallelism) is also possible by using the environment variable LIBXSMM_MT (0: small-sized, 1: sequential, and 2: parallelized/default). The actual parallelism is based on "classic" OpenMP by default (thread-based), but can be adjusted to OpenMP 3.0 task-based parallelism (environment variable LIBXSMM_TASKS=1). At least the latter parallelization is dynamically scheduled. Please note that these routines are hosted by the extension library (libxsmmext) keeping the main library agnostic with respect to a particular threading runtime.</p>
 
 <div class="highlight highlight-source-c"><pre><span class="pl-c">/** OpenMP parallelized dense matrix multiplication (single/double-precision). */</span>
-libxsmm_omp_?gemm(&amp;transa, &amp;transb, &amp;m, &amp;n, &amp;k, &amp;alpha, a, &amp;lda, b, &amp;ldb, &amp;beta, c, &amp;ldc);</pre></div>
+libxsmm_?gemm_omp(&amp;transa, &amp;transb, &amp;m, &amp;n, &amp;k, &amp;alpha, a, &amp;lda, b, &amp;ldb, &amp;beta, c, &amp;ldc);</pre></div>
 
-<p>Successively calling a particular kernel (i.e., multiple times) allows for amortizing the cost of the code dispatch. Moreover in order to customize the dispatch mechanism, one can rely on the following interface.</p>
+<p>Successively calling a particular kernel (i.e., multiple times) allows for amortizing the cost of the code dispatch. Moreover, in order to customize the dispatch mechanism, one can rely on the following interface.</p>
 
 <div class="highlight highlight-source-c"><pre><span class="pl-c">/** If non-zero function pointer is returned, call (*function_ptr)(a, b, c). */</span>
 libxsmm_smmfunction <span class="pl-en">libxsmm_smmdispatch</span>(<span class="pl-k">int</span> m, <span class="pl-k">int</span> n, <span class="pl-k">int</span> k,
@@ -103,6 +108,107 @@ libxsmm_dmmfunction <span class="pl-en">libxsmm_dmmdispatch</span>(<span class="
 <p>A variety of overloaded function signatures is provided allowing to omit arguments not deviating from the configured defaults. In C++, a type <code>libxsmm_mmfunction&lt;type&gt;</code> can be used to instantiate a functor rather than making a distinction for the numeric type in <code>libxsmm_?mmdispatch</code>. Similarly in FORTRAN, when calling the generic interface (<code>libxsmm_mmdispatch</code>) the given <code>LIBXSMM_?MMFUNCTION</code> is dispatched such that <code>libxsmm_call</code> can be used to actually perform the function call using the PROCEDURE POINTER wrapped by <code>LIBXSMM_?MMFUNCTION</code>. Beside of dispatching code, one can also call a specific kernel (e.g., <code>libxsmm_dmm_4_4_4</code>) using the prototype functions included for statically generated kernels.</p>
 
 <h2>
+<a id="interface-for-convolutions" class="anchor" href="#interface-for-convolutions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Interface for Convolutions</h2>
+
+<p>In order to achieve best performance with small convolutions for CNN on SIMD architectures, a specific data layout has to be used. As this layout depends on several architectural parameters, the goal of LIBXSMM interface is to hide this complexity from the user by providing copy-in and copy-out routines. These happen on custom datatype which themselves are later bound to a convolution operation. The interface is available for C.</p>
+
+<p>The main concept in LIBXSMM's frontend is that everything is circled around <code>libxsmm_dnn_conv_handle</code> which will define all properties of a layer operation. A handle can be created by describing the convolutional layer and calling a create function:</p>
+
+<div class="highlight highlight-source-c"><pre><span class="pl-c">/** simplified LIBXSMM types which are needed to create a handle */</span>
+
+<span class="pl-c">/** Structure which describes the input and output of data (DNN). */</span>
+<span class="pl-k">typedef</span> <span class="pl-k">struct</span> LIBXSMM_RETARGETABLE libxsmm_dnn_conv_desc {
+  <span class="pl-k">int</span> N;                                       <span class="pl-c">/* number of images in mini-batch */</span>
+  <span class="pl-k">int</span> C;                                       <span class="pl-c">/* number of input feature maps */</span>
+  <span class="pl-k">int</span> H;                                       <span class="pl-c">/* height of input image */</span>
+  <span class="pl-k">int</span> W;                                       <span class="pl-c">/* width of input image */</span>
+  <span class="pl-k">int</span> K;                                       <span class="pl-c">/* number of output feature maps */</span>
+  <span class="pl-k">int</span> R;                                       <span class="pl-c">/* height of filter kernel */</span>
+  <span class="pl-k">int</span> S;                                       <span class="pl-c">/* width of filter kernel */</span>
+  <span class="pl-k">int</span> u;                                       <span class="pl-c">/* vertical stride */</span>
+  <span class="pl-k">int</span> v;                                       <span class="pl-c">/* horizontal stride */</span>
+  <span class="pl-k">int</span> pad_h_in;                                <span class="pl-c">/* height of zero-padding in input buffer, ignored */</span>
+  <span class="pl-k">int</span> pad_w_in;                                <span class="pl-c">/* width of zero-padding in input buffer, ignored */</span>
+  <span class="pl-k">int</span> pad_h_out;                               <span class="pl-c">/* height of zero-padding in output buffer */</span>
+  <span class="pl-k">int</span> pad_w_out;                               <span class="pl-c">/* width of zero-padding in output buffer */</span>
+  <span class="pl-k">int</span> splits;                                  <span class="pl-c">/* number of splits */</span>
+  libxsmm_dnn_conv_algo algo;                  <span class="pl-c">/* convolution algorithm used */</span>
+  libxsmm_dnn_conv_format buffer_format;       <span class="pl-c">/* format which is for buffer buffers */</span>
+  libxsmm_dnn_conv_format filter_format;       <span class="pl-c">/* format which is for filter buffers */</span>
+  libxsmm_dnn_conv_fuse_ops fuse_ops;          <span class="pl-c">/* used ops into convolutoions */</span>
+  libxsmm_dnn_datatype datatype;               <span class="pl-c">/* dataytpes use for all buffers */</span>
+} libxsmm_dnn_conv_desc;
+
+<span class="pl-c">/** Type of algorithm used for convolutions. */</span>
+<span class="pl-k">typedef</span> <span class="pl-k">enum</span> libxsmm_dnn_conv_algo {
+  <span class="pl-c">/** direct convolution. */</span>
+  LIBXSMM_DNN_CONV_ALGO_DIRECT
+} libxsmm_dnn_conv_algo;
+
+<span class="pl-c">/** Denotes the element/pixel type of an image/channel. */</span>
+<span class="pl-k">typedef</span> <span class="pl-k">enum</span> libxsmm_dnn_conv_datatype {
+  LIBXSMM_DNN_DATATYPE_F32
+} libxsmm_dnn_datatype;
+
+LIBXSMM_API libxsmm_dnn_conv_handle* <span class="pl-en">libxsmm_dnn_create_conv_handle_check</span>(
+  libxsmm_dnn_conv_desc   conv_desc,
+  libxsmm_dnn_datatype    conv_datatype,
+  libxsmm_dnn_conv_algo   conv_algo,
+  <span class="pl-c1">libxsmm_dnn_err_t</span>*      status);</pre></div>
+
+<p>Therefore, a sample call looks like:</p>
+
+<div class="highlight highlight-source-c"><pre><span class="pl-c">/** Macro to check for an error. */</span>
+#<span class="pl-k">define</span> <span class="pl-en">CHKERR_LIBXSMM_DNN</span>(<span class="pl-v">A</span>) <span class="pl-k">if</span> (A != LIBXSMM_DNN_SUCCESS) \
+  <span class="pl-en">fprintf</span>(stderr, <span class="pl-s"><span class="pl-pds">"</span><span class="pl-c1">%s</span><span class="pl-cce">\n</span><span class="pl-pds">"</span></span>, libxsmm_dnn_get_error(A));
+<span class="pl-c">/* declare LIBXSMM variables */</span>
+libxsmm_dnn_conv_desc conv_desc;
+<span class="pl-c1">libxsmm_dnn_err_t</span> status;
+libxsmm_dnn_conv_handle* libxsmm_handle;
+<span class="pl-c">/* setting conv_desc values.... */</span>
+conv_desc.N = ...
+<span class="pl-c">/* create handle */</span>
+libxsmm_handle = libxsmm_dnn_create_conv_handle_check(conv_desc, &amp;status);
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(status);</pre></div>
+
+<p>Next activation and filter buffers need to be created, initialized and bound to the handle. Afterwards the convolution could be executed by a threading environment of choice:</p>
+
+<div class="highlight highlight-source-c"><pre>libxsmm_dnn_buffer* libxsmm_input;
+libxsmm_dnn_buffer* libxsmm_output;
+libxsmm_dnn_filter* libxsmm_filter;
+
+<span class="pl-c">/* setup LIBXSMM layer information */</span>
+libxsmm_input = libxsmm_dnn_create_input_buffer_check(libxsmm_handle, &amp;status);
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(status);
+libxsmm_output = libxsmm_dnn_create_output_buffer_check(libxsmm_handle, &amp;status);
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(status);
+libxsmm_filter = libxsmm_dnn_create_filter_check(libxsmm_handle, &amp;status);
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(status);
+
+<span class="pl-c">/* copy in data to LIBXSMM format: naive format is: */</span>
+<span class="pl-c">/* (mini-batch)(splits)(number-featuremaps)(featuremap-height)(featuremap-width) for layers, */</span>
+<span class="pl-c">/* and the naive format for filters is: */</span>
+<span class="pl-c">/* (splits)(number-output-featuremaps)(number-input-featuremaps)(kernel-height)(kernel-width) */</span>
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(libxsmm_dnn_copyin_buffer(libxsmm_input, (<span class="pl-k">void</span>*)naive_input));
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(libxsmm_dnn_zero_buffer(libxsmm_output));
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(libxsmm_dnn_copyin_filter(libxsmm_filter, (<span class="pl-k">void</span>*)naive_filter));
+
+<span class="pl-c">/* bind layer to handle */</span>
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(libxsmm_dnn_bind_input_buffer(libxsmm_handle, libxsmm_input));
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(libxsmm_dnn_bind_output_buffer(libxsmm_handle, libxsmm_output));
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(libxsmm_dnn_bind_filter(libxsmm_handle, libxsmm_filter));
+
+<span class="pl-c">/* run the convolution */</span>
+#<span class="pl-k">pragma</span> omp parallel
+{
+  <span class="pl-c1">CHKERR_LIBXSMM_DNN</span>(<span class="pl-c1">libxsmm_dnn_convolve_st</span>(libxsmm_handle, LIBXSMM_DNN_CONV_KIND_FWD, <span class="pl-c1">0</span>,
+    <span class="pl-c1">omp_get_thread_num</span>(), <span class="pl-c1">omp_get_num_threads</span>()));
+}
+
+<span class="pl-c">/* copy out data */</span>
+<span class="pl-en">CHKERR_LIBXSMM_DNN</span>(libxsmm_dnn_copyout_buffer(libxsmm_output, (<span class="pl-k">void</span>*)naive_libxsmm_output));</pre></div>
+
+<h2>
 <a id="build-instructions" class="anchor" href="#build-instructions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Build Instructions</h2>
 
 <p>The build system relies on GNU Make (typically associated with the <code>make</code> command, but e.g. FreeBSD is calling it <code>gmake</code>). The build can be customized by using key‑value pairs. Key‑value pairs can be supplied in two ways: (1) after the "make" command, or (2) prior to the "make" command (<code>env</code>) which is effectively the same as exporting the key‑value pair as an environment variable (<code>export</code>, or <code>setenv</code>). Of course both methods can be mixed, however the second method may require to supply the <code>-e</code> flag. Please note that the CXX, CC, and FC keys are handled such that they are taken into account in any case.</p>
@@ -112,7 +218,7 @@ libxsmm_dmmfunction <span class="pl-en">libxsmm_dmmdispatch</span>(<span class="
 <pre><code>make
 </code></pre>
 
-<p>By default, only the non-coprocessor targets are built (OFFLOAD=0 and MIC=0). In general, the subfolders of the 'lib' directory are separating the build targets where the 'mic' folder is containing the native library (MIC=1) targeting the Intel Xeon Phi coprocessor ("KNC"), and the 'intel64' folder is storing either the hybrid archive made of CPU and coprocessor code (OFFLOAD=1), or an archive which is only containing the CPU code. By default, an OFFLOAD=1 implies MIC=1.</p>
+<p>By default, only the non-coprocessor targets are built (OFFLOAD=0 and KNC=0). In general, the subfolders of the 'lib' directory are separating the build targets where the 'mic' folder is containing the native library (KNC=1) targeting the Intel Xeon Phi coprocessor ("KNC"), and the 'intel64' folder is storing either the hybrid archive made of CPU and coprocessor code (OFFLOAD=1), or an archive which is only containing the CPU code. By default, an OFFLOAD=1 implies KNC=1.</p>
 
 <p>To remove intermediate files, or to remove all generated files and folders (including the interface and the library archives), run one of the following commands:</p>
 
@@ -120,7 +226,7 @@ libxsmm_dmmfunction <span class="pl-en">libxsmm_dmmdispatch</span>(<span class="
 make realclean
 </code></pre>
 
-<p>By default, LIBXSMM uses the <a href="#jit-backend">JIT backend</a> which is automatically building optimized code. However, one can also statically specialize for particular matrix sizes (M, N, and K values):</p>
+<p>By default, LIBXSMM uses the <a href="#jit-backend">JIT backend</a> which is automatically building optimized code. However, one can also statically specialize for particular matrix sizes (M, N, and K values), for convolutions the options below can be ignored:</p>
 
 <pre><code>make M="2 4" N="1" K="$(echo $(seq 2 5))"
 </code></pre>
@@ -189,35 +295,24 @@ make PREFIX=/path/to/libxsmm-install install
 <h3>
 <a id="call-wrapper" class="anchor" href="#call-wrapper" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Call Wrapper</h3>
 
-<p>Since the library is binary compatible with existing GEMM calls (LAPACK/BLAS), these calls can be replaced at link-time or intercepted at runtime of an application such that LIBXSMM is used instead of the original LAPACK/BLAS. Currently this only works for the Linux OS (not validated under OS X), and it is also not sufficient to rely on a GNU tool chain under Microsoft Windows. Of course, using LIBXSMM's programming interface when performing the same multiplication multiple time in a consecutive fashion (batch-processing) allows to extract higher performance. However, using the call wrapper might motivate to make use of the LIBXSMM API.</p>
+<p>Since the library is binary compatible with existing GEMM calls (LAPACK/BLAS), these calls can be replaced at link-time or intercepted at runtime of an application such that LIBXSMM is used instead of the original LAPACK/BLAS library. There are two cases to consider:</p>
 
-<p>There are two cases to consider: (1) an application which is linking statically against LAPACK/BLAS, and (2) an application which is dynamically linked against LAPACK/BLAS. The first case requires to wrap the <code>sgemm_</code> or <code>dgemm_</code> symbol by making <code>-Wl,--wrap=*gemm_ /path/to/libxsmm.a</code> (star to be replaced) part of the link-line and then relinking the application:</p>
+<ul>
+<li>An application which is linked statically against LAPACK/BLAS requires to wrap the 'sgemm_' and the 'dgemm_' symbol (an alternative is to wrap only 'dgemm_'), and a special build of the libxsmm(ext) library is required (<code>make WRAP=1</code> to to wrap SGEMM and DGEMM, or <code>make WRAP=2</code> to wrap only DGEMM):<br>
+<code>gcc [...] -Wl,--wrap=sgemm_,--wrap=dgemm_ /path/to/libxsmmext.a /path/to/libxsmm.a /path/to/your_regular_blas.a</code><br>
+Relinking the application as shown above can often be accomplished by copying, pasting, modifying the linker command, and then re-invoking the modified link step. This linker command may appear as console output of the application's "make" command (or a similar build system).<br>
+The static link-time wrapper technique may only work with a GCC tool chain (GNU Binutils: <code>ld</code>, or <code>ld</code> via compiler-driver), and it has been tested with GNU GCC, Intel Compiler, and Clang. However, this does not work under Microsoft Windows (even when using the GNU tool chain), and it may not work under OS X (Compiler 6.1 or earlier, later versions have not been tested).</li>
+<li>An application which is dynamically linked against LAPACK/BLAS allows for intercepting the GEMM calls at startup time (runtime) of the unmodified executable by using the LD_PRELOAD mechanism. The shared library of LIBXSMM (<code>make STATIC=0</code>) allows to intercept the GEMM calls of the application:<br>
+<code>LD_PRELOAD=/path/to/libxsmmext.so ./myapplication</code>
+</li>
+</ul>
 
-<pre><code>gcc [...] -Wl,--wrap=sgemm_ /path/to/libxsmm.a /path/to/your_regular_blas.a
-gcc [...] -Wl,--wrap=dgemm_ /path/to/libxsmm.a /path/to/your_regular_blas.a
-gcc [...] -Wl,--wrap=sgemm_,--wrap=dgemm_ /path/to/libxsmm.a /path/to/your_regular_blas.a
-gcc [...] -Wl,--wrap=sgemm_,--wrap=dgemm_ /path/to/libxsmmext.a /path/to/libxsmm.a \
-                                          /path/to/your_regular_blas.a
+<p>The behavior of the intercepted GEMM routines (statically wrapped or via LD_PRELOAD) can be controlled with the environment variable LIBXSMM_MT i.e., 0: calling sequential below-threshold routines without OpenMP (default when only linking 'libxsmm'), 1: OpenMP-parallelized behavior but without an internal parallel region, and 2: OpenMP-parallelized routines with internal parallel region (default when linking 'libxsmmext'). In any case, the wrapper mechanism also supports to fall back to BLAS.</p>
+
+<pre><code>LIBXSMM_MT=0 ./myapplication
 </code></pre>
 
-<p>Relinking the application is often accomplished by copying, pasting, and modifying the linker command as shown when running "make" (or a similar build system), and then just re-invoking the modified link step. Please note that this first case is also working for an application which is dynamically linked against LAPACK/BLAS. The static link-time wrapper technique in general may only work with a GCC-compatible tool chain (GNU Binutils: <code>ld</code>, or <code>ld</code> via compiler-driver), and it has been tested with GNU GCC, Intel Compiler, and Clang. The latter unfortunately does not include Compiler 6.1 or earlier under OS X, and it has not been tested with a later version of this tool chain.</p>
-
-<p>If an application is dynamically linked against LAPACK/BLAS, the unmodified application allows for intercepting these calls at startup time (runtime) by using the LD_PRELOAD mechanism:</p>
-
-<pre><code>LD_PRELOAD=/path/to/libxsmmext.so ./myapplication
-</code></pre>
-
-<p>This case obviously requires to build a shared library of LIBXSMM:</p>
-
-<pre><code>make STATIC=0
-</code></pre>
-
-<p>The behavior of the intercepted GEMM routines (statically wrapped or via LD_PRELOAD) can be controlled using the environment variable LIBXSMM_GEMM i.e., 0: sequential below-threshold routine without OpenMP but with fallback to BLAS (default), 1: OpenMP-parallelized but without internal parallel region, and 2: OpenMP-parallelized with internal parallel region. However in case of the static wrapper, it is required to link against <code>libxsmmext</code> and <code>libxsmm</code> (in this order; see link-line above).</p>
-
-<pre><code>LIBXSMM_GEMM=2 ./myapplication
-</code></pre>
-
-<p>Please note that calling SGEMM is more sensitive to dispatch-overhead when compared to multiplying the same matrix sizes in double-precision. In case of single-precision, an approach of using the call wrapper is often not able to show an advantage if not regressing with respect to performance (therefore SGEMM is likely asking for making use of the API). In contrast, the double-precision case can show up to two times the performance of a typical LAPACK/BLAS performance (and more when using the API for processing batches).</p>
+<p><strong>NOTE</strong>: Using the same multiplication kernel in a consecutive fashion (batch-processing) allows to extract higher performance, when using LIBXSMM's native programming interface.</p>
 
 <h3>
 <a id="verbose-mode" class="anchor" href="#verbose-mode" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Verbose Mode</h3>
@@ -236,6 +331,8 @@ HSW/SP        TRY    JIT    STA    COL
 <p>The tables are distinct between single-precision and double-precision, but either table is pruned if all counters are zero. If both tables are pruned, the library shows the code path which would have been used for JIT'ting the code: <code>LIBXSMM_TARGET=hsw</code> (otherwise the code path is shown in the table's header). The actual counters are collected for three buckets: small kernels (MNK<sup>1/3</sup> &lt;= 13), medium-sized kernels (13 &lt; MNK<sup>1/3</sup> &lt;= 23), and larger kernels (23 &lt; MNK<sup>1/3</sup> &lt;= 80; the actual upper bound depends on LIBXSMM_MAX_MNK as selected at compile-time). Keep in mind, that "larger" is supposedly still fairly small in terms of arithmetic intensity (which grows linearly with the kernel size). Unfortunately, the arithmetic intensity depends on the way a kernel is used (which operands are loaded/stored into main memory) and it is not performance-neutral to collect this information.</p>
 
 <p>The TRY counter represents all attempts to register statically generated kernels and all attempts to dynamically generate and register kernels. The JIT and STA counters distinct the aforementioned event into dynamically (JIT) and statically (STA) generated code but also count only actually registered kernels. In case the capacity (O(<em>n</em>) = 10<sup>5</sup>) of the code registry is exhausted, no more kernels can be registered although further attempts are not prevented. Registering many kernels (O(<em>n</em>) = 10<sup>3</sup>) may ramp the number of hash key collisions (COL), which can degrade performance. The latter is prevented if the small thread-local cache is effectively utilized.</p>
+
+<p>Since explicitly JIT-generated code (<code>libxsmm_?mmdispatch</code>) does not fall under the THRESHOLD criterion, the above table is extended by one line if large kernels have been requested. This indicates a missing threshold-criterion (customized dispatch), or asks for cache-blocking the matrix multiplication. The latter is already implemented by LIBXSMM's "medium-sized" GEMM routines (<code>libxsmm_?gemm_omp</code>), which perform a tiled multiplication.</p>
 
 <p><strong>NOTE</strong>: setting LIBXSMM_VERBOSE to a negative value will dump each generated JIT kernel to a file with each file being named similar to the function name shown in <a href="#profiling">Intel VTune</a>.</p>
 
@@ -262,13 +359,16 @@ HSW/SP        TRY    JIT    STA    COL
 <h3>
 <a id="profiling" class="anchor" href="#profiling" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Profiling</h3>
 
-<p>To analyze which kind of kernels have been called, and from where these kernels have been invoked (call stack), the library allows profiling its JIT code as supported by Intel VTune Amplifier. To enable this support, VTune's root directory needs to be set at build-time of the library. Enabling symbols (SYM=1 or DBG=1) triggers using VTune's JIT Profiling API:</p>
+<h4>
+<a id="intelvtuneamplifier" class="anchor" href="#intelvtuneamplifier" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Intel VTune Amplifier</h4>
+
+<p>To analyze which kind of kernels have been called, and from where these kernels have been invoked (call stack), the library allows profiling its JIT code using Intel VTune Amplifier. To enable this support, VTune's root directory needs to be set at build-time of the library. Enabling symbols (SYM=1 or DBG=1) incorporates VTune's JIT Profiling API:</p>
 
 <pre><code>source /path/to/vtune_amplifier/amplxe-vars.sh
 make SYM=1
 </code></pre>
 
-<p>The root directory is automatically determined from an environment variable (VTUNE_AMPLIFIER_*_DIR), which is present after source'ing the Intel VTune environment but it can be manually provided as well (<code>make VTUNEROOT=/path/to/vtune_amplifier</code>). Symbols are actually not required to display kernel names for the dynamically generated code, however enabling symbols makes the analysis much more useful for the rest of the (static) code, and hence it has been made a prerequisite. For example, when "call stacks" are collected it is possible to find out where the JIT code has been invoked by the application:</p>
+<p>Above, the root directory is automatically determined from the environment (VTUNE_AMPLIFIER_*_DIR). This variable is present after source'ing the Intel VTune environment, but it can be manually provided as well (<code>make VTUNEROOT=/path/to/vtune_amplifier</code>). Symbols are actually not required to display kernel names for the dynamically generated code, however enabling symbols makes the analysis much more useful for the rest of the (static) code, and hence it has been made a prerequisite. For example, when "call stacks" are collected it is possible to find out where the JIT code has been invoked by the application:</p>
 
 <pre><code>amplxe-cl -r result-directory -data-limit 0 -collect advanced-hotspots \
           -knob collection-detail=stack-sampling -- ./myapplication
@@ -282,7 +382,23 @@ make SYM=1
 
 <p>to the <code>mpirun</code> command line. Please notice the <code>:4=exclusive</code> which is unrelated to VTune's command line syntax but related to mpirun's gtool arguments; these arguments need to appear at the end of the gtool-string. For instance, the shown command line selects the 4th rank (otherwise all ranks are sampled) along with "exclusive" usage of the performance monitoring unit (PMU) such that only one event-collector runs for all ranks.</p>
 
-<p>Intel VTune Amplifier presents invoked JIT code like functions, which belong to a module named "libxsmm.jit". The function name as well as the module name are supplied by LIBXSMM using the aforementioned JIT Profiling API. For instance "libxsmm_hsw_dnn_23x23x23_23_23_23_a1_b1_p0::jit" encodes an Intel AVX2 ("hsw") double-precision kernel ("d") which is multiplying matrices without transposing them ("nn"). The rest of the name encodes M=N=K=LDA=LDB=LDC=23, Alpha=Beta=1.0 (all similar to GEMM), and no prefetch strategy ("p0").</p>
+<p>Intel VTune Amplifier presents invoked JIT code like functions, which belong to a module named "libxsmm.jit". The function name as well as the module name are supplied by LIBXSMM using the aforementioned JIT Profiling API. For instance "libxsmm_hsw_dnn_23x23x23_23_23_23_a1_b1_p0::smxm" encodes an Intel AVX2 ("hsw") double-precision kernel ("d") for small dense matrix multiplications which is multiplying matrices without transposing them ("nn"). The rest of the name encodes M=N=K=LDA=LDB=LDC=23, Alpha=Beta=1.0 (all similar to GEMM), and no prefetch strategy ("p0").</p>
+
+<h4>
+<a id="linux-perf" class="anchor" href="#linux-perf" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Linux perf</h4>
+
+<p>There is both basic (<code>perf map</code>) and extended support (<code>jitdump</code>) when profiling an application, which is using LIBXSMM.</p>
+
+<ul>
+<li>The basic support can be enabled at compile-time with PERF=1 (implies SYM=1) using:<br>
+<code>make PERF=1</code><br>
+At runtime of the application, a map-file ('jit-<em>pid</em>.map') is generated ('/tmp' directory). This file is automatically read by "perf", and enriches the information about unknown code such as JIT'ted kernels.</li>
+<li>The support for "jitdump" can be enabled by supplying JITDUMP (implies PERF=1) when making the library:<br>
+<code>make JITDUMP=/path/to/linux-kernel/tools/perf/util</code><br>
+At runtime of the application, a dump-file ('jit-<em>pid</em>.dump') is generated ('/tmp' directory) which includes additional information about JIT'ted kernels (such as addresses, symbol names, code size, and the code itself). The dump file can be injected into 'perf.data' (using <code>perf inject -j</code>), and it enables an annotated view of the assembly in perf's report (requires a reasonably recent version of perf).</li>
+</ul>
+
+<p><strong>NOTE</strong>: the extended support (jitdump) requires the 'jitdump.h' header file, which is part of the Linux kernel sources (under 'tools/perf/util'). This header file is provided under the GPLv2 license.</p>
 
 <h3>
 <a id="tuning" class="anchor" href="#tuning" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Tuning</h3>
@@ -316,7 +432,7 @@ make SYM=1
 <li>LAPACK/BLAS library call (fallback).</li>
 </ol>
 
-<p>Both levels are accessible directly (see <a href="#interface">Interface</a> section) allowing to customize the code dispatch. The fallback level may be supplied by the Intel Math Kernel Library (Intel MKL) 11.2 DIRECT CALL feature. </p>
+<p>Both levels are accessible directly (see <a href="#interface">Interface</a> section) allowing to customize the code dispatch. The fallback level may be supplied by the Intel Math Kernel Library (Intel MKL) 11.2 DIRECT CALL feature.</p>
 
 <p>Further, a preprocessor symbol denotes the largest problem size (<em>M</em> x <em>N</em> x <em>K</em>) that belongs to the first level, and therefore determines if a matrix multiplication falls back to calling into the LAPACK/BLAS library alongside of LIBXSMM. The problem size threshold can be configured by using for example:</p>
 
@@ -381,7 +497,7 @@ bin/libxsmm_gemm_generator
 <li>beta (0 or 1)</li>
 <li>Alignment override for A (1 auto, 0 no alignment)</li>
 <li>Alignment override for C (1 auto, 0 no alignment)</li>
-<li>Architecture (noarch, wsm, snb, hsw, knc, knl)</li>
+<li>Architecture (noarch, wsm, snb, hsw, knc, knl, skx)</li>
 <li>Prefetch strategy, see below enumeration (dense/dense_asm only)</li>
 <li>single precision (SP), or double precision (DP)</li>
 <li>CSC file (just required when 1. is "sparse"). Matrix market format.</li>
@@ -393,12 +509,13 @@ bin/libxsmm_gemm_generator
 <li>"nopf": no prefetching at all, just 3 inputs (A, B, C)</li>
 <li>"pfsigonly": just prefetching signature, 6 inputs (A, B, C, A', B', C')</li>
 <li>"BL2viaC": uses accesses to C to prefetch B'</li>
-<li>"AL2": uses accesses to A to prefetch A'</li>
 <li>"curAL2": prefetches current A ahead in the kernel</li>
-<li>"AL2_BL2viaC": combines AL2 and BL2viaC</li>
 <li>"curAL2_BL2viaC": combines curAL2 and BL2viaC</li>
+<li>"AL2": uses accesses to A to prefetch A'</li>
+<li>"AL2_BL2viaC": combines AL2 and BL2viaC</li>
 <li>"AL2jpst": aggressive A' prefetch of first rows without any structure</li>
 <li>"AL2jpst_BL2viaC": combines AL2jpst and BL2viaC</li>
+<li>"AL2_BL2viaC_CL2": combines AL2 and BL2viaC</li>
 </ol>
 
 <p>Here are some examples of invoking the driver program:</p>
@@ -418,6 +535,11 @@ bin/libxsmm_gemm_generator sparse foo.c foo 16 16 16 32 0 32 1 1 1 1 hsw nopf DP
 <p>Please note that comparing performance results depends on whether or not streaming the operands of the matrix multiplication. For example, running a matrix multiplication code many time with all operands covered by the L1 cache may have an emphasis towards an implementation which actually performs worse for the real workload (if this real workload needs to stream some or all operands from the main memory).</p>
 
 <h2>
+<a id="contributions" class="anchor" href="#contributions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Contributions</h2>
+
+<p>Contributions are very welcome! Please visit <a href="https://github.com/hfp/libxsmm/wiki/Contribute">https://github.com/hfp/libxsmm/wiki/Contribute</a>.</p>
+
+<h2>
 <a id="applications" class="anchor" href="#applications" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Applications</h2>
 
 <p><strong>[1] <a href="https://cp2k.org/">https://cp2k.org/</a></strong>: Open Source Molecular Dynamics with its DBCSR component processing batches of small matrix multiplications ("matrix stacks") out of a problem-specific distributed block-sparse matrix. Starting with <a href="https://www.cp2k.org/version_history">CP2K 3.0</a>, LIBXSMM can be used to substitute CP2K's 'libsmm' library. Prior to CP2K 3.0, only the <a href="https://github.com/cp2k/cp2k/tree/intel">Intel-branch of CP2K</a> was integrating LIBXSMM (see <a href="https://github.com/hfp/libxsmm/raw/master/documentation/cp2k.pdf">https://github.com/hfp/libxsmm/raw/master/documentation/cp2k.pdf</a>).</p>
@@ -426,7 +548,7 @@ bin/libxsmm_gemm_generator sparse foo.c foo 16 16 16 32 0 32 1 1 1 1 hsw nopf DP
 
 <p><strong>[3] <a href="https://github.com/Nek5000/NekBox">https://github.com/Nek5000/NekBox</a></strong>: NekBox is a version of the highly scalable and portable spectral element <a href="https://nek5000.mcs.anl.gov/">Nek5000</a> code which is specialized for box geometries, and intended for prototyping new methods as well as leveraging FORTRAN beyond the FORTRAN 77 standard. LIBXSMM provides optimized kernels aiming to conveniently substitute the <a href="https://github.com/Nek5000/NekBox/blob/box/mxm_std.F90">MXM_STD</a> code.</p>
 
-<p><strong>[4] <a href="https://github.com/Nek5000/Nek5000">https://github.com/Nek5000/Nek5000</a></strong>: Nek5000 is the open-source, highly-scalable, always-portable spectral element code from <a href="https://nek5000.mcs.anl.gov/">https://nek5000.mcs.anl.gov/</a>. The development branch of the Nek5000 code now incorporates LIBXSMM.</p>
+<p><strong>[4] <a href="https://github.com/Nek5000/Nek5000">https://github.com/Nek5000/Nek5000</a></strong>: Nek5000 is the open-source, highly-scalable, always-portable spectral element code from <a href="https://nek5000.mcs.anl.gov/">https://nek5000.mcs.anl.gov/</a>. The development branch of the Nek5000 code now <a href="https://github.com/Nek5000/Nek5000/blob/develop/core/mxm_wrapper.f">incorporates</a> LIBXSMM.</p>
 
 <h2>
 <a id="references" class="anchor" href="#references" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>References</h2>
