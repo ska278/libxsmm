@@ -135,7 +135,9 @@ libxsmm_dmmfunction <span class="pl-en">libxsmm_dmmdispatch</span>(<span class="
   libxsmm_dnn_conv_format buffer_format;       <span class="pl-c">/* format which is for buffer buffers */</span>
   libxsmm_dnn_conv_format filter_format;       <span class="pl-c">/* format which is for filter buffers */</span>
   libxsmm_dnn_conv_fuse_ops fuse_ops;          <span class="pl-c">/* used ops into convolutions */</span>
-  libxsmm_dnn_datatype datatype;               <span class="pl-c">/* datatypes use for all buffers */</span>
+  libxsmm_dnn_conv_option options;             <span class="pl-c">/* additional options */</span>
+  libxsmm_dnn_datatype datatype_in;            <span class="pl-c">/* datatypes use for all buffers */</span>
+  libxsmm_dnn_datatype datatype_ou;            <span class="pl-c">/* datatypes use for all buffers */</span>
 } libxsmm_dnn_conv_desc;
 
 <span class="pl-c">/** Type of algorithm used for convolutions. */</span>
