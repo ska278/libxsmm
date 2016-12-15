@@ -36,11 +36,11 @@
 
 <p><a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD3-blue.svg" alt="License"></a> <a href="https://github.com/hfp/libxsmm/archive/master.zip"><img src="https://travis-ci.org/hfp/libxsmm.svg?branch=master" alt="Travis CI" title="Master branch build status"></a> <a href="https://buildkite.com/intel/intel-2017" title="Build status"><img src="https://badge.buildkite.com/63b5dc4095f460f1c011ae782f8e67ec0b8a6a9732d8abe3c7.svg" alt="Travis Mirror"></a></p>
 
-<p>LIBXSMM is a library for small dense and small sparse matrix-matrix multiplications as well as for deep learning primitives such as small convolutions targeting Intel Architecture (x86). The library is generating code for the following instruction set extensions: Intel SSE, Intel AVX, Intel AVX2, IMCI (KNCni) for Intel Xeon Phi coprocessors ("KNC"), and Intel AVX‑512 as found in the <a href="https://software.intel.com/en-us/articles/what-disclosures-has-intel-made-about-knights-landing">Intel Xeon Phi processor family ("KNL")</a> and Intel Xeon processors (Skylake-EP "SKX"). Small convolutions are currently only optimized for Intel AVX‑512. Historically the library was solely targeting the Intel Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all aforementioned instruction set extensions (static code generation), and Just‑In‑Time (JIT) code generation is targeting Intel AVX and beyond.</p>
+<p>LIBXSMM is a library for small dense and small sparse matrix-matrix multiplications as well as for deep learning primitives such as small convolutions targeting Intel Architecture. Small matrix multiplication kernels are generated for the following instruction set extensions: Intel SSE, Intel AVX, Intel AVX2, IMCI (KNCni) for Intel Xeon Phi coprocessors ("KNC"), and Intel AVX‑512 as found in the Intel Xeon Phi processor family (Knights Landing "KNL") and Intel Xeon processors (Skylake-E "SKX"). Historically small matrix multiplications were only optimized for the Intel Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all aforementioned instruction set extensions (static code generation), and Just‑In‑Time (JIT) code generation is targeting Intel AVX and beyond. Optimized code for small convolutions is JIT-generated for Intel AVX2 and Intel AVX‑512.</p>
 
 <p><strong>What is the background of the name "LIBXSMM"?</strong> The "MM" stands for Matrix Multiplication, and the "S" clarifies the working domain i.e., Small Matrix Multiplication. The latter also means the name is neither a variation of "MXM" nor an eXtreme Small Matrix Multiplication but rather about Intel Architecture (x86) - and no, the library is <a href="https://github.com/hfp/libxsmm/issues/103#issuecomment-256887962">64‑bit only</a>. The spelling of the name might follow the syllables of libx\/smm, libx'smm, or libx‑smm.</p>
 
-<p><strong>What is a small matrix multiplication?</strong> When characterizing the problem size using the M, N, and K parameters, a problem size suitable for LIBXSMM falls approximately within (M N K)<sup>1/3</sup> &lt;= 80 (which illustrates that non-square matrices or even "tall and skinny" shapes are covered as well). The library is typically used to generate code up to the specified <a href="#auto-dispatch">threshold</a>. Raising the threshold may not only generate excessive amounts of code (due to unrolling in M and K dimension), but also miss to implement a tiling scheme to effectively utilize the cache hierarchy. For auto-dispatched problem sizes above the configurable threshold, LIBXSMM is falling back to BLAS.</p>
+<p><strong>What is a small matrix multiplication?</strong> When characterizing the problem size using the M, N, and K parameters, a problem size suitable for LIBXSMM falls approximately within (M N K)<sup>1/3</sup> &lt;= 128 (which illustrates that non-square matrices or even "tall and skinny" shapes are covered as well). The library is typically used to generate code up to the specified <a href="#auto-dispatch">threshold</a>. Raising the threshold may not only generate excessive amounts of code (due to unrolling in M and K dimension), but also miss to implement a tiling scheme to effectively utilize the cache hierarchy. For auto-dispatched problem sizes above the configurable threshold, LIBXSMM is falling back to BLAS.</p>
 
 <p><strong>What about "medium-sized" matrix multiplication?</strong> A more recent addition are GEMM routines which are parallelized using OpenMP (<code>libxsmm_?gemm_omp</code>). These routines leverage the same specialized kernel routines as the small matrix multiplications, in-memory code generation (JIT), and automatic code/parameter dispatch but they are implementing a tile-based multiplication scheme i.e., a scheme suitable for larger problem sizes.</p>
 
@@ -248,7 +248,7 @@ libxsmm_filter = libxsmm_dnn_create_filter_check(libxsmm_handle, &amp;status);
 <a id="memory-allocation" class="anchor" href="#memory-allocation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Memory Allocation</h3>
 
 <p>Without further claims on the properties of the memory allocation (e.g., thread scalability), there are C functions that allocate aligned memory one of which allows to specify the alignment (or to specify an automatically chosen alignment). The automatic alignment is also exposed by a <code>malloc</code> compatible signature. The size of the automatic alignment depends on a heuristic, which uses the size of the requested buffer.<br>
-<strong>NOTE</strong>: only <code>libxsmm_free</code> is supported in order to deallocate the memory.</p>
+<strong>NOTE</strong>: Only <code>libxsmm_free</code> is supported in order to deallocate the memory.</p>
 
 <div class="highlight highlight-source-c"><pre><span class="pl-k">void</span>* <span class="pl-en">libxsmm_aligned_malloc</span>(<span class="pl-c1">size_t</span> size, <span class="pl-k">int</span> alignment);
 <span class="pl-k">void</span>* <span class="pl-en">libxsmm_malloc</span>(<span class="pl-c1">size_t</span> size);
@@ -256,6 +256,9 @@ libxsmm_filter = libxsmm_dnn_create_filter_check(libxsmm_handle, &amp;status);
 
 <h2>
 <a id="build-instructions" class="anchor" href="#build-instructions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Build Instructions</h2>
+
+<h3>
+<a id="classic-library-abi" class="anchor" href="#classic-library-abi" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Classic Library (ABI)</h3>
 
 <p>The build system relies on GNU Make (typically associated with the <code>make</code> command, but e.g. FreeBSD is calling it <code>gmake</code>). The build can be customized by using key‑value pairs. Key‑value pairs can be supplied in two ways: (1) after the "make" command, or (2) prior to the "make" command (<code>env</code>) which is effectively the same as exporting the key‑value pair as an environment variable (<code>export</code>, or <code>setenv</code>). Of course both methods can be mixed, however the second method may require to supply the <code>-e</code> flag. Please note that the CXX, CC, and FC keys are handled such that they are taken into account in any case.</p>
 
@@ -308,7 +311,7 @@ make realclean
 
 <p>Functionality of LIBXSMM, which is unrelated to GEMM can be used without introducing a dependency to BLAS. This can be achieved in two ways: (1) building a special library with <code>make BLAS=0</code>, or (2) linking the application against the 'libxsmmnoblas' library. Some care must be taken with any matrix multiplication which does not appear to require BLAS for the given test arguments. However, it may fall back to BLAS (at runtime of the application), if an unforeseen input is given (problem size, or unsupported GEMM arguments).</p>
 
-<p><strong>NOTE</strong>: by default, a C/C++ and a FORTRAN compiler is needed (some sample code is written in C++). Beside of specifying the compilers (<code>make CXX=g++ CC=gcc FC=gfortran</code> and maybe <code>AR=ar</code>), the need for a FORTRAN compiler can be relaxed (<code>make FC=</code> or <code>make FORTRAN=0</code>). The latter affects the availability of the MODule file and the corresponding 'libxsmmf' library (the interface 'libxsmm.f' is still generated). FORTRAN code can make use of LIBXSMM in three different ways:</p>
+<p><strong>NOTE</strong>: By default, a C/C++ and a FORTRAN compiler is needed (some sample code is written in C++). Beside of specifying the compilers (<code>make CXX=g++ CC=gcc FC=gfortran</code> and maybe <code>AR=ar</code>), the need for a FORTRAN compiler can be relaxed (<code>make FC=</code> or <code>make FORTRAN=0</code>). The latter affects the availability of the MODule file and the corresponding 'libxsmmf' library (the interface 'libxsmm.f' is still generated). FORTRAN code can make use of LIBXSMM in three different ways:</p>
 
 <ul>
 <li>By relying on the module file, and by linking against 'libxsmmf', 'libxsmm', and (optionally) 'libxsmmext',</li>
@@ -318,19 +321,31 @@ make realclean
 
 <p>At the expense of a limited set of functionality (<code>libxsmm_?gemm[_omp]</code>, <code>libxsmm_blas_?gemm</code>, and <code>libxsmm_[s|d]otrans[_omp]</code>), the latter method also works with FORTRAN 77 (otherwise the FORTRAN 2003 standard is necessary). For the "omp" functionality, the 'libxsmmext' library needs to be present at the link line. For no code change at all, the <a href="#call-wrapper">Call Wrapper</a> might be of interest.</p>
 
-<h2>
-<a id="link-instructions" class="anchor" href="#link-instructions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Link Instructions</h2>
+<h3>
+<a id="link-instructions" class="anchor" href="#link-instructions" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Link Instructions</h3>
 
 <p>The library is agnostic with respect to the threading-runtime, and therefore an application is free to use any threading runtime (e.g., OpenMP). The library is also thread-safe, and multiple application threads can call LIBXSMM's routines concurrently. Forcing OpenMP (OMP=1) for the entire build of LIBXSMM is not supported and untested ('libxsmmext' is automatically built with OpenMP enabled).</p>
 
 <p>Similarly, an application is free to choose any BLAS or LAPACK library (if the link model available on the OS supports this), and therefore linking GEMM routines when linking LIBXSMM itself (by supplying BLAS=1|2) may prevent a user from making this decision at the time of linking the actual application.</p>
 
-<p><strong>NOTE</strong>: LIBXSMM does not support to dynamically link against 'libxsmm' or 'libxsmmext' ("so"), when BLAS is linked statically ("a").</p>
+<p><strong>NOTE</strong>: LIBXSMM does not support to dynamically link 'libxsmm' or 'libxsmmext' ("so"), when BLAS is linked statically ("a").</p>
+
+<h3>
+<a id="header-only" class="anchor" href="#header-only" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Header-Only</h3>
+
+<p>Version 1.4.4 introduced support for "header-only" usage in C and C++. By only including 'libxsmm_source.h' allows to get around building the library. However, this gives up on a clearly defined application binary interface (ABI). An ABI may allow for hot-fixes after deploying an application (when relying on the shared library form), and also ensures to only rely on the public interface of LIBXSMM. In contrast, the header-only form not only exposes the internal implementation of LIBXSMM but may also reduce the turnaround time during development of an application (due to longer compilation times). The header file is intentionally named "libxsmm_<strong>source</strong>.h" since it relies on the <a href="https://github.com/hfp/libxsmm/tree/master/src">src</a> folder (with the implications as noted earlier).</p>
+
+<p>In order to use the header-only form, 'libxsmm_source.h' needs to be generated. The build target shown below ('header-only') has been introduced in LIBXSMM 1.6.2, but <code>make cheader</code> can be used alternatively (or instead with earlier versions). Generating the C interface is necessary since LIBXSMM has to be configured (see <a href="https://github.com/hfp/libxsmm/blob/master/src/template/libxsmm_config.h">configuration</a> template).</p>
+
+<pre><code>make header-only
+</code></pre>
+
+<p><strong>NOTE</strong>: Differences between C and C++ makes a header-only implementation (which is portable between both languages) considerably "techy". At this time, mixing C and C++ translation units (which rely on the header-only form of the library) is not supported. Also, remember that building an application now shares the same build settings with LIBXSMM. The latter is important for instance with respect to debug code (<code>-DNDEBUG</code>).</p>
 
 <h2>
 <a id="installation" class="anchor" href="#installation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Installation</h2>
 
-<p>Installing LIBXSMM makes possibly the most sense when combining the <a href="#jit-backend">JIT backend</a> (enabled by default) with a collection of statically generated SSE kernels (by specifying M, N, K, or MNK). If the JIT backend is not disabled, statically generated kernels are only registered for dispatch if the CPUID flags at runtime are not supporting a more specific instruction set extension (code path). Since the JIT backend does not support or generate SSE code by itself, the library is compiled by selecting SSE code generation if not specified otherwise (AVX=1|2|3, or with SSE=0 falling back to an "arch-native" approach). Limiting the static code path to SSE3 (SSE4.2 under OS X) allows to practically target any deployed system, however using SSE=0 and AVX=0 together is falling back to generic code, and any static kernels are not specialized using the assembly code generator.</p>
+<p>Installing LIBXSMM makes possibly the most sense when combining the <a href="#jit-backend">JIT backend</a> (enabled by default) with a collection of statically generated SSE kernels (by specifying M, N, K, or MNK). If the JIT backend is not disabled, statically generated kernels are only registered for dispatch if the CPUID flags at runtime are not supporting a more specific instruction set extension (code path). Since the JIT backend does not support or generate SSE code by itself, the library is compiled by selecting SSE code generation if not specified otherwise (AVX=1|2|3, or with SSE=0 falling back to an "arch-native" approach). Limiting the static code path to SSE4.2 allows to practically target any deployed system, however using SSE=0 and AVX=0 together is falling back to generic code, and any static kernels are not specialized using the assembly code generator.</p>
 
 <p>There are two main mechanisms to install LIBXSMM (both mechanisms can be combined): (1) building the library in an out‑of‑tree fashion, and (2) installing into a certain location. Building in an out‑of‑tree fashion looks like:</p>
 
@@ -382,19 +397,19 @@ The static link-time wrapper technique may only work with a GCC tool chain (GNU 
 <pre><code>LIBXSMM_VERBOSE=1 ./myapplication
 [... application output]
 
-HSW/SP        TRY    JIT    STA    COL
-     0..13      7      7      0      0
-    14..23      0      0      0      0
-    24..80      3      3      0      0
+HSW/SP      TRY    JIT    STA    COL
+   0..13      0      0      0      0
+  14..23      0      0      0      0
+ 24..128      3      3      0      0
 </code></pre>
 
-<p>The tables are distinct between single-precision and double-precision, but either table is pruned if all counters are zero. If both tables are pruned, the library shows the code path which would have been used for JIT'ting the code: <code>LIBXSMM_TARGET=hsw</code> (otherwise the code path is shown in the table's header). The actual counters are collected for three buckets: small kernels (MNK<sup>1/3</sup> &lt;= 13), medium-sized kernels (13 &lt; MNK<sup>1/3</sup> &lt;= 23), and larger kernels (23 &lt; MNK<sup>1/3</sup> &lt;= 80; the actual upper bound depends on LIBXSMM_MAX_MNK as selected at compile-time). Keep in mind, that "larger" is supposedly still fairly small in terms of arithmetic intensity (which grows linearly with the kernel size). Unfortunately, the arithmetic intensity depends on the way a kernel is used (which operands are loaded/stored into main memory) and it is not performance-neutral to collect this information.</p>
+<p>The tables are distinct between single-precision and double-precision, but either table is pruned if all counters are zero. If both tables are pruned, the library shows the code path which would have been used for JIT'ting the code: <code>LIBXSMM_TARGET=hsw</code> (otherwise the code path is shown in the table's header). The actual counters are collected for three buckets: small kernels (MNK<sup>1/3</sup> &lt;= 13), medium-sized kernels (13 &lt; MNK<sup>1/3</sup> &lt;= 23), and larger kernels (23 &lt; MNK<sup>1/3</sup> &lt;= 128; the actual upper bound depends on LIBXSMM_MAX_MNK as selected at compile-time). Keep in mind, that "larger" is supposedly still fairly small in terms of arithmetic intensity (which grows linearly with the kernel size). Unfortunately, the arithmetic intensity depends on the way a kernel is used (which operands are loaded/stored into main memory) and it is not performance-neutral to collect this information.</p>
 
 <p>The TRY counter represents all attempts to register statically generated kernels, and all attempts to dynamically generate and register kernels. The TRY counter includes rejected JIT requests due to unsupported GEMM arguments. The JIT and STA counters distinct the successful cases of the aforementioned event (TRY) into dynamically (JIT) and statically (STA) generated code. In case the capacity (O(<em>n</em>) = 10<sup>5</sup>) of the code registry is exhausted, no more kernels can be registered although further attempts are not prevented. Registering many kernels (O(<em>n</em>) = 10<sup>3</sup>) may ramp the number of hash key collisions (COL), which can degrade performance. The latter is prevented if the small thread-local cache is utilized effectively.</p>
 
 <p>Since explicitly JIT-generated code (<code>libxsmm_?mmdispatch</code>) does not fall under the THRESHOLD criterion, the above table is extended by one line if large kernels have been requested. This indicates a missing threshold-criterion (customized dispatch), or asks for cache-blocking the matrix multiplication. The latter is already implemented by LIBXSMM's "medium-sized" GEMM routines (<code>libxsmm_?gemm_omp</code>), which perform a tiled multiplication.</p>
 
-<p><strong>NOTE</strong>: setting LIBXSMM_VERBOSE to a negative value will dump each generated JIT kernel to a file with each file being named similar to the function name shown in <a href="#profiling">Intel VTune</a>.</p>
+<p><strong>NOTE</strong>: Setting LIBXSMM_VERBOSE to a negative value will dump each generated JIT kernel to a file with each file being named similar to the function name shown in <a href="#profiling">Intel VTune</a>.</p>
 
 <h3>
 <a id="call-trace" class="anchor" href="#call-trace" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Call Trace</h3>
@@ -442,7 +457,7 @@ make SYM=1
 
 <p>to the <code>mpirun</code> command line. Please notice the <code>:4=exclusive</code> (unrelated to VTune's command line syntax), which is related to mpirun's gtool arguments; these arguments need to appear at the end of the gtool-string. For instance, the shown command line selects the 4th rank (otherwise all ranks are sampled) along with "exclusive" usage of the performance monitoring unit (PMU) such that only one event-collector runs for all ranks.</p>
 
-<p>Intel VTune Amplifier presents invoked JIT code like functions, which belong to a module named "libxsmm.jit". The function name as well as the module name are supplied by LIBXSMM using the aforementioned JIT Profiling API. For instance "libxsmm_hsw_dnn_23x23x23_23_23_23_a1_b1_p0::smxm" encodes an Intel AVX2 ("hsw") double-precision kernel ("d") for small dense matrix multiplications ("smxm") which is multiplying matrices without transposing them ("nn"). The rest of the name encodes M=N=K=LDA=LDB=LDC=23, Alpha=Beta=1.0 (all similar to GEMM), and no prefetch strategy ("p0").</p>
+<p>Intel VTune Amplifier presents invoked JIT code like functions, which belong to a module named "libxsmm.jit". The function name as well as the module name are supplied by LIBXSMM using the aforementioned JIT Profiling API. For instance "libxsmm_hsw_dnn_23x23x23_23_23_23_a1_b1_p0::mxm" encodes an Intel AVX2 ("hsw") double-precision kernel ("d") for small dense matrix multiplications ("mxm") which is multiplying matrices without transposing them ("nn"). The rest of the name encodes M=N=K=LDA=LDB=LDC=23, Alpha=Beta=1.0 (all similar to GEMM), and no prefetch strategy ("p0").</p>
 
 <h4>
 <a id="linux-perf" class="anchor" href="#linux-perf" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Linux perf</h4>
@@ -523,8 +538,6 @@ make SYM=1
 <p>The JIT backend can also be disabled at build time (<code>make JIT=0</code>) as well as at runtime (<code>LIBXSMM_TARGET=0</code>, or anything prior to Intel AVX). The latter is an environment variable which allows to set a code path independent of the CPUID (LIBXSMM_TARGET=0|1|sse|snb|hsw|knl|skx). Please note that LIBXSMM_TARGET cannot enable the JIT backend if it was disabled at build time (JIT=0).</p>
 
 <p>One can use the aforementioned THRESHOLD parameter to control the matrix sizes for which the JIT compilation will be automatically performed. However, explicitly requested kernels (by calling <code>libxsmm_?mmdispatch</code>) are not subject to a problem size threshold. In any case, JIT code generation can be used for accompanying statically generated code.</p>
-
-<p>Note: Modern Linux kernels are supporting transparent huge pages (THP). LIBXSMM is sanitizing this feature when setting the permissions for pages holding the executable code. However, we measured up to 30% slowdown when running JIT'ted code in cases where THP decided to deliver a huge page. For systems with Linux kernel 2.6.38 (or later) THP will be automatically disabled for the <code>mmap</code>'ed regions (using <code>madvise</code>).</p>
 
 <h3>
 <a id="generator-driver" class="anchor" href="#generator-driver" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Generator Driver</h3>
