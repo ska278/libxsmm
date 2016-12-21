@@ -1,0 +1,8 @@
+title: LIBXSMM
+description: Library targeting Intel Architecture (x86) for small, dense or sparse matrix multiplications, and small convolutions.
+google_analytics: UA-65670560-2
+show_downloads: true
+theme: jekyll-theme-dinky
+
+gems:
+  - jekyll-mentions
