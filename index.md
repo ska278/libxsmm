@@ -1,7 +1,7 @@
 # [LIBXSMM](https://github.com/hfp/libxsmm/raw/master/documentation/libxsmm.pdf)
 [![License](https://img.shields.io/badge/license-BSD3-blue.svg)](LICENSE) [![Travis CI](https://travis-ci.org/hfp/libxsmm.svg?branch=master "Master branch build status")](https://github.com/hfp/libxsmm/archive/master.zip) [![Travis Mirror](https://badge.buildkite.com/63b5dc4095f460f1c011ae782f8e67ec0b8a6a9732d8abe3c7.svg)](https://github.com/hfp/libxsmm/wiki/Status "Build status")
 
-LIBXSMM is a library for small dense and small sparse matrix-matrix multiplications as well as for deep learning primitives such as small convolutions targeting Intel Architecture. Small matrix multiplication kernels are generated for the following instruction set extensions: Intel&#160;SSE, Intel&#160;AVX, Intel&#160;AVX2, IMCI (KNCni) for Intel&#160;Xeon&#160;Phi coprocessors ("KNC"), and Intel&#160;AVX&#8209;512 as found in the Intel&#160;Xeon&#160;Phi processor family&#160;(Knights Landing "KNL") and Intel&#160;Xeon processors (Skylake-E "SKX"). Historically small matrix multiplications were only optimized for the Intel&#160;Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all afore mentioned instruction set extensions (static code generation), and Just&#8209;In&#8209;Time (JIT) code generation is targeting Intel&#160;AVX and beyond. Optimized code for small convolutions is JIT-generated for Intel&#160;AVX2 and Intel&#160;AVX&#8209;512.
+LIBXSMM is a library for small dense and small sparse matrix-matrix multiplications as well as for deep learning primitives such as small convolutions targeting Intel Architecture. Small matrix multiplication kernels are generated for the following instruction set extensions: Intel&#160;SSE, Intel&#160;AVX, Intel&#160;AVX2, IMCI (KNCni) for Intel&#160;Xeon&#160;Phi coprocessors ("KNC"), and Intel&#160;AVX&#8209;512 as found in the Intel&#160;Xeon&#160;Phi processor family&#160;(Knights Landing "KNL", Knights Mill "KNM") and Intel&#160;Xeon processors (Skylake-E "SKX"). Historically small matrix multiplications were only optimized for the Intel&#160;Many Integrated Core Architecture "MIC") using intrinsic functions, meanwhile optimized assembly code is targeting all afore mentioned instruction set extensions (static code generation), and Just&#8209;In&#8209;Time (JIT) code generation is targeting Intel&#160;AVX and beyond. Optimized code for small convolutions is JIT-generated for Intel&#160;AVX2 and Intel&#160;AVX&#8209;512.
 
 **What is the background of the name "LIBXSMM"?** The "MM" stands for Matrix Multiplication, and the "S" clarifies the working domain i.e., Small Matrix Multiplication. The latter also means the name is neither a variation of "MXM" nor an eXtreme Small Matrix Multiplication but rather about Intel Architecture (x86) - and no, the library is [64&#8209;bit only](https://github.com/hfp/libxsmm/issues/103#issuecomment-256887962). The spelling of the name might follow the syllables of libx\\/smm, libx'smm, or libx&#8209;smm.
 
@@ -83,108 +83,134 @@ libxsmm_dmmfunction libxsmm_dmmdispatch(int m, int n, int k,
 A variety of overloaded function signatures is provided allowing to omit arguments not deviating from the configured defaults. In C++, a type `libxsmm_mmfunction<type>` can be used to instantiate a functor rather than making a distinction for the numeric type in `libxsmm_?mmdispatch`. Similarly in FORTRAN, when calling the generic interface (`libxsmm_mmdispatch`) the given `LIBXSMM_?MMFUNCTION` is dispatched such that `libxsmm_call` can be used to actually perform the function call using the PROCEDURE POINTER wrapped by `LIBXSMM_?MMFUNCTION`. Beside of dispatching code, one can also call a specific kernel (e.g., `libxsmm_dmm_4_4_4`) using the prototype functions included for statically generated kernels.
 
 ## Interface for Convolutions
-To achieve best performance with small convolutions for CNN on SIMD architectures, a specific data layout has to be used. As this layout depends on several architectural parameters, the goal of LIBXSMM interface is to hide this complexity from the user by providing copy-in and copy-out routines. These happen on custom datatype which themselves are later bound to a convolution operation. The interface is available for C.
+To achieve best performance with small convolutions for CNN on SIMD architectures, a specific data layout has to be used. As this layout depends on several architectural parameters, the goal of the LIBXSMM's interface is to hide this complexity from the user by providing copy-in and copy-out routines. This happens using opaque data types which themselves are later bound to a convolution operation. The interface is available for C.
 
-The main concept in LIBXSMM's frontend is that everything is circled around `libxsmm_dnn_conv_handle` which will define all properties of a layer operation. A handle can be created by describing the convolutional layer and calling a create function:
+The concept of the interface is circled around a few handle types: `libxsmm_dnn_layer`, `libxsmm_dnn_buffer`, `libxsmm_dnn_bias`, and `libxsmm_dnn_filter`. A handle is setup by calling a create-function:
 
 ```C
-/** simplified LIBXSMM types which are needed to create a handle */
+/** Simplified LIBXSMM types which are needed to create a handle. */
 
 /** Structure which describes the input and output of data (DNN). */
 typedef struct libxsmm_dnn_conv_desc {
-  int N;                                  /* number of images in mini-batch */
-  int C;                                  /* number of input feature maps */
-  int H;                                  /* height of input image */
-  int W;                                  /* width of input image */
-  int K;                                  /* number of output feature maps */
-  int R;                                  /* height of filter kernel */
-  int S;                                  /* width of filter kernel */
-  int u;                                  /* vertical stride */
-  int v;                                  /* horizontal stride */
-  int pad_h_in;                           /* height of physical zero-padding in input buffer, ignored */
-  int pad_w_in;                           /* width of physical zero-padding in input buffer, ignored */
-  int pad_h_out;                          /* height of physical zero-padding in output buffer */
-  int pad_w_out;                          /* width of pyhsical zero-padding in output buffer */
-  libxsmm_dnn_conv_algo algo;             /* convolution algorithm used */
-  libxsmm_dnn_conv_format buffer_format;  /* format which is for buffer buffers */
-  libxsmm_dnn_conv_format filter_format;  /* format which is for filter buffers */
-  libxsmm_dnn_conv_fuse_ops fuse_ops;     /* used ops into convolutions */
-  libxsmm_dnn_conv_option options;        /* additional options */
-  libxsmm_dnn_datatype datatype_in;       /* datatypes use for all buffers */
-  libxsmm_dnn_datatype datatype_ou;       /* datatypes use for all buffers */
+  int N;                                    /* number of images in mini-batch */
+  int C;                                    /* number of input feature maps */
+  int H;                                    /* height of input image */
+  int W;                                    /* width of input image */
+  int K;                                    /* number of output feature maps */
+  int R;                                    /* height of filter kernel */
+  int S;                                    /* width of filter kernel */
+  int u;                                    /* vertical stride */
+  int v;                                    /* horizontal stride */
+  int pad_h;                                /* height of logical rim padding to input
+                                               for adjusting output height */
+  int pad_w;                                /* width of logical rim padding to input
+                                               for adjusting output width */
+  int pad_h_in;                             /* height of zero-padding in input buffer,
+                                               must equal to pad_h for direct conv */
+  int pad_w_in;                             /* width of zero-padding in input buffer,
+                                               must equal to pad_w for direct conv */
+  int pad_h_out;                            /* height of zero-padding in output buffer */
+  int pad_w_out;                            /* width of zero-padding in output buffer */
+  int threads;                              /* number of threads to use when running
+                                               convolution */
+  libxsmm_dnn_datatype datatype;            /* datatypes use for all input and outputs */
+  libxsmm_dnn_tensor_format buffer_format;  /* format which is for buffer buffers */
+  libxsmm_dnn_tensor_format filter_format;  /* format which is for filter buffers */
+  libxsmm_dnn_conv_algo algo;               /* convolution algorithm used */
+  libxsmm_dnn_conv_option options;          /* additional options */
+  libxsmm_dnn_conv_fuse_op fuse_ops;        /* used ops into convolutions */
 } libxsmm_dnn_conv_desc;
 
 /** Type of algorithm used for convolutions. */
 typedef enum libxsmm_dnn_conv_algo {
+  /** let the library decide */
+  LIBXSMM_DNN_CONV_ALGO_AUTO,   /* ignored for now */
   /** direct convolution. */
   LIBXSMM_DNN_CONV_ALGO_DIRECT
 } libxsmm_dnn_conv_algo;
 
 /** Denotes the element/pixel type of an image/channel. */
-typedef enum libxsmm_dnn_conv_datatype {
-  LIBXSMM_DNN_DATATYPE_F32
+typedef enum libxsmm_dnn_datatype {
+  LIBXSMM_DNN_DATATYPE_F32,
+  LIBXSMM_DNN_DATATYPE_I32,
+  LIBXSMM_DNN_DATATYPE_I16,
+  LIBXSMM_DNN_DATATYPE_I8
 } libxsmm_dnn_datatype;
 
-libxsmm_dnn_conv_handle* libxsmm_dnn_create_conv_handle_check(
-  libxsmm_dnn_conv_desc   conv_desc,
-  libxsmm_dnn_datatype    conv_datatype,
-  libxsmm_dnn_conv_algo   conv_algo,
-  libxsmm_dnn_err_t*      status);
+libxsmm_dnn_layer* libxsmm_dnn_create_conv_layer(
+  libxsmm_dnn_conv_desc conv_desc, libxsmm_dnn_err_t* status);
+libxsmm_dnn_err_t libxsmm_dnn_destroy_conv_layer(
+  const libxsmm_dnn_layer* handle);
 ```
 
-Therefore, a sample call looks like:
+A sample call looks like (without error checks):
 ```C
-/** Macro to check for an error. */
-#define CHKERR_LIBXSMM_DNN(A) if (A != LIBXSMM_DNN_SUCCESS) \
-  fprintf(stderr, "%s\n", libxsmm_dnn_get_error(A));
 /* declare LIBXSMM variables */
 libxsmm_dnn_conv_desc conv_desc;
 libxsmm_dnn_err_t status;
-libxsmm_dnn_conv_handle* libxsmm_handle;
+libxsmm_dnn_layer* handle;
 /* setting conv_desc values.... */
 conv_desc.N = ...
 /* create handle */
-libxsmm_handle = libxsmm_dnn_create_conv_handle_check(conv_desc, &status);
-CHKERR_LIBXSMM_DNN(status);
+handle = libxsmm_dnn_create_conv_layer(conv_desc, &status);
 ```
 
-Next activation and filter buffers need to be created, initialized and bound to the handle. Afterwards the convolution could be executed by a threading environment of choice:
+Next activation and filter buffers need to be linked, initialized and bound to the handle. Afterwards the convolution can be executed in a threading environment of choice (error checks are omitted for brevity):
 
 ```C
-libxsmm_dnn_buffer* libxsmm_input;
-libxsmm_dnn_buffer* libxsmm_output;
-libxsmm_dnn_filter* libxsmm_filter;
+float *input, *output, *filter;
+libxsmm_dnn_buffer* libxsmm_reg_input;
+libxsmm_dnn_buffer* libxsmm_reg_output;
+libxsmm_dnn_filter* libxsmm_reg_filter;
 
-/* setup LIBXSMM layer information */
-libxsmm_input = libxsmm_dnn_create_input_buffer_check(libxsmm_handle, &status);
-CHKERR_LIBXSMM_DNN(status);
-libxsmm_output = libxsmm_dnn_create_output_buffer_check(libxsmm_handle, &status);
-CHKERR_LIBXSMM_DNN(status);
-libxsmm_filter = libxsmm_dnn_create_filter_check(libxsmm_handle, &status);
-CHKERR_LIBXSMM_DNN(status);
+/* allocate data */
+input = (float*)libxsmm_aligned_malloc(...);
+output = ...;
+
+/* link data to buffers */
+libxsmm_reg_input = libxsmm_dnn_link_buffer(  libxsmm_handle, LIBXSMM_DNN_INPUT, input,
+                                              LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_PTR, &status);
+libxsmm_reg_output = libxsmm_dnn_link_buffer( libxsmm_handle, LIBXSMM_DNN_OUTPUT, output,
+                                              LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_PTR, &status);
+libxsmm_reg_filter = libxsmm_dnn_link_filter( libxsmm_handle, LIBXSMM_DNN_FILTER, filter,
+                                              LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_PTR, &status);
 
 /* copy in data to LIBXSMM format: naive format is: */
 /* (mini-batch)(number-featuremaps)(featuremap-height)(featuremap-width) for layers, */
 /* and the naive format for filters is: */
 /* (number-output-featuremaps)(number-input-featuremaps)(kernel-height)(kernel-width) */
-CHKERR_LIBXSMM_DNN(libxsmm_dnn_copyin_buffer(libxsmm_input, (void*)naive_input));
-CHKERR_LIBXSMM_DNN(libxsmm_dnn_zero_buffer(libxsmm_output));
-CHKERR_LIBXSMM_DNN(libxsmm_dnn_copyin_filter(libxsmm_filter, (void*)naive_filter));
+libxsmm_dnn_copyin_buffer(libxsmm_reg_input, (void*)naive_input, LIBXSMM_DNN_TENSOR_FORMAT_NCHW);
+libxsmm_dnn_zero_buffer(libxsmm_reg_output);
+libxsmm_dnn_copyin_filter(libxsmm_reg_filter, (void*)naive_filter, LIBXSMM_DNN_TENSOR_FORMAT_KCRS);
 
 /* bind layer to handle */
-CHKERR_LIBXSMM_DNN(libxsmm_dnn_bind_input_buffer(libxsmm_handle, libxsmm_input));
-CHKERR_LIBXSMM_DNN(libxsmm_dnn_bind_output_buffer(libxsmm_handle, libxsmm_output));
-CHKERR_LIBXSMM_DNN(libxsmm_dnn_bind_filter(libxsmm_handle, libxsmm_filter));
+libxsmm_dnn_bind_input_buffer(libxsmm_handle, libxsmm_reg_input, LIBXSMM_DNN_REGULAR_INPUT);
+libxsmm_dnn_bind_output_buffer(libxsmm_handle, libxsmm_reg_output, LIBXSMM_DNN_REGULAR_OUTPUT);
+libxsmm_dnn_bind_filter(libxsmm_handle, libxsmm_reg_filter, LIBXSMM_DNN_REGULAR_FILTER);
+
+/* allocate and bind scratch */
+scratch = (void*)libxsmm_aligned_malloc(libxsmm_dnn_get_scratch_size(
+  libxsmm_handle, LIBXSMM_DNN_COMPUTE_KIND_FWD, &status), 2097152);
+libxsmm_dnn_bind_scratch(libxsmm_handle, LIBXSMM_DNN_COMPUTE_KIND_FWD, scratch);
 
 /* run the convolution */
 #pragma omp parallel
 {
-  CHKERR_LIBXSMM_DNN(libxsmm_dnn_convolve_st(libxsmm_handle, LIBXSMM_DNN_CONV_KIND_FWD, 0,
-    omp_get_thread_num(), omp_get_num_threads()));
+  libxsmm_dnn_convolve_st(libxsmm_handle, LIBXSMM_DNN_CONV_KIND_FWD, 0,
+    omp_get_thread_num(), omp_get_num_threads());
 }
 
 /* copy out data */
-CHKERR_LIBXSMM_DNN(libxsmm_dnn_copyout_buffer(libxsmm_output, (void*)naive_libxsmm_output));
+libxsmm_dnn_copyout_buffer(libxsmm_output, (void*)naive_libxsmm_output,
+  LIBXSMM_DNN_TENSOR_FORMAT_NCHW);
+
+/* clean up */
+libxsmm_dnn_release_scratch(...);
+libxsmm_dnn_release_buffer(...);
+...
+libxsmm_dnn_destroy_buffer(...);
+...
+libxsmm_dnn_destroy_conv_layer(...);
 ```
 
 ## Service Functions
@@ -225,11 +251,15 @@ Without further claims on the properties of the memory allocation (e.g., thread 
 **NOTE**: Only `libxsmm_free` is supported in order to deallocate the memory.
 
 ```C
-void* libxsmm_aligned_malloc(size_t size, int alignment);
+void* libxsmm_aligned_malloc(size_t size, size_t alignment);
 void* libxsmm_malloc(size_t size);
 void libxsmm_free(const volatile void* memory);
 size_t libxsmm_malloc_size(const volatile void* memory);
+void* libxsmm_aligned_scratch(size_t size, size_t alignment);
 ```
+
+The library exposes two memory allocation domains: (1)&#160;default memory allocation, and (2)&#160;scratch memory allocation. In contrast to the default memory allocation techniques, the scratch memory allocation is meant to establish a watermark for buffers which would be repeatedly allocated and deallocated. By establishing a (remaining) pool of "temporary" memory, the cost of repeated allocation and deallocation is avoided at some point (once the watermark is reached during execution).  
+**NOTE**: be careful with scratch memory as it only grows during execution (in between `libxsmm_init` and `libxsmm_finalize` unless `libxsmm_release_scratch` is called). This is true even when `libxsmm_free` is (and should be) used!
 
 ## Build Instructions
 ### Classic Library (ABI)
@@ -379,7 +409,11 @@ The TRY counter represents all attempts to register statically generated kernels
 
 Since explicitly JIT-generated code (`libxsmm_?mmdispatch`) does not fall under the THRESHOLD criterion, the above table is extended by one line if large kernels have been requested. This indicates a missing threshold-criterion (customized dispatch), or asks for cache-blocking the matrix multiplication. The latter is already implemented by LIBXSMM's "medium-sized" GEMM routines (`libxsmm_?gemm_omp`), which perform a tiled multiplication.
 
-**NOTE**: Setting LIBXSMM_VERBOSE to a negative value will dump each generated JIT kernel to a file with each file being named like the function name shown in [Intel&#160;VTune](#profiling).
+**NOTE**: Setting LIBXSMM_VERBOSE to a negative value will binary-dump each generated JIT kernel to a file with each file being named like the function name shown in [Intel&#160;VTune](#profiling). Disassembly of the raw binary files can be accomplished by:
+
+```
+objdump -D -b binary -m i386 -M x86-64 [JIT-dump-file]
+```
 
 ### Call Trace
 During the initial steps of employing the LIBXSMM API, one may rely on a debug version of the library (`make DBG=1`). The latter also implies console output (`stderr`) in case of an error/warning condition inside of the library. It is also possible to print the execution flow (call trace) inside of LIBXSMM (can be combined with DBG=1 or OPT=0):
@@ -567,11 +601,11 @@ Contributions are very welcome! Please visit [https://github.com/hfp/libxsmm/wik
 
 **\[4]&#160;[https://github.com/Nek5000/Nek5000](https://github.com/Nek5000/Nek5000)**: Nek5000 is the open-source, highly-scalable, always-portable spectral element code from [https://nek5000.mcs.anl.gov/](https://nek5000.mcs.anl.gov/). The development branch of the Nek5000 code now [incorporates](https://github.com/Nek5000/Nek5000/blob/develop/core/mxm_wrapper.f) LIBXSMM.
 
-**\[5]&#160;[https://software.intel.com/en-us/articles/intel-xeon-phi-delivers-competitive-performance-for-deep-learning-and-getting-better-fast](https://software.intel.com/en-us/articles/intel-xeon-phi-delivers-competitive-performance-for-deep-learning-and-getting-better-fast)**: Intel Xeon Phi Delivers Competitive Performance For Deep Learning - And Getting Better Fast. Article mentioning LIBXSMM's performance of convolution kernels with DeepBench. Intel Corporation, 2016.
-
-**\[6]&#160;[TensorFlow](https://tensorflow.org/)**: TensorFlow&trade; is an open source software library for numerical computation using data flow graphs. TensorFlow was originally developed by researchers and engineers working on the Google Brain Team for the purposes of conducting machine learning and deep neural networks research. LIBXSMM can be used to increase the performance of TensorFlow on Intel hardware.
+**\[5]&#160;[TensorFlow](https://tensorflow.org/)**: TensorFlow&trade; is an open source software library for numerical computation using data flow graphs. TensorFlow was originally developed by researchers and engineers working on the Google Brain Team for the purposes of conducting machine learning and deep neural networks research. LIBXSMM can be used to increase the performance of TensorFlow on Intel hardware.
 
 ## References
 **\[1]&#160;[http://sc16.supercomputing.org/presentation/?id=pap364&sess=sess153](http://sc16.supercomputing.org/presentation/?id=pap364&sess=sess153)**: LIBXSMM: Accelerating Small Matrix Multiplications by Runtime Code Generation ([paper](http://www.computer.org/csdl/proceedings/sc/2016/8815/00/8815a981.pdf)). SC'16: The International Conference for High Performance Computing, Networking, Storage and Analysis, Salt Lake City (Utah).
 
 **\[2]&#160;[http://sc15.supercomputing.org/sites/all/themes/SC15images/tech_poster/tech_poster_pages/post137.html](http://sc15.supercomputing.org/sites/all/themes/SC15images/tech_poster/tech_poster_pages/post137.html)**: LIBXSMM: A High Performance Library for Small Matrix Multiplications ([poster](http://sc15.supercomputing.org/sites/all/themes/SC15images/tech_poster/poster_files/post137s2-file2.pdf) and [abstract](http://sc15.supercomputing.org/sites/all/themes/SC15images/tech_poster/poster_files/post137s2-file3.pdf)). SC'15: The International Conference for High Performance Computing, Networking, Storage and Analysis, Austin (Texas).
+
+**\[3]&#160;[https://software.intel.com/en-us/articles/intel-xeon-phi-delivers-competitive-performance-for-deep-learning-and-getting-better-fast](https://software.intel.com/en-us/articles/intel-xeon-phi-delivers-competitive-performance-for-deep-learning-and-getting-better-fast)**: Intel Xeon Phi Delivers Competitive Performance For Deep Learning - And Getting Better Fast. Article mentioning LIBXSMM's performance of convolution kernels with DeepBench. Intel Corporation, 2016.
