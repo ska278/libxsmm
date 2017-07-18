@@ -38,6 +38,8 @@
 # include <omp.h>
 #endif
 
+#include "counters.h"
+
 #if 0
 #define USE_OVERWRITE
 #endif
@@ -429,6 +431,8 @@ void libxsmm_set_flag_reuseInput(libxsmm_dnn_layer* /*handle*/, char /*type*/);
 
 int main(int argc, char* argv[])
 {
+  /* MCDRAM read/write counter */
+  setup();
   float *naive_input, *naive_output, *naive_output_save, *naive_filter, *naive_filter_wu, *naive_output_bp, *naive_output_wu, *naive_libxsmm_output;
   float *naive_libxsmm_input, *naive_libxsmm_filter, *naive_input_save, *naive_filter_save, *naive_filter_kcrs;
   float *input_nhwc, *output_nhwc, *filter_rsck, *naive_output_nhwc, *naive_input_nhwc;
@@ -464,6 +468,8 @@ int main(int argc, char* argv[])
   unsigned long long l_start, l_end;
   double l_total = 0.0;
   double flops = 0.0;
+  double bytes_rd = 0.0;
+  double bytes_wr = 0.0;
   int i;
 
   libxsmm_dnn_conv_desc conv_desc;
@@ -838,6 +844,10 @@ int main(int argc, char* argv[])
       printf("##########################################\n");
       printf("#   Performance - FWD (custom-Storage)   #\n");
       printf("##########################################\n");
+
+      /* MCDRAM read/write counter */
+      ctrs ctr1, ctr2;
+      readctrs(&ctr1);
       /* run LIBXSMM convolution for performance */
       l_start = libxsmm_timer_tick();
 #if defined(_OPENMP)
@@ -854,16 +864,39 @@ int main(int argc, char* argv[])
         }
       }
       l_end = libxsmm_timer_tick();
+
+      /* MCDRAM read/write counter */
+      readctrs(&ctr2);
+      uint64_t mcrd = 0;
+      uint64_t mcwr = 0;
+      {
+        int c;
+        for(c = 0 ; c < NEDC ; c++)
+        {
+          mcrd += (ctr2.edcrd[c] - ctr1.edcrd[c]);
+          mcwr += (ctr2.edcwr[c] - ctr1.edcwr[c]);
+        }
+      }
+
+
       l_total = libxsmm_timer_duration(l_start, l_end);
       flops = (double)nImg * (double)nIfm * (double)nOfm * (double)ofh * (double)ofw * (double)(2 * kh * kw) * (double)iters;
+      bytes_rd = (double)(mcrd * 64); // Cachelines read x 64 bytes/line
+      bytes_wr = (double)(mcwr * 64); // Cachelines written x 64 bytes/line
+      printf("Total MCDRAM GiB RD: %.5g\n", bytes_rd * 1e-9);
+      printf("Total MCDRAM GiB WR: %.5g\n", bytes_wr * 1e-9);
+      printf("MCDRAM GiB/s RD: %.5g\n", (bytes_rd * 1e-9)/((double)l_total));
+      printf("MCDRAM GiB/s WR: %.5g\n", (bytes_wr * 1e-9)/((double)l_total));
 
       printf("GFLOP  = %.5g\n", flops*1e-9/(double)iters);
       printf("fp time = %.5g\n", ((double)(l_total/iters)));
       printf("GFLOPS  = %.5g\n", (flops*1e-9)/l_total);
 
-      printf("PERFDUMP,FP,%s,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%.5g,%.5g,%f,%f,%f,%f,%f\n", LIBXSMM_VERSION, nThreads, nImg, nIfm, nOfm,
-          ifw, ifh, kw, kh, stride, pad, ((double)(l_total/iters)), (flops*1e-9)/l_total,
-          norms_fwd.max_rel_err, norms_fwd.max_abs_err, norms_fwd.l2_rel_err, norms_fwd.one_norm_ref, norms_fwd.one_norm_test );
+      printf("PERFDUMP,FP,%s,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%i,%.5g,%.5g,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", LIBXSMM_VERSION, nThreads, nImg, nIfm, nOfm,
+          ifw, ifh, ofw, ofh, kw, kh, stride, pad, ((double)(l_total/iters)), (flops*1e-9)/l_total,
+          norms_fwd.max_rel_err, norms_fwd.max_abs_err, norms_fwd.l2_rel_err, norms_fwd.one_norm_ref, norms_fwd.one_norm_test,
+          bytes_rd*1e-9, bytes_wr*1e-9, (bytes_rd * 1e-9)/((double)l_total), (bytes_wr * 1e-9)/((double)l_total));
+
     }
 
     if ( (type == 'A' || type == 'B') && (nIfm > 3) ) {

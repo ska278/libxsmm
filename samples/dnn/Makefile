@@ -63,8 +63,9 @@ all: $(XFILES)
 .PHONY: compile
 compile: $(OBJECTS) $(FTNOBJS)
 
-$(OUTDIR)/layer_example_f32: $(OUTDIR)/.make $(BLDDIR)/layer_example_f32-c.o $(LIBNAME).$(LIBEXT)
+$(OUTDIR)/layer_example_f32: $(OUTDIR)/.make $(BLDDIR)/layer_example_f32-c.o $(BLDDIR)/counters-cpp.o $(LIBNAME).$(LIBEXT) 
 	$(LD) -o $@ $(BLDDIR)/layer_example_f32-c.o \
+	        $(BLDDIR)/counters-cpp.o \
 		$(call abslib,$(LIBNAME).$(LIBEXT)) \
 		$(call abslib,$(LIBNAME)noblas.$(LIBEXT)) \
 		$(SLDFLAGS) $(LDFLAGS) $(CLDFLAGS)
