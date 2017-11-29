@@ -42,6 +42,7 @@
 /*# define USE_FUSED_BATCH_STATS*/
 #define FP64_BN_STATS
 /*#define USE_FUSED_RELU_BWD*/
+//#define APPLY_BN_TO_INPUT
 
 #if !defined(USE_FUSED_BIAS) && 0
 # define USE_FUSED_BIAS
@@ -219,8 +220,7 @@ LIBXSMM_INLINE void naive_copy_RSCK_to_KCRS(const float* rsck, float* kcrs, int 
   }
 }
 
-
-LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, const float* input, float* output, const float* filter, const float* bias)
+LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, float* input, float* output, const float* filter, const float* bias, const float* expect, const float* stddev, const float* gamma, const float* beta)
 {
   int nImg      = param->nImg;
   int nIfm      = param->nIfm;
@@ -247,8 +247,21 @@ LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, const float* input, float
   int img, ofm, ifm, oj, oi, ij, ii, kj, ki;
 
   LIBXSMM_VLA_DECL(4,       float, output_t, output + (pad_w_out * ofwp + pad_h_out), nOfm, ofhp, ofwp);
-  LIBXSMM_VLA_DECL(4, const float,  input_t,  input + (pad_w_in * ifwp + pad_h_in), nIfm, ifhp, ifwp);
+  LIBXSMM_VLA_DECL(4,       float,  input_t,  input + (pad_w_in * ifwp + pad_h_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4, const float, filter_t, filter, nIfm, kh, kw);
+
+#ifdef APPLY_BN_TO_INPUT
+  for (img = 0; img < nImg; ++img) {
+    for (ifm = 0; ifm < nIfm; ++ifm) {
+      for (ij = 0; ij < ifh; ++ij) {
+        for (ii = 0; ii < ifw; ++ii) {
+          LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) = 
+	    (LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) - expect[ifm]) / stddev[ifm] * gamma[ifm] + beta[ifm];
+	}
+      }
+    }
+  }
+#endif
 
 #if defined(USE_FUSED_BIAS) || defined(USE_FUSED_BIAS_RELU)
 #if defined(_OPENMP)
@@ -297,6 +310,8 @@ LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, const float* input, float
 #endif
     }
   }
+
+
 }
 
 LIBXSMM_INLINE void naive_conv_bp(naive_conv_t* param, float* input, const float* output, const float* filter, const float* naive_input_save)
@@ -427,6 +442,8 @@ int main(int argc, char* argv[])
   float *naive_libxsmm_input, *naive_libxsmm_filter, *naive_input_save, *naive_filter_save, *naive_filter_kcrs;
   float *input_nhwc, *output_nhwc, *filter_rsck, *dinput_nhwc, *doutput_nhwc, *dfilter_rsck, *naive_output_nhwc, *naive_input_nhwc;
   float *naive_bias, *bias_libxsmm, *naive_dbias, *dbias_libxsmm, *bias_nhwc, *dbias_nhwc;
+  float *naive_expect, *naive_stddev, *naive_gamma, *naive_beta;
+  float *expect_libxsmm, *stddev_libxsmm, *gamma_libxsmm, *beta_libxsmm;
   float *input_libxsmm, *filter_libxsmm, *output_libxsmm, *dinput_libxsmm, *dfilter_libxsmm, *doutput_libxsmm, *filtertr_libxsmm; 
   
 #ifdef FP32_BN_STATS
@@ -485,6 +502,12 @@ int main(int argc, char* argv[])
   libxsmm_dnn_tensor* libxsmm_filter_tr;
   libxsmm_dnn_tensor* libxsmm_bias;
   libxsmm_dnn_tensor* libxsmm_dbias;
+#ifdef APPLY_BN_TO_INPUT
+  libxsmm_dnn_tensor* libxsmm_expect;
+  libxsmm_dnn_tensor* libxsmm_stddev;
+  libxsmm_dnn_tensor* libxsmm_gamma;
+  libxsmm_dnn_tensor* libxsmm_beta;
+#endif
   libxsmm_dnn_tensor* libxsmm_batchstats;
   libxsmm_dnn_tensor_datalayout* libxsmm_layout;
   libxsmm_dnn_err_t status;
@@ -638,6 +661,16 @@ int main(int argc, char* argv[])
   dbias_libxsmm         = (float*)libxsmm_aligned_malloc( nOfm*               sizeof(float), 2097152);
   bias_nhwc             = (float*)libxsmm_aligned_malloc( nOfm*               sizeof(float), 2097152);
   dbias_nhwc            = (float*)libxsmm_aligned_malloc( nOfm*               sizeof(float), 2097152);
+#ifdef APPLY_BN_TO_INPUT
+  naive_expect 		= (float*)libxsmm_aligned_malloc( nIfm*               sizeof(float), 2097152);
+  naive_stddev 		= (float*)libxsmm_aligned_malloc( nIfm*               sizeof(float), 2097152);
+  naive_gamma		= (float*)libxsmm_aligned_malloc( nIfm*               sizeof(float), 2097152);
+  naive_beta		= (float*)libxsmm_aligned_malloc( nIfm*               sizeof(float), 2097152);
+  expect_libxsmm 	= (float*)libxsmm_aligned_malloc( nIfm*               sizeof(float), 2097152);
+  stddev_libxsmm 	= (float*)libxsmm_aligned_malloc( nIfm*               sizeof(float), 2097152);
+  gamma_libxsmm		= (float*)libxsmm_aligned_malloc( nIfm*               sizeof(float), 2097152);
+  beta_libxsmm		= (float*)libxsmm_aligned_malloc( nIfm*               sizeof(float), 2097152);
+#endif
 
   /* initialize data */
   float *naive_input_tmp           = (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
@@ -701,6 +734,17 @@ int main(int argc, char* argv[])
   copy_buf(naive_bias, bias_nhwc, nOfm);
   copy_buf(naive_dbias, dbias_nhwc, nOfm);
 
+#ifdef APPLY_BN_TO_INPUT
+  init_buf(naive_expect, 	nIfm, 0, 0);
+  init_buf(naive_stddev, 	nIfm, 0, 0);
+  init_buf(naive_gamma, 	nIfm, 0, 0);
+  init_buf(naive_beta, 		nIfm, 0, 0);
+  copy_buf(naive_expect, expect_libxsmm, nIfm);
+  copy_buf(naive_stddev, stddev_libxsmm, nIfm);
+  copy_buf(naive_gamma, gamma_libxsmm, nIfm);
+  copy_buf(naive_beta, beta_libxsmm, nIfm);
+#endif
+
   /* first touch LIBXSMM */
   zero_buf( input_libxsmm    , nImg*nIfm*ifhp*ifwp );
   zero_buf( filter_libxsmm   , nOfm*nIfm*kh*kw );
@@ -717,7 +761,7 @@ int main(int argc, char* argv[])
 #ifdef USE_OVERWRITE
     zero_buf(naive_output,    nImg*nOfm*ofhp*ofwp);
 #endif
-    naive_conv_fp(&naive_param, naive_input, naive_output, naive_filter, naive_bias);
+    naive_conv_fp(&naive_param, naive_input, naive_output, naive_filter, naive_bias, naive_expect, naive_stddev, naive_gamma, naive_beta);
   }
   if ( (type == 'A' || type == 'B') && (nIfm > 3) ) {
 #ifdef USE_OVERWRITE
