@@ -166,8 +166,10 @@ if (n_segments) {
             }
           } 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-           ifm1 = code_stream[pc].aux_index;
+	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
+             ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+           }
 	  }
 
           /* Run the stream of convolutions for this segment */
@@ -209,8 +211,10 @@ if (n_segments) {
           }
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-           ifm1 = code_stream[pc].aux_index;
+	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
+             ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+           }
 	  }
 
 
@@ -255,8 +259,10 @@ if (n_segments) {
           } 
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-           ifm1 = code_stream[pc].aux_index;
+	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
+             ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+            }
 	  }
 
 
@@ -368,8 +374,10 @@ if (n_segments) {
           }
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-           ifm1 = code_stream[pc].aux_index;
+	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
+             ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+           }
 	  }
 
 
@@ -487,8 +495,10 @@ if (n_segments) {
       } 
 
       if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-         ifm1 = code_stream[pc].aux_index;
+	 if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
+           ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+         }
       }
 
 
