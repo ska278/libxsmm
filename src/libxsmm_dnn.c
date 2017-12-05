@@ -809,7 +809,7 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
           layout = 0; /* make sure a NULL is returned */
           *status = LIBXSMM_DNN_ERR_INVALID_FORMAT_GENERAL;
         }
-      } else if ( (type == LIBXSMM_DNN_REGULAR_BIAS) || (type == LIBXSMM_DNN_GRADIENT_BIAS) || (type == LIBXSMM_DNN_BIAS) ) {
+      } else if ( (type == LIBXSMM_DNN_REGULAR_BIAS) || (type == LIBXSMM_DNN_GRADIENT_BIAS) || (type == LIBXSMM_DNN_BIAS) || (type == LIBXSMM_DNN_REGULAR_EXPECT) || (type == LIBXSMM_DNN_REGULAR_STDDEV) || (type == LIBXSMM_DNN_REGULAR_GAMMA) || (type == LIBXSMM_DNN_REGULAR_BETA) ) {
         layout->format = handle->buffer_format;
         layout->tensor_type = LIBXSMM_DNN_BIAS;
 
@@ -1227,6 +1227,10 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_copyin_tensor(const libxsmm
                                  }
                                } break;
       case LIBXSMM_DNN_REGULAR_BIAS:
+      case LIBXSMM_DNN_REGULAR_EXPECT:
+      case LIBXSMM_DNN_REGULAR_STDDEV:
+      case LIBXSMM_DNN_REGULAR_GAMMA:
+      case LIBXSMM_DNN_REGULAR_BETA:
       case LIBXSMM_DNN_GRADIENT_BIAS:
       case LIBXSMM_DNN_BIAS: {
                                switch (in_format) {
@@ -1404,6 +1408,10 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_copyout_tensor(const libxsm
                                  }
                                } break;
       case LIBXSMM_DNN_REGULAR_BIAS:
+      case LIBXSMM_DNN_REGULAR_EXPECT:
+      case LIBXSMM_DNN_REGULAR_STDDEV:
+      case LIBXSMM_DNN_REGULAR_GAMMA:
+      case LIBXSMM_DNN_REGULAR_BETA:
       case LIBXSMM_DNN_GRADIENT_BIAS:
       case LIBXSMM_DNN_BIAS: {
                                switch (out_format) {
@@ -1497,6 +1505,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_bind_tensor(libxsmm_dnn_lay
       (type != LIBXSMM_DNN_REGULAR_OUTPUT)       && (type != LIBXSMM_DNN_GRADIENT_OUTPUT) &&
       (type != LIBXSMM_DNN_REGULAR_FILTER)       && (type != LIBXSMM_DNN_GRADIENT_FILTER) &&
       (type != LIBXSMM_DNN_REGULAR_BIAS)         && (type != LIBXSMM_DNN_GRADIENT_BIAS)   &&
+      (type != LIBXSMM_DNN_REGULAR_EXPECT)         && (type != LIBXSMM_DNN_REGULAR_STDDEV)   &&
+      (type != LIBXSMM_DNN_REGULAR_GAMMA)         && (type != LIBXSMM_DNN_REGULAR_BETA)   &&
       (type != LIBXSMM_DNN_REGULAR_FILTER_TRANS) && (type != LIBXSMM_DNN_BATCH_STATS) && (type != LIBXSMM_DNN_MAX_STATS_FWD) && (type != LIBXSMM_DNN_MAX_STATS_BWD)  && (type != LIBXSMM_DNN_MAX_STATS_UPD)  ) {
     status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
     return status;
@@ -1520,6 +1530,14 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_bind_tensor(libxsmm_dnn_lay
         handle->grad_filter = (libxsmm_dnn_tensor*)tensor;
       } else if ( type == LIBXSMM_DNN_REGULAR_BIAS ) {
         handle->reg_bias = (libxsmm_dnn_tensor*)tensor;
+      } else if ( type == LIBXSMM_DNN_REGULAR_EXPECT ) {
+        handle->reg_expect = (libxsmm_dnn_tensor*)tensor;
+      } else if ( type == LIBXSMM_DNN_REGULAR_STDDEV ) {
+        handle->reg_stddev = (libxsmm_dnn_tensor*)tensor;
+      } else if ( type == LIBXSMM_DNN_REGULAR_GAMMA ) {
+        handle->reg_gamma = (libxsmm_dnn_tensor*)tensor;
+      } else if ( type == LIBXSMM_DNN_REGULAR_BETA ) {
+        handle->reg_beta = (libxsmm_dnn_tensor*)tensor;
       } else if ( type == LIBXSMM_DNN_GRADIENT_BIAS ) {
         handle->grad_bias = (libxsmm_dnn_tensor*)tensor;
       } else if ( type == LIBXSMM_DNN_REGULAR_FILTER_TRANS ) {
@@ -1558,6 +1576,8 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_release_tensor(libxsmm_dnn_layer* hand
       (type != LIBXSMM_DNN_REGULAR_OUTPUT)       && (type != LIBXSMM_DNN_GRADIENT_OUTPUT) &&
       (type != LIBXSMM_DNN_REGULAR_FILTER)       && (type != LIBXSMM_DNN_GRADIENT_FILTER) &&
       (type != LIBXSMM_DNN_REGULAR_BIAS)         && (type != LIBXSMM_DNN_GRADIENT_BIAS)   &&
+      (type != LIBXSMM_DNN_REGULAR_EXPECT)         && (type != LIBXSMM_DNN_REGULAR_STDDEV)   &&
+      (type != LIBXSMM_DNN_REGULAR_GAMMA)         && (type != LIBXSMM_DNN_REGULAR_BETA)   &&
       (type != LIBXSMM_DNN_REGULAR_FILTER_TRANS) && (type != LIBXSMM_DNN_BATCH_STATS) && (type != LIBXSMM_DNN_MAX_STATS_FWD) && (type != LIBXSMM_DNN_MAX_STATS_BWD)  && (type != LIBXSMM_DNN_MAX_STATS_UPD)  ) {
     status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
     return status;
@@ -1578,6 +1598,14 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_release_tensor(libxsmm_dnn_layer* hand
       handle->grad_filter = 0;
     } else if ( type == LIBXSMM_DNN_REGULAR_BIAS ) {
       handle->reg_bias = 0;
+    } else if ( type == LIBXSMM_DNN_REGULAR_EXPECT ) {
+      handle->reg_expect = 0;
+    } else if ( type == LIBXSMM_DNN_REGULAR_STDDEV ) {
+      handle->reg_stddev = 0;
+    } else if ( type == LIBXSMM_DNN_REGULAR_GAMMA ) {
+      handle->reg_gamma = 0;
+    } else if ( type == LIBXSMM_DNN_REGULAR_BETA ) {
+      handle->reg_beta = 0;
     } else if ( type == LIBXSMM_DNN_GRADIENT_BIAS ) {
       handle->grad_bias = 0;
     } else if ( type == LIBXSMM_DNN_REGULAR_FILTER_TRANS ) {

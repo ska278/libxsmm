@@ -33,6 +33,7 @@
 #define OFM_LOOP_CLOSE 2
 #define CONVOLUTION_KERNEL 3
 #define IFM_LOOP_CLOSE_S 4
+#define IFM_LOOP_FIRST_TOUCH 5
 
 #define FP64_BN_STATS
 
@@ -164,10 +165,13 @@ if (n_segments) {
               jitted_zero_overwrite(NULL, NULL, output_base + stream[i+2], NULL, NULL);
             }
           } 
+          if ( instr == IFM_LOOP_FIRST_TOUCH ) {
+           ifm1 = code_stream[pc].aux_index;
+	  }
 
           /* Run the stream of convolutions for this segment */
           for (conv_i = 0; conv_i < n_convs; conv_i++) {
-            offset_i = stream[i];
+            offset_i = stream[i]; // Can use to find start point. Use information from tag.
             offset_w = stream[i+1];
             offset_o = stream[i+2];
             pi = stream[i+3];
@@ -202,6 +206,11 @@ if (n_segments) {
               jitted_zero_overwrite(NULL, NULL, output_base + stream[i+2], NULL, NULL);
             }
           }
+
+          if ( instr == IFM_LOOP_FIRST_TOUCH ) {
+           ifm1 = code_stream[pc].aux_index;
+	  }
+
 
           /* Run the stream of convolutions for this segment */
           for (conv_i = 0; conv_i < n_convs; conv_i++) {
@@ -242,6 +251,11 @@ if (n_segments) {
               jitted_zero_overwrite(NULL, NULL, output_base + stream[i+2], NULL, NULL);
             }
           } 
+
+          if ( instr == IFM_LOOP_FIRST_TOUCH ) {
+           ifm1 = code_stream[pc].aux_index;
+	  }
+
 
           if (instr == OFM_LOOP_CLOSE) {
             /* Compute batch norm statistics... */
@@ -349,6 +363,11 @@ if (n_segments) {
               jitted_zero_overwrite(NULL, NULL, output_base + stream[i+2], NULL, NULL);
             }
           }
+
+          if ( instr == IFM_LOOP_FIRST_TOUCH ) {
+           ifm1 = code_stream[pc].aux_index;
+	  }
+
 
           if ( instr == OFM_LOOP_CLOSE ) {
             /* Compute batch norm statistics... */
@@ -462,6 +481,11 @@ if (n_segments) {
           }
         }
       } 
+
+      if ( instr == IFM_LOOP_FIRST_TOUCH ) {
+         ifm1 = code_stream[pc].aux_index;
+      }
+
 
       /* Run the stream of convolutions for this segment */
       for (conv_i = 0; conv_i < n_convs; conv_i++) {

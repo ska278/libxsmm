@@ -33,6 +33,7 @@
 #define OFM_LOOP_CLOSE 2
 #define CONVOLUTION_KERNEL 3
 #define IFM_LOOP_CLOSE_S 4
+#define IFM_LOOP_FIRST_TOUCH 5
 
 #define MIXED 0
 #define KHWC 1
@@ -108,7 +109,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   int nOfmBlocks;
   int total_calls;
   int n_code_segments;
-  int mark_ofm_init, mark_ofm_close, mark_img_init, mark_ifm_close;
+  int mark_ofm_init, mark_ofm_close, mark_img_init, mark_ifm_close, mark_ifm_init;
   int *tmp_expanded_stream, tmp_stream_index;
   segment_t *encoded_code_segments = NULL;
   int expanded_size;
@@ -137,6 +138,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
     my_ofm_end = LIBXSMM_MIN((myOfmId+1) * nOfmBlocks, BLOCKSOFM);
   }
 
+  mark_ifm_init = 1;
   mark_ofm_init =  ((((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) && (handle->use_nts_fwd == 0) ) || ( (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) ) ? 1 : 0;
   mark_ofm_close = (((((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0)) && (handle->use_fwd_for_bwd == 0) && (handle->use_nts_fwd == 0) ) || 
                     ((((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0)) && (handle->use_fwd_for_bwd == 1) && (handle->use_nts_bwd == 0) ) ) ? 1 : 0;
@@ -158,6 +160,13 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                   for (oj = ojb; oj < LIBXSMM_MIN(ojb+handle->block_fwd_oj,handle->ofh); oj += handle->fwd_ofh_rb) {
                     for (oi = 0; oi < handle->ofw ; oi += handle->fwd_ofw_rb) {
                       local_entries += 3;
+
+                      if (mark_ifm_init == 1) {
+		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && ifm1 == ifmb && oj == ojb && oi == 0)
+			{
+                          n_code_segments++;
+			}
+		      }
 
                       if (mark_ofm_init == 1) {
                         if (ifm1 == 0 && oj == 0 && oi == 0) {
@@ -192,6 +201,11 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                   for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {
                     for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
                       local_entries += 3;
+                      if (mark_ifm_init == 1) {
+		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0 && ifm1 == ifmb) {
+                          n_code_segments++;
+			}
+                      }
 
                       if (mark_ofm_init == 1) {
                         if (ifm1 == 0 && oj == 0 && oi == 0) {
@@ -235,8 +249,14 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
               for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {   
                 for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {       
                   for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-
                     local_entries += 3;
+
+                    if (mark_ifm_init == 1) {
+		      if (ofmb == my_ofm_start && ojb == 0 && oj == ojb && oi == 0 && ofm1 == ofmb && ifm1 == ifmb) {
+                        n_code_segments++;
+		      }
+                    }
+
 
                     if (mark_ofm_init == 1) {
                       if (ifm1 == 0 && oj == 0 && oi == 0) {
@@ -320,6 +340,13 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         oj_use = oj * handle->desc.v;                    
                       }
 
+                      if (mark_ifm_init == 1) {
+		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && ifm1 == ifmb && oj == ojb && oi == 0) {
+                          tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
+                          tmp_stream_index++;
+			}
+		      }
+
                       if (mark_ofm_init == 1) {
                         if (ifm1 == 0 && oj == 0 && oi == 0) {
                           tmp_expanded_stream[tmp_stream_index] = OFM_LOOP_INIT;
@@ -391,6 +418,13 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         oi_use = oi * handle->desc.u;
                         oj_use = oj * handle->desc.v;                    
                       }
+
+                      if (mark_ifm_init == 1) {
+		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0 && ifm1 == ifmb) {
+                          tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
+                          tmp_stream_index++;
+			}
+		      }
 
                       if (mark_ofm_init == 1) {
                         if (ifm1 == 0 && oj == 0 && oi == 0) {
@@ -475,6 +509,13 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       oi_use = oi * handle->desc.u;
                       oj_use = oj * handle->desc.v;                    
                     }
+
+                    if (mark_ifm_init == 1) {
+		      if (ofmb == my_ofm_start && ojb == 0 && oj == ojb && oi == 0 && ofm1 == ofmb && ifm1 == ifmb) {
+                        tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
+                        tmp_stream_index++;
+		      }
+		    }
 
                     if (mark_ofm_init == 1) {
                       if (ifm1 == 0 && oj == 0 && oi == 0) {
@@ -580,6 +621,13 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         ij = oj * handle->desc.u;
                         ii = oi * handle->desc.v;
 
+                        if (mark_ifm_init == 1) {
+			  if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && ifm1 == ifmb && oj == ojb && oi == 0) {
+                            encoded_code_segments[encoded_stream_index].aux_index = ifm1;
+                            encoded_stream_index++; // Assume BLOCKSIFM 
+		          }
+		        }
+
                         if (mark_ofm_init == 1) {
                           if (ifm1 == 0 && oj == 0 && oi == 0) {
                             encoded_code_segments[encoded_stream_index].aux_index = ofm1;
@@ -614,6 +662,12 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                   for (oi = 0; oi < handle->ofw ; oi += handle->fwd_ofw_rb) {
                     for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {
                       for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
+                        if (mark_ifm_init == 1) {
+			  if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0 && ifm1 == ifmb) {
+                            encoded_code_segments[encoded_stream_index].aux_index = ifm1;
+                            encoded_stream_index++;
+			  }
+			}
 
                         ij = oj * handle->desc.u;
                         ii = oi * handle->desc.v;
@@ -662,6 +716,12 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                 for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {   
                   for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {       
                     for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
+                      if (mark_ifm_init == 1) {
+		        if(ofmb == my_ofm_start && ojb == 0 && oj == ojb && oi == 0 && ofm1 == ofmb && ifm1 == ifmb) {
+                          encoded_code_segments[encoded_stream_index].aux_index = ifm1;
+                          encoded_stream_index++;
+			}
+		      }
 
                       ij = oj * handle->desc.u;
                       ii = oi * handle->desc.v;

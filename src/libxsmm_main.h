@@ -199,6 +199,10 @@ struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
   libxsmm_dnn_tensor* grad_output;
   libxsmm_dnn_tensor* grad_filter;
   libxsmm_dnn_tensor* reg_bias;
+  libxsmm_dnn_tensor* reg_expect;
+  libxsmm_dnn_tensor* reg_stddev;
+  libxsmm_dnn_tensor* reg_gamma;
+  libxsmm_dnn_tensor* reg_beta;
   libxsmm_dnn_tensor* grad_bias;
   /* internal data representations for copies of tensors */
   libxsmm_dnn_tensor* reg_input_tr;
