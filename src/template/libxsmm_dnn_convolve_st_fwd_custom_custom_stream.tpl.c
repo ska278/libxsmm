@@ -44,14 +44,14 @@ const int ltid = tid-start_thread;
 int gs = 72; /*atoi(getenv("GSIZE"));*/
 const int tile_id = ltid/gs;
 /* Pointer variables  */
-const element_input_type *input_base, *input_ptr;
+element_input_type *input_base, *input_ptr;
 const element_filter_type *weight_base;
 element_input_type *input_zero;
 element_output_type *output_base;
 element_input_type *copy_ptr, *prefetch_ptr;
 element_output_type *out = ((element_output_type*)handle->reg_output->data) + (handle->desc.pad_h_out * handle->ofwp + handle->desc.pad_w_out) * (handle->ofmblock);
 LIBXSMM_VLA_DECL(5, element_output_type, output, out, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
-LIBXSMM_VLA_DECL(6, const element_input_type, input, (element_input_type*)handle->reg_input->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+LIBXSMM_VLA_DECL(6, element_input_type, input, (element_input_type*)handle->reg_input->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
 /* LIBXSMM_VLA_DECL(7, const element_filter_type, weight, (element_filter_type*)handle->reg_filter->data, BLOCKSIFM, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock, handle->fm_lp_block);*/
 LIBXSMM_VLA_DECL(7, const element_filter_type, weight, (element_filter_type*)handle->reg_filter->data + tile_id * BLOCKSIFM * BLOCKSOFM * handle->ifmblock * handle->ofmblock * handle->fm_lp_block *  handle->desc.R * handle->desc.S, BLOCKSIFM, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock, handle->fm_lp_block);
 
@@ -167,6 +167,7 @@ if (n_segments) {
           } 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
            ifm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
 	  }
 
           /* Run the stream of convolutions for this segment */
@@ -209,6 +210,7 @@ if (n_segments) {
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
            ifm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
 	  }
 
 
@@ -254,6 +256,7 @@ if (n_segments) {
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
            ifm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
 	  }
 
 
@@ -366,6 +369,7 @@ if (n_segments) {
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
            ifm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
 	  }
 
 
@@ -484,6 +488,7 @@ if (n_segments) {
 
       if ( instr == IFM_LOOP_FIRST_TOUCH ) {
          ifm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
       }
 
 

@@ -249,7 +249,6 @@ LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, float* input, float* outp
   LIBXSMM_VLA_DECL(4,       float, output_t, output + (pad_w_out * ofwp + pad_h_out), nOfm, ofhp, ofwp);
   LIBXSMM_VLA_DECL(4,       float,  input_t,  input + (pad_w_in * ifwp + pad_h_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4, const float, filter_t, filter, nIfm, kh, kw);
-/*
 #ifdef APPLY_BN_TO_INPUT
   for (img = 0; img < nImg; ++img) {
     for (ifm = 0; ifm < nIfm; ++ifm) {
@@ -262,7 +261,6 @@ LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, float* input, float* outp
     }
   }
 #endif
-*/
 
 #if defined(USE_FUSED_BIAS) || defined(USE_FUSED_BIAS_RELU)
 #if defined(_OPENMP)
@@ -932,6 +930,7 @@ int main(int argc, char* argv[])
       printf("##########################################\n");
       printf("#   Correctness - FWD (custom-Storage)   #\n"); // DO THIS ONE
       printf("##########################################\n");
+      CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_input,  (void*)naive_input_save,  LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
       /* run LIBXSMM convolutions */
 #if defined(_OPENMP)
 #     pragma omp parallel
