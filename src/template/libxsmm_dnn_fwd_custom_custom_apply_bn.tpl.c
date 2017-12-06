@@ -51,33 +51,32 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
   element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx, 0, handle->ifmblock));
   if(handle->ifmblock == 16)
   {
-    for(my_h = 0 ; my_h < handle->ifhp ; my_h++) 
+    for(my_h = 0 ; my_h < handle->desc.H ; my_h++) 
     {
-      for(my_w = 0 ; my_w < handle->ifwp ; my_w++)
+      for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
       {
-        //for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
         #pragma omp simd
         #pragma vector aligned
         for(my_c = 0 ; my_c < 16 ; my_c++)
         {
-          int _my_h = my_h + handle->desc.pad_h;
-          int _my_w = my_w + handle->desc.pad_w;
+          int _my_h = my_h + handle->desc.pad_h_in;
+          int _my_w = my_w + handle->desc.pad_w_in;
           element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * handle->ifwp] - myexpect[my_c]) / mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
           myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * handle->ifwp] = (after > 0) ? after : 0.;
         }
       }
     }
   } else {
-    for(my_h = 0 ; my_h < handle->ifhp ; my_h++) 
+    for(my_h = 0 ; my_h < handle->desc.H ; my_h++) 
     {
-      for(my_w = 0 ; my_w < handle->ifwp ; my_w++)
+      for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
       {
         #pragma omp simd
         #pragma vector aligned
         for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
         {
-          int _my_h = my_h + handle->desc.pad_h;
-          int _my_w = my_w + handle->desc.pad_w;
+          int _my_h = my_h + handle->desc.pad_h_in;
+          int _my_w = my_w + handle->desc.pad_w_in;
           element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * handle->ifwp] - myexpect[my_c]) / mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
           myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * handle->ifwp] = (after > 0) ? after : 0.;
         }
