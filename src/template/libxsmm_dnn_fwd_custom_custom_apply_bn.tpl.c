@@ -34,7 +34,7 @@ LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg
 LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma->data, handle->ifmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, beta, (element_input_type*)handle->reg_beta->data, handle->ifmblock);
 
-int my_h, my_w, my_c, ifm_idx, my_ldw;
+int my_h, my_w, my_c, ifm_idx, my_ldw, my_pad_h, my_pad_w;
 for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ ) 
 {
   element_input_type * myinput;
@@ -42,10 +42,14 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_buffer, img, 0, 0, 0, 0,
       padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
     my_ldw = padded_w;
+    my_pad_h = handle->desc.pad_h;
+    my_pad_w = handle->desc.pad_w;
   } else {
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     my_ldw = handle->ifwp;
+    my_pad_h = handle->desc.pad_h_in;
+    my_pad_w = handle->desc.pad_w_in;
   }
   element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx, 0, handle->ifmblock));
   element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx, 0, handle->ifmblock));
@@ -64,8 +68,8 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
     {
       for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
       {
-        int _my_h = my_h + handle->desc.pad_h_in;
-        int _my_w = my_w + handle->desc.pad_w_in;
+        int _my_h = my_h + my_pad_h;
+        int _my_w = my_w + my_pad_w;
 
 	// load input
 	__m512 _input = _mm512_load_ps(&myinput[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
@@ -89,8 +93,8 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
         #pragma vector aligned
         for(my_c = 0 ; my_c < 16 ; my_c++)
         {
-          int _my_h = my_h + handle->desc.pad_h_in;
-          int _my_w = my_w + handle->desc.pad_w_in;
+          int _my_h = my_h + my_pad_h;
+          int _my_w = my_w + my_pad_w;
           element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
           myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0.f) ? after : 0.f;
         }
@@ -106,8 +110,8 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
         #pragma vector aligned
         for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
         {
-          int _my_h = my_h + handle->desc.pad_h_in;
-          int _my_w = my_w + handle->desc.pad_w_in;
+          int _my_h = my_h + my_pad_h;
+          int _my_w = my_w + my_pad_w;
           element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
           myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
         }

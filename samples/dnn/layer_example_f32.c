@@ -247,6 +247,7 @@ LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, float* input, float* outp
   int img, ofm, ifm, oj, oi, ij, ii, kj, ki;
 
   LIBXSMM_VLA_DECL(4,       float, output_t, output + (pad_h_out * ofwp + pad_w_out), nOfm, ofhp, ofwp);
+  // Fix here padding
   LIBXSMM_VLA_DECL(4,       float,  input_t,  input + (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4, const float, filter_t, filter, nIfm, kh, kw);
 #ifdef USE_FUSED_BN_RELU_FWD_FUSE_BATCH_STATS
@@ -1957,7 +1958,9 @@ int main(int argc, char* argv[])
   libxsmm_free(dfilter_libxsmm);
   libxsmm_free(doutput_libxsmm);
   libxsmm_free(filtertr_libxsmm);
+#ifdef FP64_BN_STATS   
   libxsmm_free(batchstats_libxsmm);
+#endif
   libxsmm_free(naive_bias);
   libxsmm_free(naive_dbias);
   libxsmm_free(bias_nhwc);
