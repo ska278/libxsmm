@@ -34,16 +34,18 @@ LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg
 LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma->data, handle->ifmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, beta, (element_input_type*)handle->reg_beta->data, handle->ifmblock);
 
-int my_h, my_w, my_c, ifm_idx;
+int my_h, my_w, my_c, ifm_idx, my_ldw;
 for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ ) 
 {
   element_input_type * myinput;
   if (handle->padding_flag == 1) {
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_buffer, img, 0, 0, 0, 0,
       padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
+    my_ldw = padded_w;
   } else {
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    my_ldw = handle->ifwp;
   }
   element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx, 0, handle->ifmblock));
   element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx, 0, handle->ifmblock));
@@ -51,6 +53,34 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
   element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx, 0, handle->ifmblock));
   if(handle->ifmblock == 16)
   {
+#ifdef __AVX512F__
+
+    // load batch norm parameters
+    __m512 _expect = _mm512_load_ps(myexpect);
+    __m512 _stddev = _mm512_load_ps(mystddev);
+    __m512 _gamma = _mm512_load_ps(mygamma);
+    __m512 _beta = _mm512_load_ps(mybeta);
+    for(my_h = 0 ; my_h < handle->desc.H ; my_h++) 
+    {
+      for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
+      {
+        int _my_h = my_h + handle->desc.pad_h_in;
+        int _my_w = my_w + handle->desc.pad_w_in;
+
+	// load input
+	__m512 _input = _mm512_load_ps(&myinput[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
+
+	// Apply bn
+	_input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+
+	// Apply relu
+	__m512 _zero = _mm512_set1_ps(0.f);
+	__mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
+	_input = _mm512_maskz_add_ps(msk, _zero, _input);
+	_mm512_store_ps(&myinput[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
+      }
+    }
+#else
     for(my_h = 0 ; my_h < handle->desc.H ; my_h++) 
     {
       for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
@@ -61,11 +91,12 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
         {
           int _my_h = my_h + handle->desc.pad_h_in;
           int _my_w = my_w + handle->desc.pad_w_in;
-          element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * handle->ifwp] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * handle->ifwp] = (after > 0.f) ? after : 0.f;
+          element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
+          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0.f) ? after : 0.f;
         }
       }
     }
+#endif
   } else {
     for(my_h = 0 ; my_h < handle->desc.H ; my_h++) 
     {
@@ -77,8 +108,8 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
         {
           int _my_h = my_h + handle->desc.pad_h_in;
           int _my_w = my_w + handle->desc.pad_w_in;
-          element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * handle->ifwp] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * handle->ifwp] = (after > 0) ? after : 0.;
+          element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
+          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
         }
       }
     }
