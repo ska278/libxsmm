@@ -39,7 +39,9 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
 {
   element_input_type * myinput;
   if (handle->padding_flag == 1) {
-    myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_buffer, img, 0, 0, 0, 0,
+    //myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_buffer, img, 0, 0, 0, 0,
+    //  padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
+    myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_buffer, 0, 0, 0, 0, 0,
       padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
     my_ldw = padded_w;
     my_pad_h = handle->desc.pad_h;
@@ -57,7 +59,8 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
   element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx, 0, handle->ifmblock));
   if(handle->ifmblock == 16)
   {
-#ifdef __AVX512F__
+//#ifdef __AVX512F__
+#if 0
 
     // load batch norm parameters
     __m512 _expect = _mm512_load_ps(myexpect);
@@ -89,8 +92,8 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
     {
       for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
       {
-        #pragma omp simd
-        #pragma vector aligned
+        //#pragma omp simd
+        //#pragma vector aligned
         for(my_c = 0 ; my_c < 16 ; my_c++)
         {
           int _my_h = my_h + my_pad_h;
