@@ -193,6 +193,7 @@ struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
 
   /* internal data representation */
   libxsmm_dnn_tensor* reg_input;
+  libxsmm_dnn_tensor* reg_input_st;
   libxsmm_dnn_tensor* reg_output;
   libxsmm_dnn_tensor* reg_filter;
   libxsmm_dnn_tensor* grad_input;

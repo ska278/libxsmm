@@ -452,7 +452,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
       memset(layout, 0, sizeof(libxsmm_dnn_tensor_datalayout));
       layout->custom_format = handle->custom_format_type;
       if ( (type == LIBXSMM_DNN_REGULAR_INPUT)  || (type == LIBXSMM_DNN_GRADIENT_INPUT)  || (type == LIBXSMM_DNN_INPUT)  ||
-           (type == LIBXSMM_DNN_REGULAR_OUTPUT) || (type == LIBXSMM_DNN_GRADIENT_OUTPUT) || (type == LIBXSMM_DNN_OUTPUT)    ) {
+           (type == LIBXSMM_DNN_REGULAR_OUTPUT) || (type == LIBXSMM_DNN_GRADIENT_OUTPUT) || (type == LIBXSMM_DNN_OUTPUT) ||
+	   (type == LIBXSMM_DNN_REGULAR_INPUT_ST) ) {
         layout->format = handle->buffer_format;
         layout->tensor_type = LIBXSMM_DNN_ACTIVATION;
 
@@ -470,7 +471,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
                 layout->dim_type[2] = LIBXSMM_DNN_TENSOR_DIMTYPE_H;
                 layout->dim_type[3] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
                 layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_N;
-                if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) || (type == LIBXSMM_DNN_INPUT) ) {
+                if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) || (type == LIBXSMM_DNN_INPUT)  ||
+		     (type == LIBXSMM_DNN_REGULAR_INPUT_ST) ) {
                   layout->dim_size[0] = handle->ifmblock;
                   layout->dim_size[1] = handle->ifwp;
                   layout->dim_size[2] = handle->ifhp;
@@ -501,7 +503,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
                 layout->dim_type[3] = LIBXSMM_DNN_TENSOR_DIMTYPE_H;
                 layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_N;
                 layout->dim_type[5] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
-                if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) || (type == LIBXSMM_DNN_INPUT) ) {
+                if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) || (type == LIBXSMM_DNN_INPUT) ||
+		     (type == LIBXSMM_DNN_REGULAR_INPUT_ST) ) {
                   layout->dim_size[0] = handle->ifmblock;
                   layout->dim_size[1] = handle->nbImg;
                   layout->dim_size[2] = handle->ifwp;
@@ -530,7 +533,7 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
             }
           /* @TODO this need to change */
           } else if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32) ) {
-            if ( ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_INPUT) )  ) {
+            if ( ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_INPUT) || (type == LIBXSMM_DNN_REGULAR_INPUT_ST ) )  ) {
               layout->datatype = handle->datatype_in;
             } else if ( (type == LIBXSMM_DNN_REGULAR_OUTPUT) || (type == LIBXSMM_DNN_OUTPUT) ) {
               layout->datatype = handle->datatype_out;     
@@ -545,7 +548,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
               layout->dim_type[3] = LIBXSMM_DNN_TENSOR_DIMTYPE_H;
               layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
               layout->dim_type[5] = LIBXSMM_DNN_TENSOR_DIMTYPE_N;
-              if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) || (type == LIBXSMM_DNN_INPUT) )   {
+              if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) || (type == LIBXSMM_DNN_INPUT) ||
+	           (type == LIBXSMM_DNN_REGULAR_INPUT_ST) )   {
                 layout->dim_size[0] = handle->fm_lp_block;
                 layout->dim_size[1] = handle->ifmblock;
                 layout->dim_size[2] = handle->ifwp;
@@ -568,7 +572,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
               }
             }
           } else if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32) ) {
-            if ( ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_INPUT) || (type == LIBXSMM_DNN_GRADIENT_OUTPUT)  )  ) {
+            if ( ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_INPUT) || (type == LIBXSMM_DNN_GRADIENT_OUTPUT) ||
+	           (type == LIBXSMM_DNN_REGULAR_INPUT_ST) )  ) {
               layout->datatype = handle->datatype_in;
             } else if ( (type == LIBXSMM_DNN_REGULAR_OUTPUT) || (type == LIBXSMM_DNN_OUTPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) ) {
               layout->datatype = handle->datatype_out;     
@@ -576,7 +581,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
             layout->dim_type = (libxsmm_dnn_tensor_dimtype*) malloc(6*sizeof(libxsmm_dnn_tensor_dimtype));
             layout->dim_size = (unsigned int*) malloc(6*sizeof(unsigned int));
             if (0 != layout->dim_type && 0 != layout->dim_size) { /* TODO: handle the error */
-              if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_INPUT) )   {
+              if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_INPUT) ||
+	           (type == LIBXSMM_DNN_REGULAR_INPUT_ST) )   {
                 layout->num_dims = 6;
                 layout->dim_type[0] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
                 layout->dim_type[1] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
@@ -1148,6 +1154,7 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_copyin_tensor(const libxsmm
   if (0 != tensor) {
     switch (tensor->layout->tensor_type) {
       case LIBXSMM_DNN_REGULAR_INPUT:
+      case LIBXSMM_DNN_REGULAR_INPUT_ST:
       case LIBXSMM_DNN_GRADIENT_INPUT:
       case LIBXSMM_DNN_REGULAR_OUTPUT:
       case LIBXSMM_DNN_GRADIENT_OUTPUT:
@@ -1327,6 +1334,7 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_copyout_tensor(const libxsm
   if (0 != tensor) {
     switch (tensor->layout->tensor_type) {
       case LIBXSMM_DNN_REGULAR_INPUT:
+      case LIBXSMM_DNN_REGULAR_INPUT_ST:
       case LIBXSMM_DNN_GRADIENT_INPUT:
       case LIBXSMM_DNN_REGULAR_OUTPUT:
       case LIBXSMM_DNN_GRADIENT_OUTPUT:
@@ -1503,6 +1511,7 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_bind_tensor(libxsmm_dnn_lay
 
   /* check for tensor type */
   if ( (type != LIBXSMM_DNN_REGULAR_INPUT)        && (type != LIBXSMM_DNN_GRADIENT_INPUT)  &&
+       (type != LIBXSMM_DNN_REGULAR_INPUT_ST) && 
       (type != LIBXSMM_DNN_REGULAR_OUTPUT)       && (type != LIBXSMM_DNN_GRADIENT_OUTPUT) &&
       (type != LIBXSMM_DNN_REGULAR_FILTER)       && (type != LIBXSMM_DNN_GRADIENT_FILTER) &&
       (type != LIBXSMM_DNN_REGULAR_BIAS)         && (type != LIBXSMM_DNN_GRADIENT_BIAS)   &&
@@ -1519,6 +1528,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_bind_tensor(libxsmm_dnn_lay
     if ( libxsmm_dnn_compare_tensor_datalayout(handle_layout, tensor->layout, &status) == 0 ) {
       if ( type == LIBXSMM_DNN_REGULAR_INPUT ) {
         handle->reg_input = (libxsmm_dnn_tensor*)tensor;
+      } else if ( type == LIBXSMM_DNN_REGULAR_INPUT_ST ) {
+        handle->reg_input_st = (libxsmm_dnn_tensor*)tensor;
       } else if ( type == LIBXSMM_DNN_GRADIENT_INPUT ) {
         handle->grad_input = (libxsmm_dnn_tensor*)tensor;
       } else if ( type == LIBXSMM_DNN_REGULAR_OUTPUT ) {
@@ -1574,6 +1585,7 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_release_tensor(libxsmm_dnn_layer* hand
 
   /* check for tensor type */
   if ( (type != LIBXSMM_DNN_REGULAR_INPUT)        && (type != LIBXSMM_DNN_GRADIENT_INPUT)  &&
+       (type != LIBXSMM_DNN_REGULAR_INPUT_ST) && 
       (type != LIBXSMM_DNN_REGULAR_OUTPUT)       && (type != LIBXSMM_DNN_GRADIENT_OUTPUT) &&
       (type != LIBXSMM_DNN_REGULAR_FILTER)       && (type != LIBXSMM_DNN_GRADIENT_FILTER) &&
       (type != LIBXSMM_DNN_REGULAR_BIAS)         && (type != LIBXSMM_DNN_GRADIENT_BIAS)   &&
@@ -1587,6 +1599,8 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_release_tensor(libxsmm_dnn_layer* hand
   if (handle != 0) {
     if ( type == LIBXSMM_DNN_REGULAR_INPUT ) {
       handle->reg_input = 0;
+    } else if ( type == LIBXSMM_DNN_REGULAR_INPUT_ST ) {
+      handle->reg_input_st = 0;
     } else if ( type == LIBXSMM_DNN_GRADIENT_INPUT ) {
       handle->grad_input = 0;
     } else if ( type == LIBXSMM_DNN_REGULAR_OUTPUT ) {
