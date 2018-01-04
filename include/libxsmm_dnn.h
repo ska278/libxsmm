@@ -119,6 +119,8 @@ typedef enum libxsmm_dnn_tensor_type {
   LIBXSMM_DNN_REGULAR_INPUT,
   /** regular input buffer that is stored to */
   LIBXSMM_DNN_REGULAR_INPUT_ST,
+  LIBXSMM_DNN_REGULAR_INPUT_ST_BWD,
+  LIBXSMM_DNN_REGULAR_INPUT_ST_BWD2,
   /** regular input buffer, transpose */
   LIBXSMM_DNN_REGULAR_INPUT_TRANS,
   /** gradient input buffer */
@@ -147,8 +149,16 @@ typedef enum libxsmm_dnn_tensor_type {
   LIBXSMM_DNN_REGULAR_STDDEV,
   LIBXSMM_DNN_REGULAR_GAMMA,
   LIBXSMM_DNN_REGULAR_BETA,
+  LIBXSMM_DNN_REGULAR_BMEAN1,
+  LIBXSMM_DNN_REGULAR_BRSTD1,
+  LIBXSMM_DNN_REGULAR_BMEAN2,
+  LIBXSMM_DNN_REGULAR_BRSTD2,
+  LIBXSMM_DNN_REGULAR_GAMMA_BWD,
+  LIBXSMM_DNN_REGULAR_LCL_GAMMA_BETA,
   /* gradient bias */
   LIBXSMM_DNN_GRADIENT_BIAS,
+  LIBXSMM_DNN_GRADIENT_GAMMA,
+  LIBXSMM_DNN_GRADIENT_BETA,
   /** general bias type */
   LIBXSMM_DNN_BIAS,
   /** batch stats */

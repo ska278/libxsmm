@@ -33,7 +33,6 @@ LIBXSMM_VLA_DECL(2, element_input_type, expect, (element_input_type*)handle->reg
 LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg_stddev->data, handle->ifmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma->data, handle->ifmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, beta, (element_input_type*)handle->reg_beta->data, handle->ifmblock);
-LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
 
 int my_h, my_w, my_c, ifm_idx, my_ldw, my_pad_h, my_pad_w;
 for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ ) 
@@ -41,12 +40,16 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
   element_input_type * myinput;
   element_input_type * myinput_st;
   if (handle->padding_flag == 1) {
+    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_buffer, ifm_idx, 0, 0, 0, 0,
       padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
+    myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
+        BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     my_ldw = padded_w;
     my_pad_h = handle->desc.pad_h;
     my_pad_w = handle->desc.pad_w;
   } else {
+    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
@@ -74,12 +77,15 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
       {
         int _my_h = my_h + my_pad_h;
         int _my_w = my_w + my_pad_w;
+        int _my_h_st = my_h + handle->desc.pad_h_in;
+        int _my_w_st = my_w + handle->desc.pad_w_in;
 
 	// load input
 	__m512 _input = _mm512_load_ps(&myinput[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
 
 	// Streaming store input to other buffer
-	_mm512_stream_ps(&myinput_st[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
+	//_mm512_stream_ps(&myinput_st[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
+	_mm512_stream_ps(&myinput_st[_my_w_st * handle->ifmblock + _my_h_st * handle->ifmblock * handle->ifwp], _input);
 
 	// Apply bn
 	_input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
