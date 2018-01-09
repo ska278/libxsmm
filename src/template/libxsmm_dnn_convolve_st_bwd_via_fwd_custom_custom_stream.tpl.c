@@ -463,7 +463,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             i+=3;
           }
 
-          if ( instr == IFM_LOOP_CLOSE) {
+	if ( instr == IFM_LOOP_CLOSE) {
             ifm1 = code_stream[pc].aux_index;
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
@@ -548,7 +548,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             i+=3;
           }
 
-          if ( instr == IFM_LOOP_CLOSE) {
+	  if ( instr == IFM_LOOP_CLOSE) {
             ifm1 = code_stream[pc].aux_index;
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"

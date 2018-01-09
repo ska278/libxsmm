@@ -153,13 +153,11 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
         if (mark_img_init== 1) {
           n_code_segments++;
         }
-        if(ltid == 0) printf("byah: %d %d %d\n", my_ofm_start, my_ofm_end, handle->block_fwd_ofm);
         for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
           for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {
             for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
               for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {
                 for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-                  if(ltid == 0) printf("\tbyah: %d\n", ifm1);
                   for (oj = ojb; oj < LIBXSMM_MIN(ojb+handle->block_fwd_oj,handle->ofh); oj += handle->fwd_ofh_rb) {
                     for (oi = 0; oi < handle->ofw ; oi += handle->fwd_ofw_rb) {
                       local_entries += 3;
@@ -196,7 +194,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
         if (mark_img_init== 1) {
           n_code_segments++;
         }
-        if(ltid == 0) printf("byah: %d %d\n", handle->blocksifm, handle->block_fwd_ifm);
         for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
           for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
             for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {
@@ -204,7 +201,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                 for (oi = 0; oi < handle->ofw ; oi += handle->fwd_ofw_rb) {
                   for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {
                     for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-                    if(ltid == 0) printf("\tbyah: %d\n", ifm1);
                       local_entries += 3;
                       if (mark_ifm_init == 1) {
 		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0) {
@@ -247,7 +243,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
       if (mark_img_init== 1) {
         n_code_segments++;
       }
-        if(ltid == 0) printf("byah: %d %d\n", handle->blocksifm, handle->block_fwd_ifm);
       for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
         for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
           for (oj = ojb; oj < LIBXSMM_MIN(ojb+handle->block_fwd_oj,handle->ofh); oj += handle->fwd_ofh_rb) {
@@ -255,7 +250,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
               for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {   
                 for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {       
                   for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-                    if(ltid == 0) printf("\tbyah: %d\n", ifm1);
                     local_entries += 3;
 
                     if (mark_ifm_init == 1) {
@@ -327,13 +321,11 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
           tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_INIT;
           tmp_stream_index++;
         }
-        if(ltid == 0) printf("byah: %d %d\n", handle->blocksifm, handle->block_fwd_ifm);
         for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
           for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {
             for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
               for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {
                 for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-                    if(ltid == 0) printf("\tbyah: %d\n", ifm1);
                   for (oj = ojb; oj < LIBXSMM_MIN(ojb+handle->block_fwd_oj,handle->ofh); oj += handle->fwd_ofh_rb) {
                     for (oi = 0; oi < handle->ofw ; oi += handle->fwd_ofw_rb) {
 
@@ -408,7 +400,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
           tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_INIT;
           tmp_stream_index++;
         }
-        if(ltid == 0) printf("byah: %d %d\n", handle->blocksifm, handle->block_fwd_ifm);
         for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
           for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
             for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {
@@ -416,7 +407,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                 for (oi = 0; oi < handle->ofw ; oi += handle->fwd_ofw_rb) {
                   for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {
                     for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-                    if(ltid == 0) printf("\tbyah: %d\n", ifm1);
 
                       if ( handle->use_fwd_for_bwd == 0 ) {
                         ij_use = oj * handle->desc.u;
@@ -481,7 +471,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                           tmp_stream_index++;
                         }
                       }
-
                     }
                   }
                 }
@@ -501,7 +490,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
         tmp_stream_index++;
       }
 
-      if(ltid == 0) printf("byah: %d %d\n", handle->blocksifm, handle->block_fwd_ifm);
       for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
         for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
           for (oj = ojb; oj < LIBXSMM_MIN(ojb+handle->block_fwd_oj,handle->ofh); oj += handle->fwd_ofh_rb) {
@@ -509,7 +497,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
               for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {   
                 for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {       
                   for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-                    if(ltid == 0) printf("\tbyah: %d\n", ifm1);
 
                     if ( handle->use_fwd_for_bwd == 0 ) {
                       ij_use = oj * handle->desc.u;
@@ -574,7 +561,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         tmp_stream_index++;
                       }
                     }
-
                   }
                 }
               }
@@ -623,7 +609,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
             encoded_code_segments[encoded_stream_index].aux_index = img;
             encoded_stream_index++;
           }
-          if(ltid == 0) printf("byah: %d %d\n", handle->blocksifm, handle->block_fwd_ifm);
           for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
             for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {
               for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
@@ -631,7 +616,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                   for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
                     for (oj = ojb; oj < LIBXSMM_MIN(ojb+handle->block_fwd_oj,handle->ofh); oj += handle->fwd_ofh_rb) {
                       for (oi = 0; oi < handle->ofw ; oi += handle->fwd_ofw_rb) {
-                        if(ltid == 0) printf("\tbyah: %d\n", ifm1);
 
                         ij = oj * handle->desc.u;
                         ii = oi * handle->desc.v;
@@ -670,7 +654,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
             encoded_code_segments[encoded_stream_index].aux_index = img;
             encoded_stream_index++;
           }
-          if(ltid == 0) printf("byah: %d %d\n", handle->blocksifm, handle->block_fwd_ifm);
           for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
             for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
               for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {
@@ -678,7 +661,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                   for (oi = 0; oi < handle->ofw ; oi += handle->fwd_ofw_rb) {
                     for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {
                       for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-                        if(ltid == 0) printf("\tbyah: %d\n", ifm1);
                         if (mark_ifm_init == 1) {
 			  if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0) {
                             encoded_code_segments[encoded_stream_index].aux_index = ifm1;
@@ -726,7 +708,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
           encoded_code_segments[encoded_stream_index].aux_index = img;
           encoded_stream_index++;
         }
-        if(ltid == 0) printf("byah: %d %d\n", handle->blocksifm, handle->block_fwd_ifm);
         for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
           for (ojb = 0; ojb < handle->ofh; ojb += handle->block_fwd_oj) {
             for (oj = ojb; oj < LIBXSMM_MIN(ojb+handle->block_fwd_oj,handle->ofh); oj += handle->fwd_ofh_rb) {
@@ -734,7 +715,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                 for (ofm1 = ofmb; ofm1 < LIBXSMM_MIN(ofmb+handle->block_fwd_ofm, my_ofm_end); ofm1++ ) {   
                   for (ifmb = 0; ifmb < BLOCKSIFM; ifmb += handle->block_fwd_ifm) {       
                     for (ifm1 = ifmb; ifm1 < LIBXSMM_MIN(ifmb+handle->block_fwd_ifm, BLOCKSIFM); ifm1 += BLOCKSIFM_BLOCKING) {
-                      if(ltid == 0) printf("\tbyah: %d\n", ifm1);
                       if (mark_ifm_init == 1) {
 		        if(ofmb == my_ofm_start && ojb == 0 && oj == ojb && oi == 0 && ofm1 == ofmb) {
                           encoded_code_segments[encoded_stream_index].aux_index = ifm1;
