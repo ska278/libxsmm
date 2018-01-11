@@ -359,7 +359,8 @@ LIBXSMM_INLINE void naive_conv_bp(naive_conv_t* param, float* input, float* outp
       for (oj = 0; oj < ofh; ++oj) {
         for (oi = 0; oi < ofw; ++oi) {
 	  LIBXSMM_VLA_ACCESS(4, output_t, img, ofm, oj, oi, nOfm, ofhp, ofwp) = gamma[ofm] * brstd1[ofm] * recp_nhw * (nhw*LIBXSMM_VLA_ACCESS(4, output_t, img, ofm, oj, oi, nOfm, ofhp, ofwp)) -
-	                                                                        dbeta[ofm] + (LIBXSMM_VLA_ACCESS(4, input_r_t, img, ofm, oj, oi, nOfm, ofhp, ofwp) - bmean1[ofm]) * dgamma[ofm] * brstd1[ofm];
+	                                                                        dbeta[ofm] + (1.f) * dgamma[ofm] * brstd1[ofm];
+	 //                                                                       dbeta[ofm] + (LIBXSMM_VLA_ACCESS(4, input_r_t, img, ofm, oj, oi, nOfm, ofhp, ofwp) - bmean1[ofm]) * dgamma[ofm] * brstd1[ofm];
 										
         }
       }
@@ -791,7 +792,6 @@ int main(int argc, char* argv[])
   copy_buf(naive_input, naive_input_save, nImg*nIfm*ifhp*ifwp);
   zero_buf(naive_output_save,    nImg*nOfm*ofhp*ofwp);
 #ifdef USE_FUSED_BN_RELU
-//  zero_buf(naive_input_st,     nImg*nIfm*ifh*ifw);
   zero_buf(naive_input_st,     nImg*nIfm*ifhp*ifwp);
   zero_buf(naive_lcl_gamma_beta,     2*nImg*nIfm);
 #endif

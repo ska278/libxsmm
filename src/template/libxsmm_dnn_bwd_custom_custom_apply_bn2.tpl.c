@@ -44,9 +44,9 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
   element_input_type * myoutput;
   element_input_type * myinput_r;
   if (handle->padding_flag == 1) {
-    LIBXSMM_VLA_DECL(6, element_input_type, input_r, (element_input_type*)handle->reg_input_st_bwd->data, BLOCKSOFM, padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
+    LIBXSMM_VLA_DECL(6, element_input_type, input_r, (element_input_type*)handle->reg_input_st_bwd->data, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock, handle->fm_lp_block);
     myinput_r = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_r, img, ofm_idx, 0, 0, 0, 0,
-      BLOCKSOFM, padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
+        BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock, handle->fm_lp_block);
     LIBXSMM_VLA_DECL(6, element_input_type, output, (element_input_type*)handle->grad_output->data, BLOCKSOFM, padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
     myoutput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, output, img, ofm_idx, 0, 0, 0, 0,
       BLOCKSOFM, padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
@@ -81,7 +81,7 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
         int _my_h = my_h + my_pad_h;
         int _my_w = my_w + my_pad_w;
 	myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw] = 
-	  mygamma[my_c] * mybrstd1[my_c] * 1.0f * (1.0f * (myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw]) ) - mydbeta[my_c] + (( myinput_r[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw] )) * mydgamma[my_c] * mybrstd1[my_c];
+	  mygamma[my_c] * mybrstd1[my_c] * 1.0f * (1.0f * (myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw]) ) - mydbeta[my_c] + (( myinput_r[my_c + (my_w + handle->desc.pad_w_out) * handle->ofmblock + (my_h + handle->desc.pad_h_out) * handle->ofmblock * handle->ofwp] )) * mydgamma[my_c] * mybrstd1[my_c];
       }
     }
   }

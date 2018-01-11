@@ -40,7 +40,7 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
   element_input_type * myinput;
   element_input_type * myinput_st;
   if (handle->padding_flag == 1) {
-    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
+    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_buffer, ifm_idx, 0, 0, 0, 0,
       padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
     myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
@@ -65,7 +65,6 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
   if(handle->ifmblock == 16)
   {
 #ifdef __AVX512F__
-
     // load batch norm parameters
     __m512 _expect = _mm512_load_ps(myexpect);
     __m512 _stddev = _mm512_load_ps(mystddev);
@@ -84,8 +83,7 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
 	__m512 _input = _mm512_load_ps(&myinput[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
 
 	// Streaming store input to other buffer
-	//_mm512_stream_ps(&myinput_st[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
-	_mm512_stream_ps(&myinput_st[_my_w_st * handle->ifmblock + _my_h_st * handle->ifmblock * handle->ifwp], _input);
+	_mm512_stream_ps(&myinput_st[(my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input);
 
 	// Apply bn
 	_input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
@@ -110,7 +108,8 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
           int _my_w = my_w + my_pad_w;
 
 	  // Streaming store input to other buffer
-	  myinput_st[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+	  myinput_st[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 
+	      myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
 
           element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
           myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0.f) ? after : 0.f;
