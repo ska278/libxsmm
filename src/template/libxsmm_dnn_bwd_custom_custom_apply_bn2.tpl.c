@@ -48,8 +48,12 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
     myinput_r = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_r, img, ofm_idx, 0, 0, 0, 0,
         BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock, handle->fm_lp_block);
     LIBXSMM_VLA_DECL(6, element_input_type, output, (element_input_type*)handle->grad_output->data, BLOCKSOFM, padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
-    myoutput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, output, img, ofm_idx, 0, 0, 0, 0,
-      BLOCKSOFM, padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
+    myoutput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, output_buffer, ofm_idx, 0, 0, 0, 0,
+               padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
+
+    // Switch to scratch
+//    myoutput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, output, img, ofm_idx, 0, 0, 0, 0,
+//      BLOCKSOFM, padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
     my_ldw = padded_w;
     my_pad_h = handle->desc.pad_h;
     my_pad_w = handle->desc.pad_w;
