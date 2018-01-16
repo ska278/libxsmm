@@ -50,7 +50,7 @@ int my_img_start = LIBXSMM_MIN( ltid * imgpt, handle->desc.N);
 int my_img_end = LIBXSMM_MIN( (ltid+1) * imgpt, handle->desc.N);
 
 /* traspose, copy and reduce work-related variables  */
-const int reduce_work = BLOCKSOFM*BLOCKSIFM*handle->desc.R*handle->desc.S*handle->ifmblock;
+const int reduce_work = BLOCKSOFM*BLOCKSIFM*handle->desc.R*handle->desc.S*handle->ofmblock;
 const int reduce_chunksize = (reduce_work % handle->desc.threads == 0) ? (reduce_work / handle->desc.threads) : (reduce_work / handle->desc.threads) + 1;
 const int reduce_thr_begin = (ltid * reduce_chunksize < reduce_work) ? (ltid * reduce_chunksize) : reduce_work;
 const int reduce_thr_end = ((ltid + 1) * reduce_chunksize < reduce_work) ? ((ltid + 1) * reduce_chunksize) : reduce_work;
@@ -60,13 +60,13 @@ const int copy_thr_begin = (ltid * copychunksize < copywork) ? (ltid * copychunk
 const int copy_thr_end = ((ltid + 1) * copychunksize < copywork) ? ((ltid + 1) * copychunksize) : copywork;
 
 /* Pointer related variables for output and weight */
-element_output_type *out = ((element_output_type*)handle->grad_output->data) + (handle->desc.pad_h_out * handle->ofwp + handle->desc.pad_w_out) * handle->ofmblock * handle->fm_lp_block;
+element_output_type *out = ((element_output_type*)handle->grad_output->data) + (handle->desc.pad_h_out * handle->ofwp + handle->desc.pad_w_out) * handle->ofmblock_lp * handle->fm_lp_block;
 LIBXSMM_VLA_DECL(6, element_output_type, tr_output,  (element_output_type*)handle->scratch6 , BLOCKSOFM, handle->ofhp, OFWP/2, handle->ofmblock, 2);
-LIBXSMM_VLA_DECL(6, element_output_type, output, out, handle->blocksofm_lp, handle->ofhp, handle->ofwp, handle->ofmblock, handle->fm_lp_block);
+LIBXSMM_VLA_DECL(6, element_output_type, output, out, handle->blocksofm_lp, handle->ofhp, handle->ofwp, handle->ofmblock_lp, handle->fm_lp_block);
 element_filter_type* weight_ptr = (element_filter_type*)handle->grad_filter->data;
-element_filter_type* per_thread_weight_ptr = ((element_filter_type*)handle->scratch4) + (ltid*LIBXSMM_MIN(handle->block_upd_ofm,BLOCKSOFM)*LIBXSMM_MIN(handle->block_upd_ifm,BLOCKSIFM)*handle->desc.R*handle->desc.S*handle->ifmblock*handle->ofmblock);
+element_filter_type* per_thread_weight_ptr = ((element_filter_type*)handle->scratch4) + (ltid*LIBXSMM_MIN(handle->block_upd_ofm,BLOCKSOFM)*LIBXSMM_MIN(handle->block_upd_ifm,BLOCKSIFM)*handle->desc.R*handle->desc.S*handle->ifmblock*handle->ofmblock*handle->fm_lp_block);
 LIBXSMM_VLA_DECL(2, element_filter_type, per_thread_weight, per_thread_weight_ptr, handle->ofmblock);
-element_filter_type* reduction_weight_ptr = ((element_filter_type*)handle->scratch4) + (handle->desc.threads*LIBXSMM_MIN(handle->block_upd_ofm,BLOCKSOFM)*LIBXSMM_MIN(handle->block_upd_ifm,BLOCKSIFM)*handle->desc.R*handle->desc.S*handle->ifmblock*handle->ofmblock);
+element_filter_type* reduction_weight_ptr = ((element_filter_type*)handle->scratch4) + (handle->desc.threads*LIBXSMM_MIN(handle->block_upd_ofm,BLOCKSOFM)*LIBXSMM_MIN(handle->block_upd_ifm,BLOCKSIFM)*handle->desc.R*handle->desc.S*handle->ifmblock*handle->fm_lp_block*handle->ofmblock);
 LIBXSMM_VLA_DECL(3, element_filter_type, reduction_weight, reduction_weight_ptr, handle->desc.threads, handle->ofmblock);
 
 /* Pointer related variables for input */
@@ -86,9 +86,9 @@ if (handle->resize_input == 1) {
 }
 
 LIBXSMM_VLA_DECL(6, element_input_type, input_nopad, (element_input_type*)handle->reg_input->data, handle->blocksifm_lp, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-LIBXSMM_VLA_DECL(5, element_input_type, tr_input_padded, (element_input_type*)handle->scratch5, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended);
-LIBXSMM_VLA_DECL(5, element_input_type, input_padded, (element_input_type*)handle->scratch5, BLOCKSIFM, padded_h, padded_w, handle->ifmblock);
-LIBXSMM_VLA_DECL(5, element_input_type, tr_input_nopad, (element_input_type*)handle->scratch3, BLOCKSIFM, dst_ifhp, handle->ifmblock, ifwp_extended);
+LIBXSMM_VLA_DECL(5, element_input_type, tr_input_padded, (element_input_type*)handle->scratch5, BLOCKSIFM, padded_h, handle->ifmblock_hp, ifwp_extended);
+LIBXSMM_VLA_DECL(5, element_input_type, input_padded, (element_input_type*)handle->scratch5, BLOCKSIFM, padded_h, padded_w, handle->ifmblock_hp);
+LIBXSMM_VLA_DECL(5, element_input_type, tr_input_nopad, (element_input_type*)handle->scratch3, BLOCKSIFM, dst_ifhp, handle->ifmblock_hp, ifwp_extended);
 
 /* Stream related variables  */
 segment_t *code_stream;
@@ -116,66 +116,52 @@ if ( handle->trans_ofw_ifm > 0 ) {
     tp_func = get_transposer(handle->ifmblock, handle->ifwp, ifwp_extended, handle->ifmblock);
 }
 
-#if 0
-if(tp_func == 0) {
-  fprintf(stderr, "Couldn't find transposer to match %d %d %d %d", handle->ifmblock, handle->ifwp, ifwp_extended, handle->ifmblock);
-  exit(1);
-}
-#endif
-
 /* lazy barrier init */
 libxsmm_barrier_init(handle->barrier, ltid);
 
 /* Initialize base pointers */
 if (handle->padding_flag == 1) {
-  input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_padded, 0, 0, 0, 0, 0, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended);
-  input_zero = &LIBXSMM_VLA_ACCESS(5, tr_input_padded, ltid, 0, 0, 0, 0, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended);
-  memset( input_zero, 0, BLOCKSIFM * padded_h * ifwp_extended * handle->ifmblock * sizeof(element_input_type) );
+  input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_padded, 0, 0, 0, 0, 0, BLOCKSIFM, padded_h, handle->ifmblock_hp, ifwp_extended);
+  input_zero = &LIBXSMM_VLA_ACCESS(5, tr_input_padded, ltid, 0, 0, 0, 0, BLOCKSIFM, padded_h, handle->ifmblock_hp, ifwp_extended);
+  memset( input_zero, 0, BLOCKSIFM * padded_h * ifwp_extended * handle->ifmblock_hp * sizeof(element_input_type) );
 } else {
-  input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_nopad, 0, 0, 0, 0, 0, BLOCKSIFM, dst_ifhp, handle->ifmblock, ifwp_extended);
+  input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_nopad, 0, 0, 0, 0, 0, BLOCKSIFM, dst_ifhp, handle->ifmblock_hp, ifwp_extended);
 }
 
-/* LP transformations */
 #if 0
-{
-  int img = ltid, ifm1, ij, ifm2, ii;
-  int ofm1, ofm2, k, lp;
-  int FM;
-  int W;
+if (handle->reduce_weights == 0) {
+  int team_div = (int) sqrt(handle->desc.threads);
+  while ( handle->desc.threads % team_div != 0  ) {
+    team_div--;
+  }  
+  int n_ifm_teams = ( BLOCKSIFM > BLOCKSOFM ) ? handle->desc.threads/team_div : team_div ;
+  int n_ofm_teams = ( BLOCKSIFM > BLOCKSOFM ) ? team_div : handle->desc.threads/team_div ;
+  int ifms_per_thread = (BLOCKSIFM+n_ifm_teams-1)/n_ifm_teams;
+  int ofms_per_thread = (BLOCKSOFM+n_ofm_teams-1)/n_ofm_teams;
+  int my_ifm_id = ltid/n_ofm_teams;
+  int my_ofm_id = ltid%n_ofm_teams;
+  int my_ifm_start =  LIBXSMM_MIN(my_ifm_id * ifms_per_thread, BLOCKSIFM);
+  int my_ifm_end =  LIBXSMM_MIN((my_ifm_id+1) * ifms_per_thread, BLOCKSIFM);
+  int my_ofm_start =  LIBXSMM_MIN(my_ofm_id * ofms_per_thread, BLOCKSOFM);
+  int my_ofm_end =  LIBXSMM_MIN((my_ofm_id+1) * ofms_per_thread, BLOCKSOFM);
 
-  if (handle->padding_flag == 1) {
-    for (ifm1 = 0; ifm1 < handle->blocksifm_lp; ++ifm1) {
-      for (ij = 0; ij < handle->ifhp; ++ij) {
-        for (ii = 0; ii < handle->ifwp; ++ii) {
-          for (ifm2 = 0; ifm2 < handle->ifmblock; ++ifm2) {
-            for (lp = 0; lp < handle->fm_lp_block; ++lp) {
-              FM = ifm1 * handle->ifmblock * handle->fm_lp_block + ifm2 * handle->fm_lp_block + lp;
-              LIBXSMM_VLA_ACCESS(5, tr_input_padded, img, FM/handle->ifmblock, ij+handle->desc.pad_h, FM%handle->ifmblock, ii+handle->desc.pad_w, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended) =
-                LIBXSMM_VLA_ACCESS(6, input_nopad, img, ifm1, ij, ii, ifm2, lp, handle->blocksifm_lp, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-            }
-          }
+  element_filter_type *zero_ptr;
+  int ifm1, ofm1, kj, ki;
+  for (ifm1 = my_ifm_start; ifm1 < my_ifm_end; ifm1++ ) {
+    for ( ofm1 = my_ofm_start; ofm1 < my_ofm_end; ofm1++ ) {
+      for (kj=0; kj < handle->desc.R; kj++) {
+        for (ki=0; ki < handle->desc.S; ki++) {
+          zero_ptr = &LIBXSMM_VLA_ACCESS(6, weight, ofm1, ifm1, kj, ki, 0, 0, BLOCKSIFM, handle->desc.R, handle->desc.S, handle->ifmblock_hp, handle->ofmblock);
+          memset(zero_ptr, 0, handle->ifmblock_hp*handle->ofmblock*sizeof(element_filter_type));
         }
-      }
-    }  
-  } else {
-   if (handle->resize_input == 0) {
-      if (handle->ifwp%16 == 0) {
-#include "input_lp_transposer.tpl.c" 
-      } else {
-#include "input_lp_transposer_remainder.tpl.c"   
-      }
-    } else {
-      if (handle->ifwp_resized%16 == 0) {
-#include "input_lp_transposer_resizer.tpl.c"   
-      } else {
-#include "input_lp_transposer_resizer_remainder.tpl.c"     
       }
     }
   }
-#include "output_lp_transposer.tpl.c"
 }
 #endif
 
+/* LP transformations */
+#if 1
 if (handle->padding_flag == 1) {
   int img = ltid, ifm1, ij, ifm2, ii;
   int ofm1, ofm2, k, lp;
@@ -186,65 +172,79 @@ if (handle->padding_flag == 1) {
       for (ii = 0; ii < handle->ifwp; ++ii) {
         for (ifm2 = 0; ifm2 < handle->ifmblock; ++ifm2) {
           for (lp = 0; lp < handle->fm_lp_block; ++lp) {
-            FM = ifm1 * handle->ifmblock * handle->fm_lp_block + ifm2 * handle->fm_lp_block + lp;
-            LIBXSMM_VLA_ACCESS(5, tr_input_padded, img, FM/handle->ifmblock, ij+handle->desc.pad_h, FM%handle->ifmblock, ii+handle->desc.pad_w, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended) =
+            LIBXSMM_VLA_ACCESS(5, tr_input_padded, img, ifm1, ij+handle->desc.pad_h, ifm2*handle->fm_lp_block+lp, ii+handle->desc.pad_w, BLOCKSIFM, padded_h, handle->ifmblock_hp, ifwp_extended) =
               LIBXSMM_VLA_ACCESS(6, input_nopad, img, ifm1, ij, ii, ifm2, lp, handle->blocksifm_lp, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
           }
         }
       }
     }
   }  
-  #include "output_lp_transposer.tpl.c"
+#include "output_lp_transposer.tpl.c"
 } else {
   if (handle->resize_input == 0) {
     lp_transpose_input_and_output(ltid, handle);
   } else {
     lp_transpose_and_resize_input_and_output(ltid, handle);
   }
-#if 0
-  if (handle->resize_input == 0) {
-    int w_chunks = handle->ifwp/16;
-    int w_remainder = handle->ifwp%16;
-    if (handle->output_lp_padding == 0) {
-      if (w_chunks == 0) {
-        lp_transpose_0_chunk_1_remainder_even_pixels(ltid, handle);
-      } else if (w_chunks == 1) {
-        if (w_remainder) {
-          lp_transpose_1_chunk_1_remainder_even_pixels(ltid, handle);
-        } else {
-          lp_transpose_1_chunk_0_remainder_even_pixels(ltid, handle);
-        }
-      } else if (w_chunks == 3) {
-        lp_transpose_3_chunk_1_remainder_even_pixels(ltid, handle);
-      }
-    } else {
-      lp_transpose_0_chunk_1_remainder_odd_pixels(ltid, handle);
-    }
-  } else {
-    int w_chunks = handle->ifwp_resized/16;
-    if (w_chunks == 1) {
-      lp_transpose_and_resize_1_chunk_1_remainder_even_pixels(ltid, handle);
-    } else {
-      if (handle->output_lp_padding == 0) {
-        lp_transpose_and_resize_0_chunk_1_remainder_even_pixels(ltid, handle);
-      } else {
-        lp_transpose_and_resize_0_chunk_1_remainder_odd_pixels(ltid, handle);
-      }
-    }
-  }
-#endif
 }
+#endif
 
 libxsmm_barrier_wait(handle->barrier, ltid);
 
-if ( handle->ofh == 28 || handle->ofh == 56 )
+if (handle->ofh == 28 || handle->ofh == 56 || handle->ofh == 14)
 {
   weight_base = &LIBXSMM_VLA_ACCESS(2, per_thread_weight, 0, 0, handle->ofmblock); /* use thread-private scratchpad to accumulate weights */
 } else {
   weight_base = &LIBXSMM_VLA_ACCESS(3, reduction_weight, 0, ltid, 0, handle->desc.threads, handle->ofmblock); /* weights are accumulated in registers and can be written straight to memory */
 }
 
+/*if (handle->reduce_weights) {
+  weight_base = &LIBXSMM_VLA_ACCESS(3, reduction_weight, 0, ltid/(handle->desc.threads/handle->weight_copies), 0, handle->weight_copies, handle->ofmblock); 
+} else {
+  weight_base = weight_ptr;
+}*/
+
+if ( !handle->reduce_weights  ) {
+  weight_base = weight_ptr;
+}
+
 output_base = &LIBXSMM_VLA_ACCESS(6, tr_output, 0, 0, 0, 0, 0, 0, BLOCKSOFM, handle->ofhp, OFWP/2, handle->ofmblock, 2);
+
+
+LIBXSMM_VLA_DECL(6, element_input_type, lp_input, (element_input_type*)handle->reg_input->data, BLOCKSIFM, handle->ifhp, handle->ifwp/2, handle->ifmblock_hp, 2);
+LIBXSMM_VLA_DECL(6, element_output_type, lp_output, (element_output_type*)handle->grad_output->data, BLOCKSOFM, handle->ofhp, handle->ofwp/2, handle->ofmblock, 2);
+
+if (handle->trans_ofw_ifm == 1) {
+  input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_nopad, 0, 0, 0, 0, 0, BLOCKSIFM, dst_ifhp, handle->ifmblock_hp, ifwp_extended);
+} else {
+  if (handle->avoid_input_trans == 1) {
+    LIBXSMM_VLA_DECL(6, element_input_type, lp_input, (element_input_type*)handle->reg_input->data, BLOCKSIFM, handle->ifhp, handle->ifwp/2, handle->ifmblock_hp, 2);
+    input_base = &LIBXSMM_VLA_ACCESS(6, lp_input, 0, 0, 0, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp/2, handle->ifmblock_hp, 2);
+  } else {
+    LIBXSMM_VLA_DECL(6, element_input_type, lp_input, (element_input_type*)handle->scratch3, handle->blocksifm, handle->ifhp, handle->ifwp/2, handle->ifmblock_hp, 2);
+    input_base = &LIBXSMM_VLA_ACCESS(6, lp_input, 0, 0, 0, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp/2, handle->ifmblock_hp, 2);
+  }
+}
+
+#if 0
+if (handle->use_vperm_transposes == 1) {
+  element_output_type *out = ((element_output_type*)handle->grad_output->data) + (handle->desc.pad_h_out * handle->ofwp * handle->ofmblock_lp * handle->fm_lp_block /*+ handle->desc.pad_w_out*/);
+  LIBXSMM_VLA_DECL(6, element_output_type, lp_output, out, BLOCKSOFM, handle->ofhp, handle->ofwp/2, handle->ofmblock, 2);
+  output_base = &LIBXSMM_VLA_ACCESS(6, lp_output, 0, 0, 0, 0, 0, 0, handle->blocksofm, handle->ofhp, handle->ofwp/2, handle->ofmblock, 2);
+} else {
+  LIBXSMM_VLA_DECL(6, element_output_type, tr_output,  (element_output_type*)handle->scratch6 , BLOCKSOFM, handle->ofhp, OFWP/2, handle->ofmblock, 2);
+  output_base = &LIBXSMM_VLA_ACCESS(6, tr_output, 0, 0, 0, 0, 0, 0, BLOCKSOFM, handle->ofhp, OFWP/2, handle->ofmblock, 2);
+}
+#endif
+
+if (handle->avoid_output_trans) {
+    element_output_type *out = ((element_output_type*)handle->grad_output->data) + (handle->desc.pad_h_out * handle->ofwp + handle->desc.pad_w_out) * handle->ofmblock_lp * handle->fm_lp_block;
+    LIBXSMM_VLA_DECL(6, element_output_type, lp_output, out, BLOCKSOFM, handle->ofhp, handle->ofwp/2, handle->ofmblock, 2);
+    output_base = &LIBXSMM_VLA_ACCESS(6, lp_output, 0, 0, 0, 0, 0, 0, handle->blocksofm, handle->ofhp, handle->ofwp/2, handle->ofmblock, 2);
+} else {
+    LIBXSMM_VLA_DECL(6, element_output_type, tr_output,  (element_output_type*)handle->scratch6 , BLOCKSOFM, handle->ofhp, OFWP/2, handle->ofmblock, 2);
+    output_base = &LIBXSMM_VLA_ACCESS(6, tr_output, 0, 0, 0, 0, 0, 0, BLOCKSOFM, handle->ofhp, OFWP/2, handle->ofmblock, 2);
+}
 
 i = 0;
 instr = handle->n_entries_upd[ltid];
@@ -254,6 +254,8 @@ float scale_factor __attribute__((aligned(64)));
 if (handle->use_lp_kernel == 1) {
   scale_factor = (float) pow(2.0, -1.0*((double)(handle->reg_input->scf + handle->grad_output->scf)));
 }
+
+float vnni_scratch[32] __attribute__((aligned(64)));
 
 float *max_vals __attribute__((aligned(64)));
 __m512 max_abs = _mm512_setzero_ps();
@@ -271,7 +273,7 @@ if (n_segments) {
 
     if (instr == WEIGHT_INIT) {
       offset_w = code_stream[pc].aux_index;
-      for ( j = offset_w; j < offset_w + handle->desc.R*handle->desc.S*handle->ifmblock*handle->ofmblock; j += 16) {
+      for ( j = offset_w; j < offset_w + handle->desc.R*handle->desc.S*handle->ofmblock*handle->ifmblock_hp; j += 16) {
         LIBXSMM_PRAGMA_VALIGNED
           LIBXSMM_PRAGMA_SIMD
           for ( k = 0; k < 16; ++k ) {
@@ -281,10 +283,10 @@ if (n_segments) {
     }
 
     if (instr == WEIGHT_COPY) {
-      offset_w /= handle->desc.R * handle->desc.S * handle->ifmblock * handle->ofmblock;
-      offset_w *= handle->desc.R * handle->desc.S * handle->ifmblock;
+      offset_w /= handle->desc.R * handle->desc.S * handle->ifmblock_hp * handle->ofmblock;
+      offset_w *= handle->desc.R * handle->desc.S * handle->ifmblock_hp;
       offset_s = code_stream[pc].aux_index;
-      for ( j = 0; j < handle->desc.R*handle->desc.S*handle->ifmblock; j++ ) {
+      for ( j = 0; j < handle->desc.R*handle->desc.S*handle->ifmblock_hp; j++ ) {
         LIBXSMM_PRAGMA_NONTEMPORAL
           LIBXSMM_PRAGMA_VALIGNED
           LIBXSMM_PRAGMA_SIMD
@@ -302,7 +304,7 @@ if (n_segments) {
       pi = stream[i+3];
       pw = stream[i+4];
       po = stream[i+5];
-      kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor);
+      kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, vnni_scratch);
       i+=3;
     }
   }
@@ -316,114 +318,117 @@ if (n_segments) {
     pi = stream[i+3];
     pw = stream[i+4];
     po = stream[i+5];
-    kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor);
+    kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, vnni_scratch);
     i+=3;
   }
 }
 
-if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
+if (handle->reduce_weights) {
+  if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
 #define __AVX512F__
-  /* Perform reduction because we used thread private filters... */
-  if (handle->upd_use_external_reduce == 0) {
-    libxsmm_barrier_wait(handle->barrier, ltid);
-    for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
+    /* Perform reduction because we used thread private filters... */
+    if (handle->upd_use_external_reduce == 0) {
+      libxsmm_barrier_wait(handle->barrier, ltid);
+      for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
 #ifdef __AVX512F__
-      __m512 weight_sum = _mm512_setzero_ps();
-      for ( i = 0; i < handle->desc.threads; i++ ) {
-        weight_sum = _mm512_add_ps(weight_sum, _mm512_load_ps(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->desc.threads, 16)));
-      }
-      if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
-        _mm512_stream_ps(&weight_ptr[j*16], weight_sum);
-        max_abs = _mm512_max_ps(max_abs, _mm512_abs_ps(weight_sum));
-      } else {
-        __m512 new_result = _mm512_add_ps(weight_sum, _mm512_load_ps(&weight_ptr[j*16]));
-        _mm512_store_ps(&weight_ptr[j*16], new_result);
-        max_abs = _mm512_max_ps(max_abs, _mm512_abs_ps(new_result));
-      }
-#else
-      element_filter_type weight_sum[16] LIBXSMM_ATTRIBUTE(aligned(64));
-      LIBXSMM_PRAGMA_VALIGNED
-        LIBXSMM_PRAGMA_SIMD
-        for ( k = 0; k < 16; k++ ) {
-          weight_sum[k] = (element_filter_type) 0;
+        __m512 weight_sum = _mm512_setzero_ps();
+        for ( i = 0; i < handle->desc.threads; i++ ) {
+          weight_sum = _mm512_add_ps(weight_sum, _mm512_load_ps(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->desc.threads, 16)));
         }
-      for ( i = 0; i < handle->desc.threads; i++ ) {
+        if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
+          _mm512_stream_ps(&weight_ptr[j*16], weight_sum);
+          max_abs = _mm512_max_ps(max_abs, _mm512_abs_ps(weight_sum));
+        } else {
+          __m512 new_result = _mm512_add_ps(weight_sum, _mm512_load_ps(&weight_ptr[j*16]));
+          _mm512_store_ps(&weight_ptr[j*16], new_result);
+          max_abs = _mm512_max_ps(max_abs, _mm512_abs_ps(new_result));
+        }
+#else
+        element_filter_type weight_sum[16] LIBXSMM_ATTRIBUTE(aligned(64));
         LIBXSMM_PRAGMA_VALIGNED
           LIBXSMM_PRAGMA_SIMD
           for ( k = 0; k < 16; k++ ) {
-            weight_sum[k] += LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, k, handle->desc.threads, 16);
+            weight_sum[k] = (element_filter_type) 0;
           }
-      }
-      if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
-        LIBXSMM_PRAGMA_NONTEMPORAL
+        for ( i = 0; i < handle->desc.threads; i++ ) {
           LIBXSMM_PRAGMA_VALIGNED
-          LIBXSMM_PRAGMA_SIMD
-          for ( k = 0; k < 16; k++ ) {
-            weight_ptr[j*16 + k] = weight_sum[k];
-          }
-      } else {
-        LIBXSMM_PRAGMA_VALIGNED
-          LIBXSMM_PRAGMA_SIMD
-          for ( k = 0; k < 16; k++ ) {
-            weight_ptr[j*16 + k] += weight_sum[k];
-          }
+            LIBXSMM_PRAGMA_SIMD
+            for ( k = 0; k < 16; k++ ) {
+              weight_sum[k] += LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, k, handle->desc.threads, 16);
+            }
+        }
+        if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
+          LIBXSMM_PRAGMA_NONTEMPORAL
+            LIBXSMM_PRAGMA_VALIGNED
+            LIBXSMM_PRAGMA_SIMD
+            for ( k = 0; k < 16; k++ ) {
+              weight_ptr[j*16 + k] = weight_sum[k];
+            }
+        } else {
+          LIBXSMM_PRAGMA_VALIGNED
+            LIBXSMM_PRAGMA_SIMD
+            for ( k = 0; k < 16; k++ ) {
+              weight_ptr[j*16 + k] += weight_sum[k];
+            }
+        }
+#endif
       }
+#ifdef __AVX512F__
+      _mm512_store_ps(max_vals, max_abs);
 #endif
     }
-#ifdef __AVX512F__
-    _mm512_store_ps(max_vals, max_abs);
-#endif
-  }
-  libxsmm_barrier_wait(handle->barrier, ltid);
-#undef __AVX512F__
-} else {
-#define __AVX512F__
-  /* Perform reduction because we used thread private filters... */
-  if (handle->upd_use_external_reduce == 0) {
     libxsmm_barrier_wait(handle->barrier, ltid);
-    for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
-#ifdef __AVX512F__
-      __m512 weight_sum = _mm512_setzero_ps();
-      for ( i = 0; i < handle->desc.threads; i++ ) {
-        weight_sum = _mm512_add_ps(weight_sum, _mm512_load_ps(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->desc.threads, 16)));
-      }
-      if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
-        _mm512_stream_ps(&weight_ptr[j*16], weight_sum);
-      } else {
-        __m512 new_result = _mm512_add_ps(weight_sum, _mm512_load_ps(&weight_ptr[j*16]));
-        _mm512_store_ps(&weight_ptr[j*16], new_result);
-      }
-#else
-      element_filter_type weight_sum[16] LIBXSMM_ATTRIBUTE(aligned(64));
-      LIBXSMM_PRAGMA_VALIGNED
-        LIBXSMM_PRAGMA_SIMD
-        for ( k = 0; k < 16; k++ ) {
-          weight_sum[k] = (element_filter_type) 0;
-        }
-      for ( i = 0; i < handle->desc.threads; i++ ) {
-        LIBXSMM_PRAGMA_VALIGNED
-          LIBXSMM_PRAGMA_SIMD
-          for ( k = 0; k < 16; k++ ) {
-            weight_sum[k] += LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, k, handle->desc.threads, 16);
-          }
-      }
-      if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
-        LIBXSMM_PRAGMA_NONTEMPORAL
-          LIBXSMM_PRAGMA_VALIGNED
-          LIBXSMM_PRAGMA_SIMD
-          for ( k = 0; k < 16; k++ ) {
-            weight_ptr[j*16 + k] = weight_sum[k];
-          }
-      } else {
-        LIBXSMM_PRAGMA_VALIGNED
-          LIBXSMM_PRAGMA_SIMD
-          for ( k = 0; k < 16; k++ ) {
-            weight_ptr[j*16 + k] += weight_sum[k];
-          }
-      }
-#endif
-    }
-  }
-  libxsmm_barrier_wait(handle->barrier, ltid);
 #undef __AVX512F__
+  } else {
+#define __AVX512F__
+    /* Perform reduction because we used thread private filters... */
+    if (handle->upd_use_external_reduce == 0) {
+      libxsmm_barrier_wait(handle->barrier, ltid);
+      for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
+#ifdef __AVX512F__
+        __m512 weight_sum = _mm512_setzero_ps();
+        for ( i = 0; i < handle->desc.threads; i++ ) {
+          weight_sum = _mm512_add_ps(weight_sum, _mm512_load_ps(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->desc.threads, 16)));
+        }
+        if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
+          _mm512_stream_ps(&weight_ptr[j*16], weight_sum);
+        } else {
+          __m512 new_result = _mm512_add_ps(weight_sum, _mm512_load_ps(&weight_ptr[j*16]));
+          _mm512_store_ps(&weight_ptr[j*16], new_result);
+        }
+#else
+        element_filter_type weight_sum[16] LIBXSMM_ATTRIBUTE(aligned(64));
+        LIBXSMM_PRAGMA_VALIGNED
+          LIBXSMM_PRAGMA_SIMD
+          for ( k = 0; k < 16; k++ ) {
+            weight_sum[k] = (element_filter_type) 0;
+          }
+        for ( i = 0; i < handle->desc.threads; i++ ) {
+          LIBXSMM_PRAGMA_VALIGNED
+            LIBXSMM_PRAGMA_SIMD
+            for ( k = 0; k < 16; k++ ) {
+              weight_sum[k] += LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, k, handle->desc.threads, 16);
+            }
+        }
+        if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
+          LIBXSMM_PRAGMA_NONTEMPORAL
+            LIBXSMM_PRAGMA_VALIGNED
+            LIBXSMM_PRAGMA_SIMD
+            for ( k = 0; k < 16; k++ ) {
+              weight_ptr[j*16 + k] = weight_sum[k];
+            }
+        } else {
+          LIBXSMM_PRAGMA_VALIGNED
+            LIBXSMM_PRAGMA_SIMD
+            for ( k = 0; k < 16; k++ ) {
+              weight_ptr[j*16 + k] += weight_sum[k];
+            }
+        }
+#endif
+      }
+    }
+    libxsmm_barrier_wait(handle->barrier, ltid);
+#undef __AVX512F__
+  }
 }
+libxsmm_barrier_wait(handle->barrier, ltid);

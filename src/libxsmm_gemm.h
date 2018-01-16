@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2015-2017, Intel Corporation                                **
+** Copyright (c) 2015-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -315,7 +315,8 @@
     } libxsmm_gemm_wrapper_blas_; \
     libxsmm_gemm_wrapper_blas_.LIBXSMM_TPREFIX(TYPE,f) = (SYMBOL); \
     if (libxsmm_gemm_wrapper_blas_.pv != (CALLER)) { \
-      LIBXSMM_ATOMIC_STORE(&(ORIGINAL), libxsmm_gemm_wrapper_blas_.pf, LIBXSMM_ATOMIC_RELAXED); \
+      /*LIBXSMM_ATOMIC(LIBXSMM_ATOMIC_STORE, LIBXSMM_BITS)(&(ORIGINAL), libxsmm_gemm_wrapper_blas_.pf, LIBXSMM_ATOMIC_RELAXED);*/ \
+      ORIGINAL = libxsmm_gemm_wrapper_blas_.pf; \
     } \
   }
 # define LIBXSMM_GEMV_WRAPPER_BLAS(TYPE, ORIGINAL, CALLER, SYMBOL) if (0 == (ORIGINAL)) { \
@@ -331,7 +332,8 @@
     } libxsmm_gemv_wrapper_blas_; \
     libxsmm_gemv_wrapper_blas_.LIBXSMM_TPREFIX(TYPE,f) = (SYMBOL); \
     if (libxsmm_gemv_wrapper_blas_.pv != (CALLER)) { \
-      LIBXSMM_ATOMIC_STORE(&(ORIGINAL), libxsmm_gemv_wrapper_blas_.pf, LIBXSMM_ATOMIC_RELAXED); \
+      /*LIBXSMM_ATOMIC(LIBXSMM_ATOMIC_STORE, LIBXSMM_BITS)(&(ORIGINAL), libxsmm_gemv_wrapper_blas_.pf, LIBXSMM_ATOMIC_RELAXED);*/ \
+      ORIGINAL = libxsmm_gemv_wrapper_blas_.pf; \
     } \
   }
 #else
@@ -367,7 +369,8 @@
       dlerror(); /* clear an eventual error status */ \
       libxsmm_gemm_wrapper_dynamic_.pv = dlsym(RTLD_NEXT, LIBXSMM_STRINGIFY(LIBXSMM_GEMM_SYMBOL(TYPE))); \
       if (libxsmm_gemm_wrapper_dynamic_.pv != (CALLER)) { \
-        LIBXSMM_ATOMIC_STORE(&(ORIGINAL), libxsmm_gemm_wrapper_dynamic_.pf, LIBXSMM_ATOMIC_RELAXED); \
+        /*LIBXSMM_ATOMIC_STORE(&(ORIGINAL), libxsmm_gemm_wrapper_dynamic_.pf, LIBXSMM_ATOMIC_RELAXED);*/ \
+        ORIGINAL = libxsmm_gemm_wrapper_dynamic_.pf; \
       } \
       LIBXSMM_GEMM_WRAPPER_BLAS(TYPE, ORIGINAL, CALLER, LIBXSMM_GEMM_SYMBOL(TYPE)); \
     }
@@ -377,7 +380,8 @@
       dlerror(); /* clear an eventual error status */ \
       libxsmm_gemv_wrapper_dynamic_.pv = dlsym(RTLD_NEXT, LIBXSMM_STRINGIFY(LIBXSMM_GEMV_SYMBOL(TYPE))); \
       if (libxsmm_gemv_wrapper_dynamic_.pv != (CALLER)) { \
-        LIBXSMM_ATOMIC_STORE(&(ORIGINAL), libxsmm_gemv_wrapper_dynamic_.pf, LIBXSMM_ATOMIC_RELAXED); \
+        /*LIBXSMM_ATOMIC_STORE(&(ORIGINAL), libxsmm_gemv_wrapper_dynamic_.pf, LIBXSMM_ATOMIC_RELAXED);*/ \
+        ORIGINAL = libxsmm_gemv_wrapper_dynamic_.pf; \
       } \
       LIBXSMM_GEMV_WRAPPER_BLAS(TYPE, ORIGINAL, CALLER, LIBXSMM_GEMV_SYMBOL(TYPE)); \
     }
@@ -492,7 +496,7 @@ LIBXSMM_API_VARIABLE libxsmm_gemm_descriptor libxsmm_gemm_batchdesc;
 /** Records a batch of SMMs. */
 LIBXSMM_API_VARIABLE libxsmm_gemm_batchitem* libxsmm_gemm_batcharray;
 /** Lock: libxsmm_mmbatch_begin, libxsmm_mmbatch_end, internal_mmbatch_flush. */
-LIBXSMM_API_VARIABLE LIBXSMM_LOCK_TYPE libxsmm_gemm_batchlock;
+LIBXSMM_API_VARIABLE LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK_DEFAULT) libxsmm_gemm_batchlock;
 /** Maximum size of the recorded batch. */
 LIBXSMM_API_VARIABLE unsigned int libxsmm_gemm_batchsize;
 /** Grain/chunk size when processing batches. */

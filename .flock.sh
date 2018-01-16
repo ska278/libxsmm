@@ -1,6 +1,6 @@
 #!/bin/sh
 #############################################################################
-# Copyright (c) 2017, Intel Corporation                                     #
+# Copyright (c) 2017-2018, Intel Corporation                                #
 # All rights reserved.                                                      #
 #                                                                           #
 # Redistribution and use in source and binary forms, with or without        #
@@ -31,11 +31,17 @@
 #############################################################################
 
 FLOCK=$(which flock 2> /dev/null)
-DIR=$1
+
+if [ -f $1 ]; then
+  ABSDIR=$(cd $(dirname $1); pwd -P)
+else
+  ABSDIR=$(cd $1; pwd -P)
+fi
 
 shift
+cd ${ABSDIR}
 if [ "" != "${FLOCK}" ]; then
-  ${FLOCK} ${DIR} bash -c "$*"
+  ${FLOCK} ${ABSDIR} bash -c "$*"
 else
   eval "$*"
 fi

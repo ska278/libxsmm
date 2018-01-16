@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2015-2017, Intel Corporation                                **
+** Copyright (c) 2015-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -212,6 +212,15 @@ void libxsmm_generator_spgemm_csr_soa_kernel(libxsmm_generated_code*        io_g
                                              const unsigned int*            i_row_idx,
                                              const unsigned int*            i_column_idx,
                                              const void*                    i_values);
+
+/* @TODO change int based architecture value */
+LIBXSMM_INTERNAL_API
+void libxsmm_generator_spgemm_csc_soa_kernel( libxsmm_generated_code*        io_generated_code,
+                                              const libxsmm_gemm_descriptor* i_xgemm_desc,
+                                              const char*                    i_arch,
+                                              const unsigned int*            i_row_idx,
+                                              const unsigned int*            i_column_idx,
+                                              const void*                    i_values );
 
 /* @TODO change int based architecture value */
 LIBXSMM_INTERNAL_API

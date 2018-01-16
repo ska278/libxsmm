@@ -185,10 +185,12 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_layer* libxsmm_dnn_create_conv_layer(
   }
 
   /* TODO remove this check later */
+#if 0
   if (conv_desc.N != conv_desc.threads) {
     printf("For this version of LIBXSMM minibatch size needs to match with number of threads!\n");
     exit(-1);
   }
+#endif
 
   handle = (libxsmm_dnn_layer*)malloc(sizeof(libxsmm_dnn_layer));
 
@@ -294,7 +296,8 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_err_t libxsmm_dnn_destroy_conv_layer(const li
 
     if ( (libxsmm_target_archid == LIBXSMM_X86_AVX512_MIC  ||
           libxsmm_target_archid == LIBXSMM_X86_AVX512_KNM  ||
-          libxsmm_target_archid == LIBXSMM_X86_AVX512_CORE ) && (handle->avx512avx2fallback == 0) ) {
+          libxsmm_target_archid == LIBXSMM_X86_AVX512_CORE ||
+          libxsmm_target_archid == LIBXSMM_X86_AVX512_ICL    ) && (handle->avx512avx2fallback == 0) ) {
       if (handle->custom_format_type != LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_2) {
         libxsmm_free(handle->code_fwd[0].pmm);
       }
@@ -610,10 +613,10 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
                 layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
                 layout->dim_type[5] = LIBXSMM_DNN_TENSOR_DIMTYPE_N;
                 layout->dim_size[0] = handle->fm_lp_block;
-                layout->dim_size[1] = handle->ofmblock;
+                layout->dim_size[1] = handle->ofmblock_lp;
                 layout->dim_size[2] = handle->ofwp;
                 layout->dim_size[3] = handle->ofhp;
-                layout->dim_size[4] = handle->blocksofm_lp;
+                layout->dim_size[4] = handle->blocksofm;
                 layout->dim_size[5] = handle->desc.N;
               } else if ( (type == LIBXSMM_DNN_REGULAR_OUTPUT) || (type == LIBXSMM_DNN_OUTPUT) || (type == LIBXSMM_DNN_REGULAR_INPUT_ST_BWD) ) {
                 layout->num_dims = 5;
@@ -634,7 +637,7 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
                 layout->dim_type[2] = LIBXSMM_DNN_TENSOR_DIMTYPE_H;
                 layout->dim_type[3] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
                 layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_N;
-                layout->dim_size[0] = handle->ifmblock;
+                layout->dim_size[0] = handle->ifmblock_hp;
                 layout->dim_size[1] = handle->ifwp;
                 layout->dim_size[2] = handle->ifhp;
                 layout->dim_size[3] = handle->blocksifm;
@@ -716,7 +719,7 @@ LIBXSMM_API_DEFINITION libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_
                 layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
                 layout->dim_type[5] = LIBXSMM_DNN_TENSOR_DIMTYPE_K;
                 layout->dim_size[0] = handle->ofmblock;
-                layout->dim_size[1] = handle->ifmblock;
+                layout->dim_size[1] = handle->ifmblock_hp;
                 layout->dim_size[2] = handle->desc.S;
                 layout->dim_size[3] = handle->desc.R;
                 layout->dim_size[4] = handle->blocksifm;
@@ -2619,9 +2622,15 @@ LIBXSMM_API_DEFINITION short libxsmm_internal_quantize_scalar_no_scf( float inpu
     if (round_mode == LIBXSMM_DNN_QUANT_BIAS_ROUND) {
       /* biased rounding towards next bigger number */
       /* first let's determine in the original number if we need a bias rounding, @TODO need fix for F64 */
-      int bias_needed = (mant & (0x3 << rhs));
+      int bias_needed = (mant & (0x3 << (rhs-2)));
       /* apply bias */
       if (bias_needed > 0) {
+        qvalue++;
+      }
+    } else if (round_mode == LIBXSMM_DNN_QUANT_NEAREST_ROUND) {
+      int nearest_needed = (mant & (0x1 << (rhs-1)));
+      /* apply rounding */
+      if ((nearest_needed > 0) && (rhs > 1)) {
         qvalue++;
       }
     } else if (round_mode == LIBXSMM_DNN_QUANT_STOCH_ROUND) {

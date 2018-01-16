@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2015-2017, Intel Corporation                                **
+** Copyright (c) 2015-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -38,6 +38,7 @@
 #include "generator_spgemm_csr_asparse_reg.h"
 #include "generator_spgemm_csr_bsparse_soa.h"
 #include "generator_spgemm_csr_asparse_soa.h"
+#include "generator_spgemm_csc_bsparse_soa.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -209,6 +210,33 @@ void libxsmm_generator_spgemm_csr_soa_kernel( libxsmm_generated_code*        io_
 }
 
 LIBXSMM_INTERNAL_API_DEFINITION
+void libxsmm_generator_spgemm_csc_soa_kernel( libxsmm_generated_code*        io_generated_code,
+                                              const libxsmm_gemm_descriptor* i_xgemm_desc,
+                                              const char*                    i_arch,
+                                              const unsigned int*            i_row_idx,
+                                              const unsigned int*            i_column_idx,
+                                              const void*                    i_values ) {
+  /* B matrix is sparse */
+  if ( (i_xgemm_desc->lda > 0) && (i_xgemm_desc->ldb == 0) && (i_xgemm_desc->ldc > 0) ) {
+    /* check LDA */
+    if ( i_xgemm_desc->lda < i_xgemm_desc->k ) {
+      LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_LDA );
+      return;
+    }
+    /* check LDC */
+    if ( i_xgemm_desc->ldc < i_xgemm_desc->n ) {
+      LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_LDC );
+      return;
+    }
+    libxsmm_generator_spgemm_csc_bsparse_soa( io_generated_code, i_xgemm_desc, i_arch, i_row_idx, i_column_idx, i_values );
+  } else {
+    /* something bad happened... */
+    LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_SPGEMM_GEN );
+    return;
+  }
+}
+
+LIBXSMM_INTERNAL_API_DEFINITION
 void libxsmm_generator_spgemm( const char*                    i_file_out,
                                const char*                    i_routine_name,
                                const libxsmm_gemm_descriptor* i_xgemm_desc,
@@ -239,7 +267,8 @@ void libxsmm_generator_spgemm( const char*                    i_file_out,
   }
 
   /* check if generate to CSC */
-  if ( i_is_csr == 0 ) {
+  /* @TODO, this i_is_csr is very hacky.... change it in future */
+  if ( (i_is_csr == 0) || (i_is_csr > 9) ) {
     /* read CSC file and construct CSC data structure */
     libxsmm_sparse_csc_reader( &l_generated_code, i_file_in, &l_row_idx, &l_column_idx, &l_values, &l_row_count, &l_column_count, &l_element_count );
 
@@ -248,6 +277,9 @@ void libxsmm_generator_spgemm( const char*                    i_file_out,
       double *const l_tmp = (double*)malloc(l_row_count * l_column_count * sizeof(double));
       unsigned int l_n;
       unsigned int l_m;
+
+      /* mute static analysis about garbage content */
+      memset(l_tmp, 0, l_row_count * l_column_count * sizeof(double));
 
       printf("CSC matrix data structure we just read:\n");
       printf("rows: %u, columns: %u, elements: %u\n", l_row_count, l_column_count, l_element_count);
@@ -295,7 +327,13 @@ void libxsmm_generator_spgemm( const char*                    i_file_out,
     }
 #endif
     /* generate the actual kernel code for current description depending on the architecture */
-    libxsmm_generator_spgemm_csc_kernel( &l_generated_code, i_xgemm_desc, i_arch, l_row_idx, l_column_idx, l_values );
+    if (i_is_csr == 0) {
+      libxsmm_generator_spgemm_csc_kernel( &l_generated_code, i_xgemm_desc, i_arch, l_row_idx, l_column_idx, l_values );
+    } else if (i_is_csr == 10) {
+      libxsmm_generator_spgemm_csc_soa_kernel( &l_generated_code, i_xgemm_desc, i_arch, l_row_idx, l_column_idx, l_values );
+    } else {
+      assert(0/*should not happen*/);
+    }
   } else {
     /* read CSR file and construct CSR data structure */
     libxsmm_sparse_csr_reader( &l_generated_code, i_file_in, &l_row_idx, &l_column_idx, &l_values, &l_row_count, &l_column_count, &l_element_count );
@@ -305,6 +343,9 @@ void libxsmm_generator_spgemm( const char*                    i_file_out,
       double *const l_tmp = (double*)malloc(l_row_count * l_column_count * sizeof(double));
       unsigned int l_n;
       unsigned int l_m;
+
+      /* mute static analysis about garbage content */
+      memset(l_tmp, 0, l_row_count * l_column_count * sizeof(double));
 
       printf("CSR matrix data structure we just read:\n");
       printf("rows: %u, columns: %u, elements: %u\n", l_row_count, l_column_count, l_element_count);

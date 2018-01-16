@@ -171,12 +171,13 @@ if (handle->padding_flag == 1) {
     input_base = &LIBXSMM_VLA_ACCESS(5, input_nopad, 0, 0, 0, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock);
   }
 }
-if ( handle->ofh == 28 || handle->ofh == 56 )
+if ( handle->ofh == 28 || handle->ofh == 56 || handle->ofh == 14 )
 {
   weight_base = &LIBXSMM_VLA_ACCESS(2, per_thread_weight, 0, 0, handle->ofmblock); /* use thread-private scratchpad to accumulate weights */
 } else {
   weight_base = &LIBXSMM_VLA_ACCESS(3, reduction_weight, 0, ltid, 0, handle->desc.threads, handle->ofmblock); /* weights are accumulated in registers and can be written straight to memory */
 }
+
 output_base = &LIBXSMM_VLA_ACCESS(5, output, 0, 0, 0, 0, 0, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
 
 i = 0;
@@ -235,7 +236,7 @@ if (n_segments) {
     if (instr == WEIGHT_INIT) {
       offset_w = code_stream[pc].aux_index;
       for ( j = offset_w; j < offset_w + handle->desc.R*handle->desc.S*handle->ifmblock*handle->ofmblock; j += 16) {
-        LIBXSMM_PRAGMA_VALIGNED
+          LIBXSMM_PRAGMA_VALIGNED
           LIBXSMM_PRAGMA_SIMD
           for ( k = 0; k < 16; ++k ) {
             weight_base[j + k] = (element_filter_type) 0;
@@ -248,7 +249,6 @@ if (n_segments) {
       offset_w *= handle->desc.R * handle->desc.S * handle->ifmblock;
       offset_s = code_stream[pc].aux_index;
       for ( j = 0; j < handle->desc.R*handle->desc.S*handle->ifmblock; j++ ) {
-        LIBXSMM_PRAGMA_NONTEMPORAL
           LIBXSMM_PRAGMA_VALIGNED
           LIBXSMM_PRAGMA_SIMD
           for ( k = 0; k < 16; k++ ) {
@@ -295,7 +295,7 @@ if (handle->upd_use_external_reduce == 0) {
       weight_sum = _mm512_add_ps(weight_sum, _mm512_load_ps(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->desc.threads, 16)));
     }
     if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) ) {
-      _mm512_stream_ps(&weight_ptr[j*16], weight_sum);
+      _mm512_store_ps(&weight_ptr[j*16], weight_sum);
     } else {
       _mm512_store_ps(&weight_ptr[j*16], _mm512_add_ps(weight_sum, _mm512_load_ps(&weight_ptr[j*16])));
     }

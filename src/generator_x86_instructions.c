@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2015-2017, Intel Corporation                                **
+** Copyright (c) 2015-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -614,7 +614,8 @@ void libxsmm_x86_instruction_vec_move( libxsmm_generated_code* io_generated_code
 
     if ( (i_instruction_set == LIBXSMM_X86_AVX512_MIC   ||
           i_instruction_set == LIBXSMM_X86_AVX512_CORE  ||
-          i_instruction_set == LIBXSMM_X86_AVX512_KNM   ) &&
+          i_instruction_set == LIBXSMM_X86_AVX512_KNM   || 
+          i_instruction_set == LIBXSMM_X86_AVX512_ICL     ) &&
          (i_use_masking != 0) ) {
       /* build vmovpd/ps/sd/ss instruction, load use */
       if ( i_is_store == 0 ) {
@@ -793,6 +794,15 @@ void libxsmm_x86_instruction_vec_compute_reg( libxsmm_generated_code* io_generat
           l_fpadj = -2;
           break;
        case LIBXSMM_X86_INSTR_VMULPD:
+          break;
+       case LIBXSMM_X86_INSTR_VPERMW:
+          l_second += 0x01;
+          l_fpadj += 0x34;
+          break;
+       case LIBXSMM_X86_INSTR_VPERMD:
+          l_second += 0x01;
+          l_fpadj = -0x23;
+          l_fpadj2 = -0x80;
           break;
        case LIBXSMM_X86_INSTR_VUNPCKLPD:
           l_fpadj = -0x45;
@@ -1430,6 +1440,7 @@ void libxsmm_x86_instruction_vec_compute_mem( libxsmm_generated_code* io_generat
        (i_instruction_set != LIBXSMM_X86_AVX512_MIC)  &&
        (i_instruction_set != LIBXSMM_X86_AVX512_CORE) &&
        (i_instruction_set != LIBXSMM_X86_AVX512_KNM)  &&
+       (i_instruction_set != LIBXSMM_X86_AVX512_ICL)  &&
        (i_use_broadcast != 0) ) {
     LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_NO_IMCI_AVX512_BCAST );
     return;
@@ -1504,6 +1515,15 @@ void libxsmm_x86_instruction_vec_compute_mem( libxsmm_generated_code* io_generat
        case LIBXSMM_X86_INSTR_VMAXPS:
           l_fpadj = 6;
           l_fpadj2 = -0x81;
+          break;
+       case LIBXSMM_X86_INSTR_VPERMW:
+          l_second += 0x01;
+          l_fpadj = 0x34;
+          break;
+       case LIBXSMM_X86_INSTR_VPERMD:
+          l_second += 0x01;
+          l_fpadj = -0x23;
+          l_fpadj2 = -0x80;
           break;
        case LIBXSMM_X86_INSTR_VFMADD231PD:
           l_second += 0x21;
@@ -1882,7 +1902,6 @@ void libxsmm_x86_instruction_vec_compute_mem( libxsmm_generated_code* io_generat
           if ( i_gp_reg_idx == LIBXSMM_X86_GP_REG_RSP ) {
              fprintf(stderr, "libxsmm_instruction_vec_compute_mem: vpdpwssd and idx=rsp?\n");
              exit(-1);
-             exit(-1);
           }
           break;
         case LIBXSMM_X86_INSTR_VPDPWSSDS:
@@ -2130,6 +2149,7 @@ void libxsmm_x86_instruction_vec_compute_mem_mask ( libxsmm_generated_code* io_g
        (i_instruction_set != LIBXSMM_X86_AVX512_MIC)  &&
        (i_instruction_set != LIBXSMM_X86_AVX512_CORE) &&
        (i_instruction_set != LIBXSMM_X86_AVX512_KNM)  &&
+       (i_instruction_set != LIBXSMM_X86_AVX512_ICL)  &&
        (i_use_broadcast != 0) ) {
     LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_NO_IMCI_AVX512_BCAST );
     return;
@@ -2755,7 +2775,7 @@ void libxsmm_x86_instruction_vec_move_gathscat( libxsmm_generated_code* io_gener
       fprintf(stderr, "LIBXSMM ERROR: libxsmm_x86_instruction_vec_move_gathscat yet needs to be implemented for scatters!\n");
       exit(-1);
     } else {
-      if ( i_instruction_set == LIBXSMM_X86_AVX512_MIC || i_instruction_set == LIBXSMM_X86_AVX512_CORE ) {
+      if ( i_instruction_set == LIBXSMM_X86_AVX512_MIC || i_instruction_set == LIBXSMM_X86_AVX512_CORE || i_instruction_set == LIBXSMM_X86_AVX512_ICL ) {
         if ( io_generated_code->code_type == 0 ) {
           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s %i(%%%%%s,%%%%zmm%u,%u), %%%%zmm%u%%{%%%%k%u%%}\\n\\t\"\n", l_instr_name, i_displacement, l_gp_reg_base_name, i_vec_reg_idx, i_scale, i_vec_reg_number, i_mask_reg_number);
         } else {

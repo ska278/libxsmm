@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2013-2017, Intel Corporation                                **
+** Copyright (c) 2013-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -51,6 +51,17 @@
 #define LIBXSMM_WRAP LIBXSMM_CONFIG_WRAP
 #define LIBXSMM_SYNC LIBXSMM_CONFIG_SYNC
 #define LIBXSMM_JIT LIBXSMM_CONFIG_JIT
+
+#if (defined(__SIZEOF_PTRDIFF_T__) && 4 < (__SIZEOF_PTRDIFF_T__)) || \
+    (defined(__SIZE_MAX__) && (4294967295U < (__SIZE_MAX__))) || \
+    (defined(__GNUC__) && defined(_CRAYC)) || defined(_WIN64) || \
+    (defined(__x86_64__) && 0 != (__x86_64__))
+# define LIBXSMM_BITS 64
+#elif defined(NDEBUG) /* not for production use! */
+# error LIBXSMM is only supported on a 64-bit platform!
+#else /* JIT-generated code (among other issues) is not supported! */
+# define LIBXSMM_BITS 32
+#endif
 
 #define LIBXSMM_STRINGIFY2(SYMBOL) #SYMBOL
 #define LIBXSMM_STRINGIFY(SYMBOL) LIBXSMM_STRINGIFY2(SYMBOL)
@@ -167,15 +178,6 @@
 # define LIBXSMM_CDECL
 #endif
 
-#if defined(_MSC_VER)
-# define LIBXSMM_MESSAGE(MSG) LIBXSMM_PRAGMA(message(MSG))
-#elif LIBXSMM_VERSION3(4, 4, 0) <= LIBXSMM_VERSION3(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__) \
-   && LIBXSMM_VERSION3(5, 0, 0) >  LIBXSMM_VERSION3(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
-# define LIBXSMM_MESSAGE(MSG) LIBXSMM_PRAGMA(message MSG)
-#else
-# define LIBXSMM_MESSAGE(MSG)
-#endif
-
 #if !defined(LIBXSMM_OPENMP_SIMD) && (defined(_OPENMP) && (201307 <= _OPENMP)) /*OpenMP 4.0*/
 # if defined(__INTEL_COMPILER)
 #   if (1500 <= __INTEL_COMPILER)
@@ -282,6 +284,7 @@
 #define LIBXSMM_ABS(A) (0 <= (A) ? (A) : -(A))
 #define LIBXSMM_MIN(A, B) ((A) < (B) ? (A) : (B))
 #define LIBXSMM_MAX(A, B) ((A) < (B) ? (B) : (A))
+#define LIBXSMM_DIFF(T0, T1) ((T0) < (T1) ? ((T1) - (T0)) : 0)
 #define LIBXSMM_CLMP(VALUE, LO, HI) ((LO) < (VALUE) ? ((VALUE) <= (HI) ? (VALUE) : LIBXSMM_MIN(VALUE, HI)) : LIBXSMM_MAX(LO, VALUE))
 #define LIBXSMM_MOD2(N, NPOT) ((N) & ((NPOT) - 1))
 #define LIBXSMM_MUL2(N, NPOT) (((unsigned long long)(N)) << LIBXSMM_LOG2(NPOT))
@@ -332,7 +335,7 @@
  * To ultimately disable VLA-support, define LIBXSMM_NO_VLA (make VLA=0).
  * VLA-support is signaled by LIBXSMM_VLA.
  */
-#if !defined(LIBXSMM_VLA) && !defined(LIBXSMM_NO_VLA) && ((defined(__STDC_VERSION__) && (199901L/*C99*/ == __STDC_VERSION__ || \
+#if !defined(LIBXSMM_VLA) && !defined(LIBXSMM_NO_VLA) && !defined(__PGI) && ((defined(__STDC_VERSION__) && (199901L/*C99*/ == __STDC_VERSION__ || \
    (!defined(__STDC_NO_VLA__)&& 199901L/*C99*/ < __STDC_VERSION__))) || (defined(__INTEL_COMPILER) && !defined(_WIN32)) || \
     (defined(__GNUC__) && !defined(__STRICT_ANSI__) && !defined(__cplusplus))/*depends on above C99-check*/)
 # define LIBXSMM_VLA
@@ -407,7 +410,7 @@
 # define LIBXSMM_VISIBILITY_INTERNAL
 #endif
 
-#if (defined(__GNUC__) || defined(__clang__)) && !defined(__CYGWIN__)
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__CYGWIN__) && !defined(__MINGW32__)
 # define LIBXSMM_ATTRIBUTE_WEAK_IMPORT LIBXSMM_ATTRIBUTE(weak_import)
 # define LIBXSMM_ATTRIBUTE_WEAK LIBXSMM_ATTRIBUTE(weak)
 #else
@@ -418,6 +421,9 @@
 #if defined(__GNUC__)
 # define LIBXSMM_ATTRIBUTE_CTOR LIBXSMM_ATTRIBUTE(constructor)
 # define LIBXSMM_ATTRIBUTE_DTOR LIBXSMM_ATTRIBUTE(destructor)
+# if !defined(LIBXSMM_CTOR) && defined(LIBXSMM_BUILD) && !defined(__STATIC)
+#   define LIBXSMM_CTOR
+# endif
 #else
 # define LIBXSMM_ATTRIBUTE_CTOR
 # define LIBXSMM_ATTRIBUTE_DTOR
@@ -534,6 +540,13 @@
 #if !defined(LIBXSMM_ASSERT)
 # include <assert.h>
 # define LIBXSMM_ASSERT(EXPR) assert(EXPR)
+#endif
+#if !defined(LIBXSMM_EXPECT)
+# if defined(NDEBUG)
+#   define LIBXSMM_EXPECT(RESULT, EXPR) (EXPR)
+# else
+#   define LIBXSMM_EXPECT(RESULT, EXPR) LIBXSMM_ASSERT((RESULT) == (EXPR))
+# endif
 #endif
 #include <stddef.h>
 #include <stdint.h>

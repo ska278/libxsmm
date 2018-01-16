@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2017, Intel Corporation                                     **
+** Copyright (c) 2017-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -53,3 +53,4 @@ void edge_sparse_csr_reader_float( const char*           i_csr_file_in,
                                    unsigned int*         o_element_count );
 
 #endif /* EDGE_COMMON_H */
+

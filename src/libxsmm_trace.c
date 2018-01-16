@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2016-2017, Intel Corporation                                **
+** Copyright (c) 2016-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -38,6 +38,7 @@
 #if defined(LIBXSMM_OFFLOAD_TARGET)
 # pragma offload_attribute(push,target(LIBXSMM_OFFLOAD_TARGET))
 #endif
+#include <inttypes.h>
 #include <assert.h>
 #include <stdlib.h>
 # if (!defined(_BSD_SOURCE) || 0 == _BSD_SOURCE) && (!defined(_SVID_SOURCE) || 0 == _SVID_SOURCE) && \
@@ -298,7 +299,11 @@ const char* libxsmm_trace_info(unsigned int* depth, unsigned int* threadid, cons
               fname = value->Name;
             }
             else if (0 > tid) { /* fall-back allowing unresolved symbol names */
-              sprintf(buffer, "0x%llx", (unsigned long long)*symbol);
+#   if defined(__MINGW32__)
+              sprintf(buffer, "%p", *symbol);
+#   else
+              sprintf(buffer, "0x%" PRIxPTR, (uintptr_t)*symbol);
+#   endif
               fname = buffer;
             }
             if (depth) *depth = i - min_n;
@@ -307,7 +312,7 @@ const char* libxsmm_trace_info(unsigned int* depth, unsigned int* threadid, cons
 # else
 #   if defined(LIBXSMM_NO_SYNC)
           static char raw_c;
-          char *const raw_value = &raw_c;
+          char */*const*/ raw_value = &raw_c; /* const: avoid warning (below / constant control-flow) */
 #   else
           char *const raw_value = (char*)pthread_getspecific(internal_trace_key);
 #   endif

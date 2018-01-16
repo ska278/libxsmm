@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2015-2017, Intel Corporation                                **
+** Copyright (c) 2015-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -29,6 +29,7 @@
 /* Hans Pabst (Intel Corp.)
 ******************************************************************************/
 #include <libxsmm.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -94,7 +95,7 @@ int main(void)
     const libxsmm_blasint m = r[3*i+0] % max_shape + 1;
     const libxsmm_blasint n = r[3*i+1] % max_shape + 1;
     const libxsmm_blasint k = r[3*i+2] % max_shape + 1;
-    f[i].s = libxsmm_smmdispatch((int)m, (int)n, (int)k,
+    f[i].s = libxsmm_smmdispatch(m, n, k,
       NULL/*lda*/, NULL/*ldb*/, NULL/*ldc*/, NULL/*alpha*/, NULL/*beta*/,
       &flags, &prefetch);
   }
@@ -125,8 +126,8 @@ int main(void)
                 || 0 != memcmp(generated_code.generated_code, f[i].p, generated_code.code_size)))
               {
 #if defined(_DEBUG) || defined(USE_VERBOSE)
-                fprintf(stderr, "Error: the %llix%llix%lli-kernel does not match!\n",
-                  (long long)m, (long long)n, (long long)k);
+                fprintf(stderr, "Error: the %" PRIuPTR "x%" PRIuPTR "x%" PRIuPTR "-kernel does not match!\n",
+                  (uintptr_t)m, (uintptr_t)n, (uintptr_t)k);
 #endif
 #if defined(_OPENMP) && !defined(USE_PARALLEL_JIT)
 # if (201107 <= _OPENMP)
@@ -139,20 +140,20 @@ int main(void)
               }
 #if defined(_DEBUG) /* warning or an info message is not part of USE_VERBOSE */
               else if (0 != registry_info.nstatic) {
-                fprintf(stderr, "Warning: the %llix%llix%lli-kernel may not match!\n",
-                  (long long)m, (long long)n, (long long)k);
+                fprintf(stderr, "Warning: the %" PRIuPTR "x%" PRIuPTR "x%" PRIuPTR "-kernel may not match!\n",
+                  (uintptr_t)m, (uintptr_t)n, (uintptr_t)k);
               }
               else {
-                fprintf(stderr, "(%llix%llix%lli-kernel is duplicated)\n",
-                  (long long)m, (long long)n, (long long)k);
+                fprintf(stderr, "(%" PRIuPTR "x%" PRIuPTR "x%" PRIuPTR "-kernel is duplicated)\n",
+                  (uintptr_t)m, (uintptr_t)n, (uintptr_t)k);
               }
 #endif
             }
           }
           else if (0 != LIBXSMM_JIT && 0 == libxsmm_get_dispatch_trylock()) {
 #if defined(_DEBUG) || defined(USE_VERBOSE)
-            fprintf(stderr, "Error: no code generated for %llix%llix%lli-kernel!\n",
-              (long long)m, (long long)n, (long long)k);
+            fprintf(stderr, "Error: no code generated for %" PRIuPTR "x%" PRIuPTR "x%" PRIuPTR "-kernel!\n",
+              (uintptr_t)m, (uintptr_t)n, (uintptr_t)k);
 #endif
 #if defined(_OPENMP) && !defined(USE_PARALLEL_JIT)
 # if (201107 <= _OPENMP)
@@ -166,8 +167,8 @@ int main(void)
         }
         else if (0 != LIBXSMM_JIT && 0 == libxsmm_get_dispatch_trylock()) {
 #if defined(_DEBUG) || defined(USE_VERBOSE)
-          fprintf(stderr, "Error: cannot find %llix%llix%lli-kernel!\n",
-            (long long)m, (long long)n, (long long)k);
+          fprintf(stderr, "Error: cannot find %" PRIuPTR "x%" PRIuPTR "x%" PRIuPTR "-kernel!\n",
+            (uintptr_t)m, (uintptr_t)n, (uintptr_t)k);
 #endif
 #if defined(_OPENMP) && !defined(USE_PARALLEL_JIT)
 # if (201107 <= _OPENMP)

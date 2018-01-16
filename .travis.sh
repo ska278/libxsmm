@@ -1,6 +1,6 @@
 #!/bin/bash
 #############################################################################
-# Copyright (c) 2016-2017, Intel Corporation                                #
+# Copyright (c) 2016-2018, Intel Corporation                                #
 # All rights reserved.                                                      #
 #                                                                           #
 # Redistribution and use in source and binary forms, with or without        #
@@ -35,6 +35,8 @@ HERE=$(cd $(dirname $0); pwd -P)
 MKTEMP=${HERE}/.mktmp.sh
 MKDIR=$(which mkdir 2> /dev/null)
 CHMOD=$(which chmod 2> /dev/null)
+UNAME=$(which uname 2> /dev/null)
+SYNC=$(which sync 2> /dev/null)
 SORT=$(which sort 2> /dev/null)
 GREP=$(which grep 2> /dev/null)
 SED=$(which sed 2> /dev/null)
@@ -43,24 +45,11 @@ WC=$(which wc 2> /dev/null)
 RM=$(which rm 2> /dev/null)
 CP=$(which cp 2> /dev/null)
 
-if [ "" != "${MKTEMP}" ] && [ "" != "${MKDIR}" ]&& [ "" != "${CHMOD}" ] && \
+if [ "" != "${MKTEMP}" ] && [ "" != "${MKDIR}" ] && [ "" != "${CHMOD}" ] && \
    [ "" != "${SED}" ] && [ "" != "${TR}" ] && [ "" != "${WC}" ] && \
    [ "" != "${RM}" ] && [ "" != "${CP}" ]; \
 then
   HOST=$(hostname -s 2> /dev/null)
-
-  if [ "" != "${GREP}" ] && [ "" != "${SORT}" ] && [ -e /proc/cpuinfo ]; then
-    export NS=$(${GREP} "physical id" /proc/cpuinfo | ${SORT} -u | ${WC} -l)
-    export NC=$((NS*$(${GREP} "core id" /proc/cpuinfo | ${SORT} -u | ${WC} -l)))
-    export NT=$(${GREP} "core id" /proc/cpuinfo | ${WC} -l)
-  fi
-  if [ "" != "${NC}" ] && [ "" != "${NT}" ]; then
-    export HT=$((NT/(NC)))
-    export MAKEJ="-j ${NC}"
-  else
-    export NS=1 NC=1 NT=1 HT=1
-  fi
-
   if [ "" = "${TRAVIS_BUILD_DIR}" ]; then
     export TRAVIS_BUILD_DIR=${BUILDKITE_BUILD_CHECKOUT_PATH}
   fi
@@ -68,8 +57,24 @@ then
     export BUILDKITE_BUILD_CHECKOUT_PATH=${HERE}
     export TRAVIS_BUILD_DIR=${HERE}
   fi
-  if [ "" = "${TRAVIS_OS_NAME}" ] && [ "" != "$(which uname)" ]; then
-    export TRAVIS_OS_NAME=$(uname)
+  if [ "" = "${TRAVIS_OS_NAME}" ] && [ "" != "${UNAME}" ]; then
+    export TRAVIS_OS_NAME=$(${UNAME})
+  fi
+
+  if [ "" != "${GREP}" ] && [ "" != "${SORT}" ] && [ -e /proc/cpuinfo ]; then
+    export NS=$(${GREP} "physical id" /proc/cpuinfo | ${SORT} -u | ${WC} -l)
+    export NC=$((NS*$(${GREP} "core id" /proc/cpuinfo | ${SORT} -u | ${WC} -l)))
+    export NT=$(${GREP} "core id" /proc/cpuinfo | ${WC} -l)
+  elif [ "Darwin" = "${TRAVIS_OS_NAME}" ]; then
+    export NS=$(sysctl hw.packages | cut -d: -f2 | tr -d " ")
+    export NC=$(sysctl hw.physicalcpu | cut -d: -f2 | tr -d " ")
+    export NT=$(sysctl hw.logicalcpu | cut -d: -f2 | tr -d " ")
+  fi
+  if [ "" != "${NC}" ] && [ "" != "${NT}" ]; then
+    export HT=$((NT/(NC)))
+    export MAKEJ="-j ${NC}"
+  else
+    export NS=1 NC=1 NT=1 HT=1
   fi
 
   # set the case number
@@ -125,10 +130,10 @@ then
 
   RESULT=0
   while TEST=$(eval " \
-    ${SED} -e '/^\s*script:\s*$/,\$!d' -e '/^\s*script:\s*$/d' ${HERE}/.${TESTSET}.yml | \
-    ${SED} -nr \"/^\s*-\s*/H;//,/^\s*$/G;s/\n(\n[^\n]*){\${TESTID}}$//p\" | \
-    ${SED} -e 's/^\s*-\s*//' -e 's/^\s\s*//' | ${TR} '\n' ' ' | \
-    ${SED} -e 's/\s\s*$//'") && [ "" != "${TEST}" ];
+    ${SED} -n -e '/^ *script: *$/,\$p' ${HERE}/.${TESTSET}.yml | ${SED} -e '/^ *script: *$/d' | \
+    ${SED} -n -E \"/^ *- */H;//,/^ *$/G;s/\n(\n[^\n]*){\${TESTID}}$//p\" | \
+    ${SED} -e 's/^ *- *//' -e 's/^  *//' | ${TR} '\n' ' ' | \
+    ${SED} -e 's/  *$//'") && [ "" != "${TEST}" ];
   do
     for PARTITION in ${PARTITIONS}; do
     for CONFIG in ${CONFIGS}; do
@@ -142,6 +147,13 @@ then
         fi
       fi
 
+      # make execution environment locally available (always)
+      if [ "" != "${HOST}" ] && [ "none" != "${CONFIG}" ] && \
+         [ -e ${TRAVIS_BUILD_DIR}/.env/${HOST}/${CONFIG}.env ]; \
+      then
+        source ${TRAVIS_BUILD_DIR}/.env/${HOST}/${CONFIG}.env
+      fi
+
       # prepare temporary script for remote environment/execution
       if [ "" != "${TESTSCRIPT}" ] && [ -e ${TESTSCRIPT} ]; then
         echo "#!/bin/bash" > ${TESTSCRIPT}
@@ -149,18 +161,18 @@ then
         if [ "" != "${HOST}" ] && [ "none" != "${CONFIG}" ] && \
            [ -e ${TRAVIS_BUILD_DIR}/.env/${HOST}/${CONFIG}.env ]; \
         then
+          LICSDIR=$(which icc 2> /dev/null | ${SED} -e "s/\(\/.*intel\)\/.*$/\1/")
           ${MKDIR} -p ${TRAVIS_BUILD_DIR}/licenses
           ${CP} -u /opt/intel/licenses/* ${TRAVIS_BUILD_DIR}/licenses 2> /dev/null
+          ${CP} -u ${LICSDIR}/licenses/* ${TRAVIS_BUILD_DIR}/licenses 2> /dev/null
           echo "export INTEL_LICENSE_FILE=${TRAVIS_BUILD_DIR}/licenses" >> ${TESTSCRIPT}
           echo "source ${TRAVIS_BUILD_DIR}/.env/${HOST}/${CONFIG}.env" >> ${TESTSCRIPT}
         fi
-        # record the actual test case
+        # record the current test case
         echo "${TEST} 2>&1" >> ${TESTSCRIPT}
-      else # make execution environment locally available
-        if [ "" != "${HOST}" ] && [ "none" != "${CONFIG}" ] && \
-           [ -e ${TRAVIS_BUILD_DIR}/.env/${HOST}/${CONFIG}.env ]; \
-        then
-          source ${TRAVIS_BUILD_DIR}/.env/${HOST}/${CONFIG}.env
+
+        if [ "" != "${SYNC}" ]; then # flush asynchronous NFS mount
+          ${SYNC}
         fi
       fi
 

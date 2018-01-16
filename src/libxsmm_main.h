@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2014-2017, Intel Corporation                                **
+** Copyright (c) 2014-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -49,16 +49,16 @@
 # define LIBXSMM_MALLOC_SCRATCH_MAX_NPOOLS LIBXSMM_MAX_NTHREADS
 #endif
 #if !defined(LIBXSMM_MALLOC_SCRATCH_LIMIT)
-# define LIBXSMM_MALLOC_SCRATCH_LIMIT (2ULL << 30) /* 2 GB */
+# define LIBXSMM_MALLOC_SCRATCH_LIMIT (4ULL << 30) /* 4 GB */
 #endif
 #if !defined(LIBXSMM_MALLOC_SCRATCH_MMAP)
 /*# define LIBXSMM_MALLOC_SCRATCH_MMAP*/
 #endif
 #if !defined(LIBXSMM_MALLOC_SCRATCH_SCALE)
 # if defined(LIBXSMM_MALLOC_SCRATCH_MMAP)
-#   define LIBXSMM_MALLOC_SCRATCH_SCALE 2.0
+#   define LIBXSMM_MALLOC_SCRATCH_SCALE 1.3
 # else
-#   define LIBXSMM_MALLOC_SCRATCH_SCALE 1.4
+#   define LIBXSMM_MALLOC_SCRATCH_SCALE 1.0
 # endif
 #endif
 #if !defined(LIBXSMM_MALLOC_SCRATCH_INTERNAL_SITE)
@@ -82,7 +82,7 @@
 #endif
 
 /* Helper macro to eventually (if defined) call libxsmm_init */
-#if !defined(LIBXSMM_CTOR) && !defined(LIBXSMM_INIT)
+#if !defined(LIBXSMM_INIT) && !defined(LIBXSMM_CTOR)
 # define LIBXSMM_INIT libxsmm_init();
 #elif !defined(LIBXSMM_INIT)
 # define LIBXSMM_INIT
@@ -108,6 +108,13 @@ typedef struct LIBXSMM_RETARGETABLE LIBXSMM_MAY_ALIAS libxsmm_csr_soa_descriptor
   const unsigned int* column_idx;
   const void* values;
 } libxsmm_csr_soa_descriptor;
+
+typedef struct LIBXSMM_RETARGETABLE LIBXSMM_MAY_ALIAS libxsmm_csc_soa_descriptor {
+  const libxsmm_gemm_descriptor* gemm;
+  const unsigned int* column_ptr;
+  const unsigned int* row_idx;
+  const void* values;
+} libxsmm_csc_soa_descriptor;
 
 typedef struct LIBXSMM_RETARGETABLE LIBXSMM_MAY_ALIAS libxsmm_csr_reg_descriptor {
   const libxsmm_gemm_descriptor* gemm;
@@ -152,7 +159,9 @@ struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
   int ofhp;
   int ofwp;
   int ifmblock;
+  int ifmblock_hp;
   int ofmblock;
+  int ofmblock_lp;
   int blocksifm;
   int blocksofm;
   int blocksifm_lp;
@@ -190,6 +199,11 @@ struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
   int perform_relu_in_kernel;
   int use_lp_kernel;
   int output_lp_padding;
+  int reduce_weights;
+  int use_vperm_transposes;
+  int avoid_output_trans;
+  int avoid_input_trans;
+  int enforce_sfma_kernel;
 
   /* internal data representation */
   libxsmm_dnn_tensor* reg_input;
@@ -333,7 +347,8 @@ struct LIBXSMM_RETARGETABLE libxsmm_sfsspmdm {
 
 typedef enum libxsmm_build_kind {
   LIBXSMM_BUILD_KIND_GEMM,
-  LIBXSMM_BUILD_KIND_SSOA,
+  LIBXSMM_BUILD_KIND_SRSOA,
+  LIBXSMM_BUILD_KIND_SCSOA,
   LIBXSMM_BUILD_KIND_SREG,
   LIBXSMM_BUILD_KIND_CFWD,
   LIBXSMM_BUILD_KIND_CBWD,
@@ -347,7 +362,8 @@ typedef enum libxsmm_build_kind {
 
 typedef union LIBXSMM_RETARGETABLE libxsmm_build_descriptor {
   const libxsmm_gemm_descriptor* gemm;
-  const libxsmm_csr_soa_descriptor* ssoa;
+  const libxsmm_csr_soa_descriptor* srsoa;
+  const libxsmm_csc_soa_descriptor* scsoa;
   const libxsmm_csr_reg_descriptor* sreg;
   const libxsmm_convolution_forward_descriptor* cfwd;
   const libxsmm_convolution_backward_descriptor* cbwd;
@@ -381,17 +397,17 @@ LIBXSMM_API size_t libxsmm_lcm(size_t a, size_t b);
 LIBXSMM_API size_t libxsmm_alignment(size_t size, size_t alignment);
 
 /** Same as libxsmm_set_default_allocator, but takes a lock (can be NULL). */
-LIBXSMM_API int libxsmm_xset_default_allocator(LIBXSMM_LOCK_TYPE* lock,
+LIBXSMM_API int libxsmm_xset_default_allocator(LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK_DEFAULT)* lock,
   void* context, libxsmm_malloc_function malloc_fn, libxsmm_free_function free_fn);
 /** Same as libxsmm_get_default_allocator, but takes a lock (can be NULL). */
-LIBXSMM_API int libxsmm_xget_default_allocator(LIBXSMM_LOCK_TYPE* lock,
+LIBXSMM_API int libxsmm_xget_default_allocator(LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK_DEFAULT)* lock,
   void** context, libxsmm_malloc_function* malloc_fn, libxsmm_free_function* free_fn);
 
 /** Same as libxsmm_set_scratch_allocator, but takes a lock (can be NULL). */
-LIBXSMM_API int libxsmm_xset_scratch_allocator(LIBXSMM_LOCK_TYPE* lock,
+LIBXSMM_API int libxsmm_xset_scratch_allocator(LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK_DEFAULT)* lock,
   void* context, libxsmm_malloc_function malloc_fn, libxsmm_free_function free_fn);
 /** Same as libxsmm_get_scratch_allocator, but takes a lock (can be NULL). */
-LIBXSMM_API int libxsmm_xget_scratch_allocator(LIBXSMM_LOCK_TYPE* lock,
+LIBXSMM_API int libxsmm_xget_scratch_allocator(LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK_DEFAULT)* lock,
   void** context, libxsmm_malloc_function* malloc_fn, libxsmm_free_function* free_fn);
 
 /** Retrieve internal information about a buffer (default memory domain). */
@@ -438,9 +454,9 @@ LIBXSMM_API void libxsmm_dnn_init(int target_arch);
 LIBXSMM_API void libxsmm_dnn_finalize(void);
 
 /** Default attribute of internal locks. */
-LIBXSMM_API_VARIABLE LIBXSMM_LOCK_ATTR_TYPE libxsmm_lock_attr_default;
+LIBXSMM_API_VARIABLE LIBXSMM_LOCK_ATTR_TYPE(LIBXSMM_LOCK_DEFAULT) libxsmm_lock_attr_default;
 /** Global lock; create an own lock for an independent domain. */
-LIBXSMM_API_VARIABLE LIBXSMM_LOCK_TYPE libxsmm_lock_global;
+LIBXSMM_API_VARIABLE LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK_DEFAULT) libxsmm_lock_global;
 /** Function used to allocate default memory. */
 LIBXSMM_API_VARIABLE libxsmm_malloc_function libxsmm_default_malloc_fn;
 /** Function used to allocate scratch memory. */

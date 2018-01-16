@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2015-2017, Intel Corporation                                **
+** Copyright (c) 2015-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -242,6 +242,8 @@ typedef struct LIBXSMM_MAY_ALIAS libxsmm_convolution_forward_descriptor {
   unsigned int blocks_ifm_blocking;
   unsigned int ofm_block;                       /* should be VLEN */
   unsigned int ifm_block;                       /* should be VLEN */
+  unsigned int ifm_block_hp;
+  unsigned int ofm_block_lp;  
   unsigned int ofh_padded;                      /* this we need for 2D register block */
   unsigned int ofw_padded;                      /* this we use for 1D and 2D register block */
   unsigned int ofh_rb;                          /* UR, register block of ofh */
@@ -305,6 +307,8 @@ typedef struct LIBXSMM_MAY_ALIAS libxsmm_convolution_weight_update_descriptor {
   unsigned int blocks_ifm;
   unsigned int ofm_block;                       /* should be VLEN */
   unsigned int ifm_block;                       /* should be VLEN */
+  unsigned int ifm_block_hp;
+  unsigned int ofm_block_lp;    
   unsigned int ofh_padded;                      /* this we need for 2D register block */
   unsigned int ofw_padded;                      /* this we use for 1D and 2D register block */
   unsigned int ofh_rb;                          /* UR, register block of ofh */
@@ -313,6 +317,7 @@ typedef struct LIBXSMM_MAY_ALIAS libxsmm_convolution_weight_update_descriptor {
   unsigned int ifw_padded;                      /* this we use for 1D and 2D register block */
   unsigned int stride_h;                        /* this we use for offsets in the input */
   unsigned int stride_w;                        /* this we use for offsets in the input */
+  unsigned int fm_lp_block;  
 
   unsigned int ifm_unroll;                      /* this we use to unroll ifm loop */
   unsigned int ofh;                             /* upper bound of oj loop */
@@ -326,6 +331,7 @@ typedef struct LIBXSMM_MAY_ALIAS libxsmm_convolution_weight_update_descriptor {
   unsigned int ofw_fake_pixels;
   unsigned int use_fastpath;
   unsigned int ncopies;                         /* number of reduction copies, probably nthreads */
+  unsigned int avoid_output_trans;
 
   libxsmm_dnn_tensor_format format;
   libxsmm_dnn_conv_option option;

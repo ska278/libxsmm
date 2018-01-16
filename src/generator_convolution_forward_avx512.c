@@ -748,7 +748,7 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_one_row( libxsmm_gener
           } else {
             libxsmm_x86_instruction_vec_compute_mem( io_generated_code,
                                                      i_conv_kernel_config->instruction_set,
-                                                     LIBXSMM_X86_INSTR_VPDPWSSD,
+                                                     LIBXSMM_X86_INSTR_VPDPWSSDS,
                                                      1,
                                                      l_input_reg,
                                                      l_input_idx,
@@ -765,9 +765,9 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_one_row( libxsmm_gener
         if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_F32 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_F32 ) {
           l_compute_instr = LIBXSMM_X86_INSTR_V4FMADDPS;
         } else if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_I16 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_I32 ) {
-          l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSD;
+          l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSDS;
         } else if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_I16 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_F32 ) {
-          l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSD;
+          l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSDS;
         }
 
         libxsmm_x86_instruction_vec_compute_qfma( io_generated_code,
@@ -785,13 +785,16 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_one_row( libxsmm_gener
       if (l_k % 4 == 0) {
         /* handle prefetches for input and weights */
         if ( (l_n % 2 == 1) && ((i_conv_desc->prefetch & LIBXSMM_CONVOLUTION_PREFETCH_INPUT_L1) == LIBXSMM_CONVOLUTION_PREFETCH_INPUT_L1) && (l_prefetch_input_index < i_conv_desc->ofw_rb) ) {
-          libxsmm_x86_instruction_prefetch( io_generated_code,
+          unsigned int pf_offset = l_prefetch_input_index * i_conv_desc->stride_w * i_conv_kernel_config->datatype_size_in * i_conv_kernel_config->l_ld_ifm_act * i_conv_desc->fm_lp_block;
+          if (pf_offset % 64 == 0) {
+            libxsmm_x86_instruction_prefetch( io_generated_code,
                                             prefetch_type_input,
                                             i_gp_reg_mapping->gp_reg_input_pf,
                                             LIBXSMM_X86_GP_REG_UNDEF,
                                             0,
                                             (l_prefetch_input_index * i_conv_desc->stride_w) * i_conv_kernel_config->datatype_size_in
                                               * i_conv_kernel_config->l_ld_ifm_act * i_conv_desc->fm_lp_block );
+          }
           l_prefetch_input_index++;
         }
 
@@ -1010,7 +1013,7 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_two_rows( libxsmm_gene
             } else {
               libxsmm_x86_instruction_vec_compute_mem( io_generated_code,
                                                        i_conv_kernel_config->instruction_set,
-                                                       LIBXSMM_X86_INSTR_VPDPWSSD,
+                                                       LIBXSMM_X86_INSTR_VPDPWSSDS,
                                                        1,
                                                        l_input_reg,
                                                        l_input_idx,
@@ -1028,9 +1031,9 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_two_rows( libxsmm_gene
           if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_F32 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_F32 ) {
             l_compute_instr = LIBXSMM_X86_INSTR_V4FMADDPS;
           } else if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_I16 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_I32 ) {
-            l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSD;
+            l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSDS;
           } else if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_I16 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_F32 ) {
-            l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSD;
+            l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSDS;
           }
 
           libxsmm_x86_instruction_vec_compute_qfma( io_generated_code,
@@ -1048,13 +1051,16 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_two_rows( libxsmm_gene
         if ( l_k % 4 == 0 ) {
           /* handle prefetches for input and weights */
           if ( ((i_conv_desc->prefetch & LIBXSMM_CONVOLUTION_PREFETCH_INPUT_L1) == LIBXSMM_CONVOLUTION_PREFETCH_INPUT_L1) && (l_prefetch_input_index_w < i_conv_desc->ofw_rb)  && (l_prefetch_input_index_h < i_conv_desc->ofh_rb)  ) {
-            libxsmm_x86_instruction_prefetch( io_generated_code,
+            unsigned int pf_offset = (l_prefetch_input_index_w * i_conv_desc->stride_w + l_prefetch_input_index_h * i_conv_desc->stride_h * i_conv_desc->ifw_padded)  * i_conv_kernel_config->datatype_size_in * i_conv_kernel_config->l_ld_ifm_act * i_conv_desc->fm_lp_block;
+            if (pf_offset % 64 == 0) {
+               libxsmm_x86_instruction_prefetch( io_generated_code,
                                             prefetch_type_input,
                                             i_gp_reg_mapping->gp_reg_input_pf,
                                             LIBXSMM_X86_GP_REG_UNDEF,
                                             0,
                                             (l_prefetch_input_index_w * i_conv_desc->stride_w + l_prefetch_input_index_h * i_conv_desc->stride_h * i_conv_desc->ifw_padded ) * i_conv_kernel_config->datatype_size_in *
                                               i_conv_kernel_config->l_ld_ifm_act * i_conv_desc->fm_lp_block );
+            }
             l_prefetch_input_index_w++;
           }
            
@@ -1257,7 +1263,7 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_qfma_x_rows( libxsmm_g
             } else {
               libxsmm_x86_instruction_vec_compute_mem( io_generated_code,
                                                        i_conv_kernel_config->instruction_set,
-                                                       LIBXSMM_X86_INSTR_VPDPWSSD,
+                                                       LIBXSMM_X86_INSTR_VPDPWSSDS,
                                                        1,
                                                        l_input_reg,
                                                        LIBXSMM_X86_GP_REG_UNDEF,
@@ -1275,9 +1281,9 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_qfma_x_rows( libxsmm_g
           if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_F32 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_F32 ) {
             l_compute_instr = LIBXSMM_X86_INSTR_V4FMADDPS;
           } else if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_I16 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_I32 ) {
-            l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSD;
+            l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSDS;
           } else if ( i_conv_desc->datatype == LIBXSMM_DNN_DATATYPE_I16 && i_conv_desc->datatype_itm == LIBXSMM_DNN_DATATYPE_F32 ) {
-            l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSD;
+            l_compute_instr = LIBXSMM_X86_INSTR_VP4DPWSSDS;
           } else {
             /* shouldn't happen */
           }
@@ -1296,13 +1302,16 @@ void libxsmm_generator_convolution_forward_avx512_ifmloop_qfma_x_rows( libxsmm_g
 
         if ( l_k % 4 == 0 ) {
           if ( ((i_conv_desc->prefetch & LIBXSMM_CONVOLUTION_PREFETCH_INPUT_L1) == LIBXSMM_CONVOLUTION_PREFETCH_INPUT_L1) && (l_prefetch_input_index_w < i_conv_desc->ofw_rb)  && (l_prefetch_input_index_h < i_conv_desc->ofh_rb)  ) {
-            libxsmm_x86_instruction_prefetch( io_generated_code,
+            unsigned int pf_offset = (l_prefetch_input_index_w * i_conv_desc->stride_w + l_prefetch_input_index_h * i_conv_desc->stride_h * i_conv_desc->ifw_padded) * i_conv_kernel_config->datatype_size_in * i_conv_kernel_config->l_ld_ifm_act * i_conv_desc->fm_lp_block;  
+            if (pf_offset % 64 == 0) {
+              libxsmm_x86_instruction_prefetch( io_generated_code,
                 prefetch_type_input,
                 i_gp_reg_mapping->gp_reg_input_pf,
                 LIBXSMM_X86_GP_REG_UNDEF,
                 0,
                 (l_prefetch_input_index_w * i_conv_desc->stride_w + l_prefetch_input_index_h * i_conv_desc->stride_h * i_conv_desc->ifw_padded ) * i_conv_kernel_config->datatype_size_in *
                 i_conv_kernel_config->l_ld_ifm_act * i_conv_desc->fm_lp_block );
+            }
             l_prefetch_input_index_w++;
           }
 

@@ -45,8 +45,8 @@
 #define CHKERR_LIBXSMM_DNN(A) if ( A != LIBXSMM_DNN_SUCCESS ) fprintf(stderr, "%s\n", libxsmm_dnn_get_error(A) );
 
 #define USE_OVERWRITE
-#define USE_FUSED_BATCH_STATS
-#define USE_FUSED_MAX_STATS
+/*#define USE_FUSED_BATCH_STATS*/
+/*#define USE_FUSED_MAX_STATS */
 #define FP64_BN_STATS
 /*#define USE_FUSED_RELU_BWD*/
 
@@ -469,7 +469,6 @@ int main(int argc, char* argv[])
     pad_h_out = pad_h;
     pad_w_out = pad_w; 
   }
-
 
   /* deriving some values for naive code */
   ofh = (ifh + 2 * pad_h - kh) / stride_h + 1;

@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2017, Intel Corporation                                     **
+** Copyright (c) 2017-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -29,7 +29,7 @@
 /* Alexander Heinecke (Intel Corp.)
 ******************************************************************************/
 
-#include <edge_proxy_common.h>
+#include "edge_proxy_common.h"
 
 void edge_sparse_csr_reader_double( const char*           i_csr_file_in,
                                     unsigned int**        o_row_idx,
@@ -163,3 +163,4 @@ void edge_sparse_csr_reader_float( const char*           i_csr_file_in,
 
   free(l_values);
 }
+

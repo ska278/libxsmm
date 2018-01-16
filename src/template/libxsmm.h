@@ -1,5 +1,5 @@
 /******************************************************************************
-** Copyright (c) 2014-2017, Intel Corporation                                **
+** Copyright (c) 2014-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
 ** Redistribution and use in source and binary forms, with or without        **
@@ -245,6 +245,15 @@ LIBXSMM_API libxsmm_xmmfunction libxsmm_create_xcsr_soa(const libxsmm_gemm_descr
    const unsigned int* row_ptr, const unsigned int* column_idx, const void* values);
 
 /**
+ * Code generation routine for the CSC format which multiplies a dense SOA matrix (each element holds a SIMD-width
+ * wide vector) and a sparse matrix or a sparse matrix with a dense SOA matrix.
+ * The result is always a SOA matrix. There is no code cache, and user code has to manage the code pointers.
+ * Call libxsmm_release_kernel in order to deallocate the JIT'ted code.
+ */
+LIBXSMM_API libxsmm_xmmfunction libxsmm_create_xcsc_soa(const libxsmm_gemm_descriptor* descriptor,
+   const unsigned int* column_ptr, const unsigned int* row_idx, const void* values);
+
+/**
  * Code generation routine for the CSR format which multiplies a dense matrix B into a dense matrix C.
  * The sparse matrix a is kept in registers.
  * Call libxsmm_release_kernel in order to deallocate the JIT'ted code.
@@ -453,7 +462,7 @@ template<> class LIBXSMM_RETARGETABLE libxsmm_mmfunction<float> {
 public:
   libxsmm_mmfunction(): m_function(0)
 #if defined(LIBXSMM_FALLBACK_SMMFUNCTION)
-    , m_alpha(LIBXSMM_ALPHA), m_beta(LIBXSMM_BETA), m_m(0), m_n(0), m_k(0), m_lda(0), m_ldb(0), m_ldc(0), m_flags(LIBXSMM_FLAGS)
+    , m_alpha(0), m_beta(0), m_m(0), m_n(0), m_k(0), m_lda(0), m_ldb(0), m_ldc(0), m_flags(0)
 #endif
   {}
   libxsmm_mmfunction(libxsmm_blasint m, libxsmm_blasint n, libxsmm_blasint k, int flags = LIBXSMM_FLAGS)
@@ -506,7 +515,7 @@ public:
   }
   operator const void*() const {
 #if defined(LIBXSMM_FALLBACK_SMMFUNCTION)
-    return this;
+    return (0 != m_alpha || 0 != m_beta || 0 != m_m || 0 != m_n || 0 != m_k || 0 != m_lda || 0 != m_ldb || 0 != m_ldc || 0 != m_flags) ? this : 0;
 #else
     return 0 != m_function ? this : 0;
 #endif
@@ -546,7 +555,7 @@ template<> class LIBXSMM_RETARGETABLE libxsmm_mmfunction<double> {
 public:
   libxsmm_mmfunction(): m_function(0)
 #if defined(LIBXSMM_FALLBACK_DMMFUNCTION)
-    , m_alpha(LIBXSMM_ALPHA), m_beta(LIBXSMM_BETA), m_m(0), m_n(0), m_k(0), m_lda(0), m_ldb(0), m_ldc(0), m_flags(LIBXSMM_FLAGS)
+    , m_alpha(0), m_beta(0), m_m(0), m_n(0), m_k(0), m_lda(0), m_ldb(0), m_ldc(0), m_flags(0)
 #endif
   {}
   libxsmm_mmfunction(libxsmm_blasint m, libxsmm_blasint n, libxsmm_blasint k, int flags = LIBXSMM_FLAGS)
@@ -599,7 +608,7 @@ public:
   }
   operator const void*() const {
 #if defined(LIBXSMM_FALLBACK_DMMFUNCTION)
-    return this;
+    return (0 != m_alpha || 0 != m_beta || 0 != m_m || 0 != m_n || 0 != m_k || 0 != m_lda || 0 != m_ldb || 0 != m_ldc || 0 != m_flags) ? this : 0;
 #else
     return 0 != m_function ? this : 0;
 #endif

@@ -42,9 +42,50 @@ void libxsmm_set_verbosity(int level);
 Due to the performance oriented nature of LIBXSMM, timer-related functionality is available for the C and Fortran interface ([libxsmm_timer.h](https://github.com/hfp/libxsmm/blob/master/include/libxsmm_timer.h#L37) and [libxsmm.f](https://github.com/hfp/libxsmm/blob/master/src/template/libxsmm.f#L32)). The timer is used in many of the [code samples](https://github.com/hfp/libxsmm/tree/master/samples) to measure the duration of executing various code regions. The timer is based on monotonic clock tick, which uses a platform-specific resolution. The counter may rely on the time stamp counter instruction (RDTSC), but this is not necessarily counting CPU cycles due to varying CPU clock speed (Turbo Boost), different clock domains (e.g., depending on the instructions executed), and other reasons (which are out of scope in this context).
 
 ```C
-unsigned long long libxsmm_timer_tick(void);
-double libxsmm_timer_duration(unsigned long long tick0, unsigned long long tick1);
+typedef unsigned long long libxsmm_timer_tickint;
+libxsmm_timer_tickint libxsmm_timer_tick(void);
+double libxsmm_timer_duration(
+  libxsmm_timer_tickint tick0,
+  libxsmm_timer_tickint tick1);
 ```
+
+### Memory Allocation
+
+The C interface ([libxsmm_malloc.h](https://github.com/hfp/libxsmm/blob/master/include/libxsmm_malloc.h#L37)) provides functions for aligned memory one of which allows to specify the alignment (or to request an automatically selected alignment). The automatic alignment is also available with a `malloc` compatible signature. The size of the automatic alignment depends on a heuristic, which uses the size of the requested buffer.  
+**NOTE**: Only `libxsmm_free` is supported to deallocate the memory.
+
+```C
+void* libxsmm_malloc(size_t size);
+void* libxsmm_aligned_malloc(size_t size, size_t alignment);
+void* libxsmm_aligned_scratch(size_t size, size_t alignment);
+void libxsmm_free(const volatile void* memory);
+int libxsmm_get_malloc_info(const void* m, libxsmm_malloc_info* i);
+int libxsmm_get_scratch_info(libxsmm_scratch_info* info);
+```
+
+The library exposes two memory allocation domains: (1)&#160;default memory allocation, and (2)&#160;scratch memory allocation. There are similar service functions for both domains that allow to customize the allocation and deallocation function. The "context form" even supports a user-defined "object", which may represent an allocator or any other external facility. To set the allocator of the default domain is analogous to setting the allocator of the scratch memory domain (shown below).
+
+```C
+int libxsmm_set_scratch_allocator(void* context,
+  libxsmm_malloc_function malloc_fn, libxsmm_free_function free_fn);
+int libxsmm_get_scratch_allocator(void** context,
+  libxsmm_malloc_function* malloc_fn, libxsmm_free_function* free_fn);
+```
+
+There are currently no claims on the properties of the default memory allocation (except when [tuning](libxsmm_tune.md#scalable_malloc) the thread scalability). In contrast, the scratch memory allocation is very effective and delivers a decent speedup over subsequent regular memory allocations. In contrast to the default allocation technique, the scratch memory establishes a watermark for repeatedly allocated and deallocated buffers. The scratch memory domain is (arbitrarily) limited to 4&#160;GB of memory, but it is possible to set a different Byte-limit (available per [libxsmm_malloc.h](https://github.com/hfp/libxsmm/blob/master/include/libxsmm_malloc.h#L37), and also per environment variable LIBXSMM_SCRATCH_LIMIT with optional "k|K", "m|M", and "g|G" units).
+
+```C
+void libxsmm_set_scratch_limit(size_t nbytes);
+size_t libxsmm_get_scratch_limit(void);
+```
+
+By establishing a pool of "temporary" memory, the cost of repeated allocation and deallocation cycles is avoided when the watermark is reached. The scratch memory is scope-oriented, and supports only a limited number of pools for buffers of different life-time. The [verbose mode](index.md#verbose-mode) with a verbosity level of at least two (LIBXSMM_VERBOSE=2) shows some statistics about the populated scratch memory.
+
+```bash
+Scratch: 173 MB (mallocs=5, pools=1)
+```
+
+**NOTE**: be careful with scratch memory as it only grows during execution (in between `libxsmm_init` and `libxsmm_finalize` unless `libxsmm_release_scratch` is called). This is true even when `libxsmm_free` is (and should be) used!
 
 ### Meta Image File I/O
 
@@ -64,41 +105,55 @@ ElementDataFile = mhd_image.raw
 
 In the above case, a single channel (gray-scale) 202x134-image is described with pixel data stored separately (`mhd_image.raw`). Multi-channel images are expected to interleave the pixel data. The pixel type is per `libxsmm_mhd_elemtype` ([libxsmm_mhd.h](https://github.com/hfp/libxsmm/blob/master/include/libxsmm_mhd.h#L38)).
 
-### Memory Allocation
+### Thread Synchronization
 
-The C interface ([libxsmm_malloc.h](https://github.com/hfp/libxsmm/blob/master/include/libxsmm_malloc.h#L37)) provides functions for aligned memory one of which allows to specify the alignment (or to request an automatically selected alignment). The automatic alignment is also available with a `malloc` compatible signature. The size of the automatic alignment depends on a heuristic, which uses the size of the requested buffer.  
-**NOTE**: Only `libxsmm_free` is supported to deallocate the memory.
+LIBXSMM comes with a number of light-weight abstraction layers (macro and API-based), which are distinct from the internal API (include files in [src](https://github.com/hfp/libxsmm/tree/master/src) directory) and that are exposed for general use (and hence part of the [include](https://github.com/hfp/libxsmm/tree/master/include) directory).
 
-```C
-void* libxsmm_malloc(size_t size);
-void* libxsmm_aligned_malloc(size_t size, size_t alignment);
-void* libxsmm_aligned_scratch(size_t size, size_t alignment);
-void libxsmm_free(const volatile void* memory);
-int libxsmm_get_malloc_info(const void* memory, libxsmm_malloc_info* info);
-int libxsmm_get_scratch_info(libxsmm_scratch_info* info);
-```
-
-The library exposes two memory allocation domains: (1)&#160;default memory allocation, and (2)&#160;scratch memory allocation. There are similar service functions for both domains that allow to customize the allocation and deallocation function. The "context form" even supports a user-defined "object", which may represent an allocator or any other external facility. To set the allocator of the default domain is analogous to setting the allocator of the scratch memory domain (shown below).
+The synchronization layer is mainly based on macros: LIBXSMM_LOCK_\* provide spin-locks, mutexes, and reader-writer locks (LIBXSMM_LOCK_SPINLOCK, LIBXSMM_LOCK_MUTEX, and LIBXSMM_LOCK_RWLOCK respectively). Usually the spin-lock is also named LIBXSMM_LOCK_DEFAULT. The implementation is intentionally based on OS-native primitives unless LIBXSMM is reconfigured (per LIBXSMM_LOCK_SYSTEM), or built using `make OMP=1` (using OpenMP inside of the library is not recommended). The life-cycle of a lock looks like:
 
 ```C
-int libxsmm_set_scratch_allocator(void* context,
-  libxsmm_malloc_function malloc_fn, libxsmm_free_function free_fn);
-int libxsmm_get_scratch_allocator(void** context,
-  libxsmm_malloc_function* malloc_fn, libxsmm_free_function* free_fn);
+/* attribute variable and lock variable */
+LIBXSMM_LOCK_ATTR_TYPE(LIBXSMM_LOCK_DEFAULT) attr;
+LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK_DEFAULT) lock;
+/* attribute initialization */
+LIBXSMM_LOCK_ATTR_INIT(LIBXSMM_LOCK_DEFAULT, &attr);
+/* lock initialization per initialized attribute */
+LIBXSMM_LOCK_INIT(LIBXSMM_LOCK_DEFAULT, &lock, &attr);
+/* the attribute can be destroyed */
+LIBXSMM_LOCK_ATTR_DESTROY(LIBXSMM_LOCK_DEFAULT, &attr);
+/* lock destruction (usage: see below/next code block) */
+LIBXSMM_LOCK_DESTROY(LIBXSMM_LOCK_DEFAULT, &lock);
 ```
 
-There are currently no claims on the properties of the default memory allocation (except when [tuning](libxsmm_tune.md#scalable_malloc) the thread scalability). In contrast, the scratch memory allocation is very effective and delivers a decent speedup over subsequent regular memory allocations. In contrast to the default allocation technique, the scratch memory establishes a watermark for repeatedly allocated and deallocated buffers. The scratch memory domain is (arbitrarily) limited to 2&#160;GB of memory, but it is possible to set a different Byte-limit (available per [libxsmm_malloc.h](https://github.com/hfp/libxsmm/blob/master/include/libxsmm_malloc.h#L37), and also per environment variable LIBXSMM_SCRATCH_LIMIT with optional "k|K", "m|M", and "g|G" units).
+Once the lock is initialized (or an array of locks), it can be exclusively locked or try-locked, and released at the end of the locked section (LIBXSMM_LOCK_ACQUIRE, LIBXSMM_LOCK_TRYLOCK, and LIBXSMM_LOCK_RELEASE respectively):
 
 ```C
-void libxsmm_set_scratch_limit(size_t nbytes);
-size_t libxsmm_get_scratch_limit(void);
+LIBXSMM_LOCK_ACQUIRE(LIBXSMM_LOCK_DEFAULT, &lock);
+/* locked code section */
+LIBXSMM_LOCK_RELEASE(LIBXSMM_LOCK_DEFAULT, &lock);
 ```
 
-By establishing a pool of "temporary" memory, the cost of repeated allocation and deallocation cycles is avoided when the watermark is reached. The scratch memory is scope-oriented, and supports only a limited number of pools for buffers of different life-time. The [verbose mode](index.md#verbose-mode) with a verbosity level of at least two (LIBXSMM_VERBOSE=2) shows some statistics about the populated scratch memory.
+If the lock-kind is LIBXSMM_LOCK_RWLOCK, non-exclusive a.k.a. shared locking allows to permit multiple readers (LIBXSMM_LOCK_ACQREAD, LIBXSMM_LOCK_TRYREAD, and LIBXSMM_LOCK_RELREAD) if the lock is not acquired exclusively (see above). An attempt to only read-lock anything else but an RW-lock is an exclusive lock (see above).
 
-```bash
-Scratch: 173 MB (mallocs=5, pools=1)
+```C
+if (LIBXSMM_LOCK_ACQUIRED(LIBXSMM_LOCK_RWLOCK) ==
+    LIBXSMM_LOCK_TRYREAD(LIBXSMM_LOCK_RWLOCK, &rwlock))
+{ /* locked code section */
+  LIBXSMM_LOCK_RELREAD(LIBXSMM_LOCK_RWLOCK, &rwlock);
+}
 ```
 
-**NOTE**: be careful with scratch memory as it only grows during execution (in between `libxsmm_init` and `libxsmm_finalize` unless `libxsmm_release_scratch` is called). This is true even when `libxsmm_free` is (and should be) used!
+Locking different sections for read (LIBXSMM_LOCK_ACQREAD, LIBXSMM_LOCK_RELREAD) and write (LIBXSMM_LOCK_ACQUIRE, LIBXSMM_LOCK_RELEASE) may look like:
+
+```C
+LIBXSMM_LOCK_ACQREAD(LIBXSMM_LOCK_RWLOCK, &rwlock);
+/* locked code section: only reads are performed */
+LIBXSMM_LOCK_RELREAD(LIBXSMM_LOCK_RWLOCK, &rwlock);
+
+LIBXSMM_LOCK_ACQUIRE(LIBXSMM_LOCK_RWLOCK, &rwlock);
+/* locked code section: exclusive write (no R/W) */
+LIBXSMM_LOCK_RELEASE(LIBXSMM_LOCK_RWLOCK, &rwlock);
+```
+
+Depending on the platform or when using OpenMP to implement the low-level synchronization primitives, the LIBXSMM_LOCK_RWLOCK may be not implemented (OSX) or not available (OMP). In any case, LIBXSMM also implements own lock primitives which are available per API (libxsmm_mutex_\*, and libxsmm_rwlock_\*). This experimental implementation can be used independently of the LIBXSMM_LOCK_\* macros. Future versions of the library eventually map the macros to LIBXSMM's own low-level primitives.
 

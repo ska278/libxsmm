@@ -1,5 +1,5 @@
 #############################################################################
-# Copyright (c) 2015-2017, Intel Corporation                                #
+# Copyright (c) 2015-2018, Intel Corporation                                #
 # All rights reserved.                                                      #
 #                                                                           #
 # Redistribution and use in source and binary forms, with or without        #
@@ -39,16 +39,19 @@ ifeq (Windows_NT,$(OS))
   # Cygwin based
   DLIBEXT ?= dll
   SLIBEXT ?= lib
-else
-  UNAME ?= $(shell uname)
-  ENV ?= env
-  ifneq (Darwin,$(UNAME))
-    DLIBEXT ?= so
-    SLIBEXT ?= a
-  else
-    DLIBEXT ?= dylib
-    SLIBEXT ?= a
+endif
+CP ?= $(shell which cp 2> /dev/null)
+UNAME ?= $(shell uname)
+ENV ?= env
+ifneq (Darwin,$(UNAME))
+  ifneq (,$(strip $(CP)))
+    CP += -u
   endif
+  DLIBEXT ?= so
+  SLIBEXT ?= a
+else
+  DLIBEXT ?= dylib
+  SLIBEXT ?= a
 endif
 
 # Regular expression to match "main" (good-enough pattern)
@@ -241,6 +244,11 @@ endif
 # Pickup OpenMP library name if passed as OMP=libname|name
 ifneq (0,$(shell echo "$(OMP)" | grep -q "^-*[0-9]\+$$"; echo "$$?")) # NaN
   OMPRT = $(patsubst lib%,%,$(OMP))
+endif
+
+# Assemble PIC flag
+ifneq (,$(strip $(PIC)))
+  PICFLAG = -f$(PIC)
 endif
 
 # Automatically pickup the environment (make -e not needed),
@@ -537,10 +545,10 @@ ifneq (0,$(INTEL))
   CXXLDFLAGS += $(XLIB_BEGIN) -lc $(XLIB_END)
   FCLDFLAGS += $(XLIB_BEGIN) -lc -lstdc++ $(XLIB_END)
   CLDFLAGS += $(XLIB_BEGIN) -lstdc++ $(XLIB_END)
-  CXXFLAGS += -f$(PIC) -Wall -diag-disable 1879,3415,3948,10006,10010,10411,13003
-  CFLAGS += -f$(PIC) -Wall -diag-disable 1879,3415,3948,10006,10010,10411,13003
-  LDFLAGS += -f$(PIC) -diag-disable 1879,3415,10006,10010,10411
-  FCFLAGS += -f$(PIC) -diag-disable 10006,10010,10411,13003
+  CXXFLAGS += $(PICFLAG) -Wall -diag-disable 1879,3415,3948,10006,10010,10411,13003
+  CFLAGS += $(PICFLAG) -Wall -diag-disable 1879,3415,3948,10006,10010,10411,13003
+  LDFLAGS += $(PICFLAG) -diag-disable 1879,3415,10006,10010,10411
+  FCFLAGS += $(PICFLAG) -diag-disable 10006,10010,10411,13003
   ifneq (0,$(THREADS))
     FCMTFLAGS += -threads
   endif
@@ -662,10 +670,12 @@ ifneq (0,$(INTEL))
       CFLAGS := -g3 -gdwarf-2 -debug inline-debug-info $(CFLAGS)
       FCFLAGS := -g -traceback $(FCFLAGS)
     endif
+    ifeq (0,$(COMPATIBLE))
     ifneq (0,$(DEPSTATIC))
     ifneq (Darwin,$(UNAME))
     ifneq (Windows_NT,$(UNAME))
       LDFLAGS += -Wl,--export-dynamic
+    endif
     endif
     endif
     endif
@@ -727,10 +737,10 @@ else # GCC assumed
     CLDFLAGS += $(XLIB_BEGIN) -lstdc++ $(XLIB_END)
   endif
   ifneq (Windows_NT,$(UNAME))
-    CXXFLAGS += -f$(PIC)
-    CFLAGS += -f$(PIC)
-    FCFLAGS += -f$(PIC)
-    LDFLAGS += -f$(PIC)
+    CXXFLAGS += $(PICFLAG)
+    CFLAGS += $(PICFLAG)
+    FCFLAGS += $(PICFLAG)
+    LDFLAGS += $(PICFLAG)
   endif
   ifeq (0,$(COMPATIBLE))
     ifneq (0,$(shell echo "$$((40700 <= $(GXX_VERSION)))"))
@@ -869,10 +879,12 @@ else # GCC assumed
       CFLAGS := -g3 -gdwarf-2 $(CFLAGS)
       FCFLAGS := -g $(FCFLAGS)
     endif
+    ifeq (0,$(COMPATIBLE))
     ifneq (0,$(DEPSTATIC))
     ifneq (Darwin,$(UNAME))
     ifneq (Windows_NT,$(UNAME))
       LDFLAGS += -Wl,--export-dynamic
+    endif
     endif
     endif
     endif

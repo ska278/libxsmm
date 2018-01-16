@@ -114,47 +114,36 @@ libxsmm_xmatcopyfunction jitted_matzero = handle->matcopy_upd[1].xmatcopy;
 libxsmm_convfunction kernel = (handle->trans_ofw_ifm == 0 ) ? (libxsmm_convfunction)handle->code_upd[1].xconv.sconv : (libxsmm_convfunction)handle->code_upd[4].xconv.sconv;
 
 transposer tp_func;
-tp_func = get_transposer(handle->ifmblock, handle->ifwp, ifwp_extended, handle->ifmblock);
+if ( handle->trans_ofw_ifm > 0 ) {
+  tp_func = get_transposer(handle->ifmblock, handle->ifwp, ifwp_extended, handle->ifmblock);
+}
 
 /* lazy barrier init */
 libxsmm_barrier_init(handle->barrier, ltid);
 
-if (handle->padding_flag == 1) {
-  input_zero = &LIBXSMM_VLA_ACCESS(5, tr_input_padded, ltid, 0, 0, 0, 0, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended);
-  memset( input_zero, 0, BLOCKSIFM * padded_h * ifwp_extended * handle->ifmblock * sizeof(element_input_type) );
-  for (imgifm1 = transpose_thr_begin; imgifm1 < transpose_thr_end; ++imgifm1) {
-    img = imgifm1/BLOCKSIFM;
-    ifm1 = imgifm1%BLOCKSIFM;
-    for (ij=0; ij < handle->ifhp; ++ij) {
-      float *dst = &(LIBXSMM_VLA_ACCESS(5, tr_input_padded, img, ifm1, ij + handle->desc.pad_h, 0, 0 + handle->desc.pad_w, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended));
-      const float *src = &(LIBXSMM_VLA_ACCESS(5, input_nopad, img, ifm1, ij, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock));
-      tp_func(handle->ifmblock, handle->ifwp, dst, ifwp_extended, src, handle->ifmblock);
-    }
-  }
-} else {
-  if (handle->resize_input == 0) {
-    for (imgifm1 = transpose_thr_begin; imgifm1 < transpose_thr_end; ++imgifm1) {
-      img = imgifm1/BLOCKSIFM;
-      ifm1 = imgifm1%BLOCKSIFM;
-      for (ij=0; ij < handle->ifhp; ++ij) {
-        float *dst = &(LIBXSMM_VLA_ACCESS(5, tr_input_nopad, img, ifm1, ij, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifmblock, ifwp_extended));
-        const float *src = &(LIBXSMM_VLA_ACCESS(5, input_nopad, img, ifm1, ij, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock));
-        tp_func(handle->ifmblock, handle->ifwp, dst, ifwp_extended, src, handle->ifmblock);
-      }
-    }
-  } else {
-    int dst_i, dst_j, src_i, src_j, fm;
-    for (imgifm1 = transpose_thr_begin; imgifm1 < transpose_thr_end; ++imgifm1) {
-      img = imgifm1/BLOCKSIFM;
-      ifm1 = imgifm1%BLOCKSIFM;
-      for (dst_j=0; dst_j < handle->ifhp_resized; dst_j++) {
-        src_j = dst_j * handle->desc.v;
-        for (dst_i=0; dst_i < handle->ifwp_resized; dst_i++) {
-          src_i = dst_i * handle->desc.u;
-          for (fm = 0; fm < handle->ifmblock; fm++){
-            LIBXSMM_VLA_ACCESS(5, tr_input_nopad, img, ifm1, dst_j, fm, dst_i, BLOCKSIFM, handle->ifhp_resized, handle->ifmblock, ifwp_extended) =
-              LIBXSMM_VLA_ACCESS(5, input_nopad, img, ifm1, src_j, src_i, fm, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock);
-          }
+if (handle->reduce_weights == 0) {
+  int team_div = (int) sqrt(handle->desc.threads);
+  while ( handle->desc.threads % team_div != 0  ) {
+    team_div--;
+  }  
+  int n_ifm_teams = ( BLOCKSIFM > BLOCKSOFM ) ? handle->desc.threads/team_div : team_div ;
+  int n_ofm_teams = ( BLOCKSIFM > BLOCKSOFM ) ? team_div : handle->desc.threads/team_div ;
+  int ifms_per_thread = (BLOCKSIFM+n_ifm_teams-1)/n_ifm_teams;
+  int ofms_per_thread = (BLOCKSOFM+n_ofm_teams-1)/n_ofm_teams;
+  int my_ifm_id = ltid/n_ofm_teams;
+  int my_ofm_id = ltid%n_ofm_teams;
+  int my_ifm_start =  LIBXSMM_MIN(my_ifm_id * ifms_per_thread, BLOCKSIFM);
+  int my_ifm_end =  LIBXSMM_MIN((my_ifm_id+1) * ifms_per_thread, BLOCKSIFM);
+  int my_ofm_start =  LIBXSMM_MIN(my_ofm_id * ofms_per_thread, BLOCKSOFM);
+  int my_ofm_end =  LIBXSMM_MIN((my_ofm_id+1) * ofms_per_thread, BLOCKSOFM);
+
+  element_filter_type *zero_ptr;
+  for (ifm1 = my_ifm_start; ifm1 < my_ifm_end; ifm1++ ) {
+    for ( ofm1 = my_ofm_start; ofm1 < my_ofm_end; ofm1++ ) {
+      for (kj=0; kj < handle->desc.R; kj++) {
+        for (ki=0; ki < handle->desc.S; ki++) {
+          zero_ptr = &LIBXSMM_VLA_ACCESS(6, weight, ofm1, ifm1, kj, ki, 0, 0, BLOCKSIFM, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock);
+          memset(zero_ptr, 0, handle->ifmblock*handle->ofmblock*sizeof(element_filter_type));
         }
       }
     }
@@ -163,14 +152,72 @@ if (handle->padding_flag == 1) {
 
 libxsmm_barrier_wait(handle->barrier, ltid);
 
-/* Initialize base pointers */
-if (handle->padding_flag == 1) {
-  input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_padded, 0, 0, 0, 0, 0, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended);
-} else {
-  input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_nopad, 0, 0, 0, 0, 0, BLOCKSIFM, dst_ifhp, handle->ifmblock, ifwp_extended);
+if ( handle->trans_ofw_ifm > 0 ) {
+  if (handle->padding_flag == 1) {
+    input_zero = &LIBXSMM_VLA_ACCESS(5, tr_input_padded, ltid, 0, 0, 0, 0, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended);
+    memset( input_zero, 0, BLOCKSIFM * padded_h * ifwp_extended * handle->ifmblock * sizeof(element_input_type) );
+    for (imgifm1 = transpose_thr_begin; imgifm1 < transpose_thr_end; ++imgifm1) {
+      img = imgifm1/BLOCKSIFM;
+      ifm1 = imgifm1%BLOCKSIFM;
+      for (ij=0; ij < handle->ifhp; ++ij) {
+        float *dst = &(LIBXSMM_VLA_ACCESS(5, tr_input_padded, img, ifm1, ij + handle->desc.pad_h, 0, 0 + handle->desc.pad_w, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended));
+        const float *src = &(LIBXSMM_VLA_ACCESS(5, input_nopad, img, ifm1, ij, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock));
+        tp_func(handle->ifmblock, handle->ifwp, dst, ifwp_extended, src, handle->ifmblock);
+      }
+    }
+  } else {
+    if (handle->resize_input == 0) {
+      for (imgifm1 = transpose_thr_begin; imgifm1 < transpose_thr_end; ++imgifm1) {
+        img = imgifm1/BLOCKSIFM;
+        ifm1 = imgifm1%BLOCKSIFM;
+        for (ij=0; ij < handle->ifhp; ++ij) {
+          float *dst = &(LIBXSMM_VLA_ACCESS(5, tr_input_nopad, img, ifm1, ij, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifmblock, ifwp_extended));
+          const float *src = &(LIBXSMM_VLA_ACCESS(5, input_nopad, img, ifm1, ij, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock));
+          tp_func(handle->ifmblock, handle->ifwp, dst, ifwp_extended, src, handle->ifmblock);
+        }
+      }
+    } else {
+      int dst_i, dst_j, src_i, src_j, fm;
+      for (imgifm1 = transpose_thr_begin; imgifm1 < transpose_thr_end; ++imgifm1) {
+        img = imgifm1/BLOCKSIFM;
+        ifm1 = imgifm1%BLOCKSIFM;
+        for (dst_j=0; dst_j < handle->ifhp_resized; dst_j++) {
+          src_j = dst_j * handle->desc.v;
+          for (dst_i=0; dst_i < handle->ifwp_resized; dst_i++) {
+            src_i = dst_i * handle->desc.u;
+            for (fm = 0; fm < handle->ifmblock; fm++){
+              LIBXSMM_VLA_ACCESS(5, tr_input_nopad, img, ifm1, dst_j, fm, dst_i, BLOCKSIFM, handle->ifhp_resized, handle->ifmblock, ifwp_extended) =
+                LIBXSMM_VLA_ACCESS(5, input_nopad, img, ifm1, src_j, src_i, fm, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  libxsmm_barrier_wait(handle->barrier, ltid);
 }
 
-weight_base = &LIBXSMM_VLA_ACCESS(3, reduction_weight, 0, ltid/(handle->desc.threads/handle->weight_copies), 0, handle->weight_copies, handle->ofmblock); 
+/* Initialize base pointers */
+if (handle->padding_flag == 1) {
+  if (handle->trans_ofw_ifm > 0) {
+    input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_padded, 0, 0, 0, 0, 0, BLOCKSIFM, padded_h, handle->ifmblock, ifwp_extended);
+  } else {
+    input_base = &LIBXSMM_VLA_ACCESS(5, input_padded, 0, 0, 0, 0, 0, BLOCKSIFM, padded_h, padded_w, handle->ifmblock);
+  }
+} else {
+  if (handle->trans_ofw_ifm > 0) {
+    input_base = &LIBXSMM_VLA_ACCESS(5, tr_input_nopad, 0, 0, 0, 0, 0, BLOCKSIFM, dst_ifhp, handle->ifmblock, ifwp_extended);
+  } else {
+    input_base = &LIBXSMM_VLA_ACCESS(5, input_nopad, 0, 0, 0, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock);
+  }
+}
+
+if (handle->reduce_weights) {
+  weight_base = &LIBXSMM_VLA_ACCESS(3, reduction_weight, 0, ltid/(handle->desc.threads/handle->weight_copies), 0, handle->weight_copies, handle->ofmblock); 
+} else {
+  weight_base = weight_ptr;
+}
 output_base = &LIBXSMM_VLA_ACCESS(5, output, 0, 0, 0, 0, 0, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
 
 i = 0;
@@ -189,36 +236,38 @@ for (pc = 0; pc < instr; pc++) {
 
 libxsmm_barrier_wait(handle->barrier, ltid);
 
-for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
+if (handle->reduce_weights) {
+  for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
 #define __AVX512F__
 #ifdef __AVX512F__
-  __m512 weight_sum = _mm512_setzero_ps();
-  for ( i = 0; i < handle->weight_copies; i++ ) {
-    weight_sum = _mm512_add_ps(weight_sum, _mm512_load_ps(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->weight_copies, 16)));
-  }
-  _mm512_stream_ps(&weight_ptr[j*16], weight_sum);
-#else
-  element_filter_type weight_sum[16] LIBXSMM_ATTRIBUTE(aligned(64));
-  LIBXSMM_PRAGMA_VALIGNED
-    LIBXSMM_PRAGMA_SIMD
-    for ( k = 0; k < 16; k++ ) {
-      weight_sum[k] = (element_filter_type) 0;
+    __m512 weight_sum = _mm512_setzero_ps();
+    for ( i = 0; i < handle->weight_copies; i++ ) {
+      weight_sum = _mm512_add_ps(weight_sum, _mm512_load_ps(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->weight_copies, 16)));
     }
-  for ( i = 0; i < handle->weight_copies; i++ ) {
+    _mm512_store_ps(&weight_ptr[j*16], weight_sum);
+#else
+    element_filter_type weight_sum[16] LIBXSMM_ATTRIBUTE(aligned(64));
     LIBXSMM_PRAGMA_VALIGNED
       LIBXSMM_PRAGMA_SIMD
       for ( k = 0; k < 16; k++ ) {
-        weight_sum[k] += LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, k, handle->weight_copies, 16);
+        weight_sum[k] = (element_filter_type) 0;
       }
-  }
-  LIBXSMM_PRAGMA_NONTEMPORAL
-    LIBXSMM_PRAGMA_VALIGNED
-    LIBXSMM_PRAGMA_SIMD
-    for ( k = 0; k < 16; k++ ) {
-      weight_ptr[j*16 + k] = weight_sum[k];
+    for ( i = 0; i < handle->weight_copies; i++ ) {
+      LIBXSMM_PRAGMA_VALIGNED
+        LIBXSMM_PRAGMA_SIMD
+        for ( k = 0; k < 16; k++ ) {
+          weight_sum[k] += LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, k, handle->weight_copies, 16);
+        }
     }
+    LIBXSMM_PRAGMA_NONTEMPORAL
+      LIBXSMM_PRAGMA_VALIGNED
+      LIBXSMM_PRAGMA_SIMD
+      for ( k = 0; k < 16; k++ ) {
+        weight_ptr[j*16 + k] = weight_sum[k];
+      }
 #endif
 #undef __AVX512F__
+  }
+  libxsmm_barrier_wait(handle->barrier, ltid);
 }
-libxsmm_barrier_wait(handle->barrier, ltid);
 

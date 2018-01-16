@@ -41,6 +41,12 @@ int block_j = 14;
 
 handle->block_upd_ofm = 8;
 handle->block_upd_ifm = 8;
+int IFMBLOCK;
+if (handle->use_lp_kernel) {
+  IFMBLOCK = handle->ifmblock_hp;   
+} else {
+  IFMBLOCK = handle->ifmblock;
+}
 
 if ( (handle->ofh == 14 && handle->desc.R != 3 ) ||  handle->ofh == 27 || (handle->ofh == 28 && handle->desc.R == 1) || handle->ofh == 48 || handle->ofh == 54 || handle->ofh == 56 || handle->ofh == 112 ) {
   block_j = 4;
@@ -71,7 +77,7 @@ if ( handle->ofh == 28 ) {
 if ( handle->ofh == 14 || handle->ofh == 28 || handle->ofh == 56 ) {
   /* Pixel block is 12.25 Kbytes */
  handle->block_upd_ofm = 8;
- handle->block_upd_ifm = 16;
+ handle->block_upd_ifm = 32;
 }
 
 if ( handle->ofh == 7 ) {
@@ -86,6 +92,11 @@ if ( handle->ofh == 28 || handle->ofh == 56 ) {
  handle->block_upd_ofm = 32;
  handle->block_upd_ifm = 16;
 }
+
+
+handle->block_upd_ofm = 64;
+handle->block_upd_ifm = 64;
+
 
 #if defined(_OPENMP)
 # pragma omp parallel num_threads(handle->desc.threads)
@@ -139,7 +150,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   kw = handle->desc.S;
   num_ofw_strips = 1; /* Internally always fully unroll W */
   local_entries = 0;
-  if ( handle->ifmblock != 1  ) {
+  if ( IFMBLOCK != 1  ) {
     KW = kw;
   } else {
     KW = 1;
@@ -149,8 +160,8 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   tmp_stream_index = 0;
 
   /* Skip WEIGHT_INIT and WEIGHT_COPY when kernel uses NT stores */
-  mark_weight_init = ( handle->ofh == 28 || handle->ofh == 56 ) ? 1 : 0;
-  mark_weight_copy = ( handle->ofh == 28 || handle->ofh == 56 ) ? 1 : 0;
+  mark_weight_init = ( handle->ofh == 28 || handle->ofh == 56 || handle->ofh == 14 ) ? 1 : 0;
+  mark_weight_copy = ( handle->ofh == 28 || handle->ofh == 56 || handle->ofh == 14 ) ? 1 : 0;
 
   /* Perform a dryrun to compute the memory requirements of the stream of indices */
   for (img = my_img_start; img < my_img_end; img++) {
@@ -179,7 +190,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       }
 
                       if (mark_weight_init == 1) {
-                        if ( (ki == 0) && (kj == 0) && (oi__ == 0) && (oj_ == ojb) && (ojb == 0) ) {
+                        if ( (ki == 0) && (kj == 0) && (oi__ == 0) && (oj_ == ojb) && (ojb == 0) && (img == my_img_start) ) {
                           n_code_segments++;
                         }
                       }
@@ -246,24 +257,24 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       }
 
                       if (mark_weight_init == 1) {
-                        if ( (ki == 0) && (kj == 0) && (oi__ == 0) && (oj_ == ojb) && (ojb == 0) ) {
+                        if ( (ki == 0) && (kj == 0) && (oi__ == 0) && (oj_ == ojb) && (ojb == 0) && (img == my_img_start) ) {
                           tmp_expanded_stream[tmp_stream_index] = WEIGHT_INIT;
                           tmp_stream_index++;
                         }
                       }
 
                       if (handle->trans_ofw_ifm == 1 ) {
-                        compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * handle->ifmblock) ) * padded_w  + (ii_ + ki) ;
+                        compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * IFMBLOCK) ) * padded_w  + (ii_ + ki) ;
                       } else {
-                        compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * padded_w)  + (ii_ + ki) ) *  handle->ifmblock;
+                        compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * padded_w)  + (ii_ + ki) ) *  IFMBLOCK;
                       }
 
 
                       /* use different weights format if we can skip init and copy */
                       if (mark_weight_init == 1 && mark_weight_copy == 1) {
-                        compute_indices[local_entries+1] = ( ( (ofm1-ofmb) * LIBXSMM_MIN(handle->block_upd_ifm, handle->blocksifm) ) + (ifm1-ifmb) ) * handle->desc.R * handle->desc.S * handle->ifmblock * handle->ofmblock + kj * handle->desc.S *  handle->ifmblock *  handle->ofmblock + ki * handle->ifmblock *  handle->ofmblock;
+                        compute_indices[local_entries+1] = ( ( (ofm1-ofmb) * LIBXSMM_MIN(handle->block_upd_ifm, handle->blocksifm) ) + (ifm1-ifmb) ) * handle->desc.R * handle->desc.S * IFMBLOCK * handle->ofmblock + kj * handle->desc.S *  IFMBLOCK *  handle->ofmblock + ki * IFMBLOCK *  handle->ofmblock;
                       } else {
-                        compute_indices[local_entries+1] = ( ( (ofm1 *  handle->blocksifm ) + ifm1 ) * handle->desc.R * handle->desc.S *  handle->ifmblock *  handle->ofmblock + kj * handle->desc.S *  handle->ifmblock *  handle->ofmblock + ki * handle->ifmblock *  handle->ofmblock ) * handle->desc.threads;
+                        compute_indices[local_entries+1] = ( ( (ofm1 *  handle->blocksifm ) + ifm1 ) * handle->desc.R * handle->desc.S *  IFMBLOCK *  handle->ofmblock + kj * handle->desc.S *  IFMBLOCK *  handle->ofmblock + ki * IFMBLOCK *  handle->ofmblock ) * handle->desc.threads;
                       }
 
                       compute_indices[local_entries+2] = ( ( ( ( ( (img *  handle->blocksofm) +  ofm1) *  handle->ofhp )  +  oj_ ) * (handle->ofwp+handle->output_lp_padding))  +  oi_ ) *  handle->ofmblock;
@@ -347,15 +358,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         }
 
                         if (mark_weight_init == 1) {
-                          if ( (ki == 0) && (kj == 0) && (oi__ == 0) && (oj_ == ojb) && (ojb == 0) ) {
-                            encoded_code_segments[encoded_stream_index].aux_index = ( ( (ofm1-ofmb) * LIBXSMM_MIN(handle->block_upd_ifm, handle->blocksifm) ) + (ifm1-ifmb) ) * handle->desc.R * handle->desc.S * handle->ifmblock * handle->ofmblock;
+                          if ( (ki == 0) && (kj == 0) && (oi__ == 0) && (oj_ == ojb) && (ojb == 0) && (img == my_img_start) ) {
+                            encoded_code_segments[encoded_stream_index].aux_index = ( ( (ofm1-ofmb) * LIBXSMM_MIN(handle->block_upd_ifm, handle->blocksifm) ) + (ifm1-ifmb) ) * handle->desc.R * handle->desc.S * IFMBLOCK * handle->ofmblock;
                             encoded_stream_index++;
                           }
                         }
 
                         if (mark_weight_copy == 1) {
                           if ( (ki+1 >= KW) && (kj+1 >= kh) && (oi__+1 >= num_ofw_strips) && (oj_+handle->upd_ofh_rb >= LIBXSMM_MIN(ojb+block_j,handle->ofh)) && (ojb+block_j >= handle->ofh) ) {
-                            encoded_code_segments[encoded_stream_index].aux_index = (ofm1 * handle->blocksifm + ifm1) * handle->desc.R * handle->desc.S * handle->ifmblock;
+                            encoded_code_segments[encoded_stream_index].aux_index = (ofm1 * handle->blocksifm + ifm1) * handle->desc.R * handle->desc.S * IFMBLOCK;
                             encoded_stream_index++;
                           }
                         }
