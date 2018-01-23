@@ -34,6 +34,7 @@
 #define CONVOLUTION_KERNEL 3
 #define IFM_LOOP_CLOSE_S 4
 #define IFM_LOOP_FIRST_TOUCH 5
+#define IMG_LOOP_CLOSE 6
 
 #define MIXED 0
 #define KHWC 1
@@ -109,7 +110,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   int nOfmBlocks;
   int total_calls;
   int n_code_segments;
-  int mark_ofm_init, mark_ofm_close, mark_img_init, mark_ifm_close, mark_ifm_init;
+  int mark_ofm_init, mark_ofm_close, mark_img_init, mark_img_close, mark_ifm_close, mark_ifm_init;
   int *tmp_expanded_stream, tmp_stream_index;
   segment_t *encoded_code_segments = NULL;
   int expanded_size;
@@ -145,6 +146,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                     ((((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0)) && (handle->use_fwd_for_bwd == 1) && (handle->use_nts_bwd == 0) ) ) ? 1 : 0;
   mark_ifm_close = 0;
   mark_img_init = ( (handle->padding_flag == 1) || (mark_ofm_close == 1) || (mark_ifm_close == 1) || (mark_ifm_init) ) ? 1 : 0;
+  mark_img_close = (handle->padding_flag == 1) ? 1 : 0;
 
   /* Perform a dryrun to compute the memory requirements of the stream of indices */
   if (loop_order == MIXED) {
@@ -187,6 +189,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
               }
             }
           }
+        }
+        if (mark_img_close== 1) {
+          n_code_segments++;
         }
       }
     } else { 
@@ -233,6 +238,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
               }
             }
           }
+        }
+        if (mark_img_close== 1) {
+          n_code_segments++;
         }
       }
     }
@@ -284,6 +292,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
             }
           }
         }
+      }
+      if (mark_img_close== 1) {
+        n_code_segments++;
       }
     }
   }
@@ -393,6 +404,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
             }
           }
         }
+        if (mark_img_close== 1) {
+          tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_CLOSE;
+          tmp_stream_index++;
+        }
       }
     } else { /* Bring in all ifms to introduce IFM close tag  */
       for (img = my_img_start; img < my_img_end; img++) {
@@ -477,6 +492,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
               }
             }
           }
+        }
+        if (mark_img_close== 1) {
+          tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_CLOSE;
+          tmp_stream_index++;
         }
       }
     }
@@ -568,6 +587,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
           }
         }
       }
+      if (mark_img_close== 1) {
+        tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_CLOSE;
+        tmp_stream_index++;
+      }
     }
   }
 
@@ -647,6 +670,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
               }
             }
           }
+          if (mark_img_close== 1) {
+            encoded_code_segments[encoded_stream_index].aux_index = img;
+            encoded_stream_index++;
+          }
         }
       } else {
         for (img = my_img_start; img < my_img_end; img++) {
@@ -697,6 +724,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                 }
               }
             }
+          }
+          if (mark_img_close== 1) {
+            encoded_code_segments[encoded_stream_index].aux_index = img;
+            encoded_stream_index++;
           }
         }
       }
@@ -751,6 +782,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
               }
             }
           }
+        }
+        if (mark_img_close== 1) {
+          encoded_code_segments[encoded_stream_index].aux_index = img;
+          encoded_stream_index++;
         }
       }
     }

@@ -34,6 +34,7 @@
 #define CONVOLUTION_KERNEL 3
 #define IFM_LOOP_CLOSE_S 4
 #define IFM_LOOP_FIRST_TOUCH 5
+#define IMG_LOOP_CLOSE 6
 
 #define FP64_BN_STATS
 
@@ -155,6 +156,14 @@ if (n_segments) {
             }
           }
 
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if (handle->padding_flag == 1) {
+#include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
+            }
+          }
+
           if ( instr == OFM_LOOP_INIT ) {
             /* Apply bias if requested  */
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) {
@@ -196,6 +205,14 @@ if (n_segments) {
             /* Apply padding  */
             if (handle->padding_flag == 1) {
 #include "libxsmm_dnn_fwd_custom_custom_padding.tpl.c"
+            }
+          }
+
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if (handle->padding_flag == 1) {
+#include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
             }
           }
 
@@ -244,6 +261,14 @@ if (n_segments) {
             /* Apply padding  */
             if (handle->padding_flag == 1) {
 #include "libxsmm_dnn_fwd_custom_custom_padding.tpl.c"
+            }
+          }
+
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if (handle->padding_flag == 1) {
+#include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
             }
           }
 
@@ -359,6 +384,14 @@ if (n_segments) {
             /* Apply padding  */
             if (handle->padding_flag == 1) {
 #include "libxsmm_dnn_fwd_custom_custom_padding.tpl.c"
+            }
+          }
+
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if (handle->padding_flag == 1) {
+#include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
             }
           }
 
@@ -479,6 +512,12 @@ if (n_segments) {
       if (instr == IMG_LOOP_INIT) {
         /* Padding code via jitted matcopy kernel */
 #include "libxsmm_dnn_fwd_custom_custom_padding_img_par.tpl.c"
+      }
+
+      if (instr == IMG_LOOP_CLOSE) {
+        /* Padding code via jitted matcopy kernel */
+        img = code_stream[pc].aux_index;
+#include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
       }
 
       if ( instr == OFM_LOOP_INIT ) {
