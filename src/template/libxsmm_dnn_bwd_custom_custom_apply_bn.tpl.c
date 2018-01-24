@@ -60,22 +60,27 @@ ifm_idx = ifm1;
   }
   element_input_type * mybmean2 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, bmean2, ifm_idx, 0, handle->ifmblock));
   element_input_type * mybrstd2 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, brstd2, ifm_idx, 0, handle->ifmblock));
+  element_input_type * mylcl_gamma_beta0 = &(LIBXSMM_VLA_ACCESS(  4, lcl_gamma_beta, 0, ifm_idx, img, 0, BLOCKSIFM, handle->desc.N, handle->ifmblock));
+  element_input_type * mylcl_gamma_beta1 = &(LIBXSMM_VLA_ACCESS(  4, lcl_gamma_beta, 1, ifm_idx, img, 0, BLOCKSIFM, handle->desc.N, handle->ifmblock));
   assert(mybmean2);
   assert(mybrstd2);
+  assert(mylcl_gamma_beta0);
+  assert(mylcl_gamma_beta1);
 
   for(my_h = 0 ; my_h < handle->desc.H ; my_h++)
   {
     for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
     {
+      #pragma simd
       for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
       {
         int _my_h = my_h + my_pad_h;
         int _my_w = my_w + my_pad_w;
 
-        (LIBXSMM_VLA_ACCESS(  4, lcl_gamma_beta, 0, ifm_idx, img, my_c, BLOCKSIFM, handle->desc.N, handle->ifmblock)) += 
+	mylcl_gamma_beta0[my_c] +=
 	    (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] - mybmean2[my_c]) * 
 	    (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]) * mybrstd2[my_c];
-        (LIBXSMM_VLA_ACCESS(  4, lcl_gamma_beta, 1, ifm_idx, img, my_c, BLOCKSIFM, handle->desc.N, handle->ifmblock)) +=
+	mylcl_gamma_beta1[my_c] +=
 	    (myinput[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]);
       }
     }
