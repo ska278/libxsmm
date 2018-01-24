@@ -34,6 +34,7 @@
 #define CONVOLUTION_KERNEL 3
 #define OFM_LOOP_CLOSE_S 4
 #define OFM_LOOP_FIRST_TOUCH 5
+#define IMG_LOOP_CLOSE 6
 
 const int ltid = tid-start_thread;
 
@@ -231,6 +232,14 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             }
           }
 
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if (handle->padding_flag == 1) {
+#include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
+            }
+          }
+
 	  if (instr == OFM_LOOP_FIRST_TOUCH ) {
 	    ofm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn2.tpl.c"
@@ -298,6 +307,14 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             }
           }
 
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if (handle->padding_flag == 1) {
+#include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
+            }
+          }
+
 	  if (instr == OFM_LOOP_FIRST_TOUCH ) {
 	    ofm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn2.tpl.c"
@@ -361,6 +378,14 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             /* Apply padding  */
             if (handle->padding_flag == 1) {
 #include "libxsmm_dnn_bwd_custom_custom_padding.tpl.c"
+            }
+          }
+
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if (handle->padding_flag == 1) {
+#include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
 
@@ -447,6 +472,14 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             /* Apply padding  */
             if (handle->padding_flag == 1) {
 #include "libxsmm_dnn_bwd_custom_custom_padding.tpl.c"
+            }
+          }
+
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if (handle->padding_flag == 1) {
+#include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
 

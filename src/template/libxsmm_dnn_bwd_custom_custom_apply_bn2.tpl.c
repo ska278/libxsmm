@@ -31,7 +31,7 @@
 
 LIBXSMM_VLA_DECL(2, element_input_type, bmean1, (element_input_type*)handle->reg_bmean1->data, handle->ofmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, brstd1, (element_input_type*)handle->reg_brstd1->data, handle->ofmblock);
-LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma->data, handle->ofmblock);
+LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma_bwd->data, handle->ofmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, dbeta, (element_input_type*)handle->grad_beta->data, handle->ofmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, dgamma, (element_input_type*)handle->grad_gamma->data, handle->ofmblock);
 
@@ -52,8 +52,6 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
                padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
 
     // Switch to scratch
-//    myoutput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, output, img, ofm_idx, 0, 0, 0, 0,
-//      BLOCKSOFM, padded_h, padded_w, handle->ofmblock, handle->fm_lp_block);
     my_ldw = padded_w;
     my_pad_h = handle->desc.pad_h;
     my_pad_w = handle->desc.pad_w;
@@ -74,18 +72,19 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
   element_input_type * mydbeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, dbeta, ofm_idx, 0, handle->ofmblock));
   element_input_type * mybmean1 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, bmean1, ofm_idx, 0, handle->ofmblock));
   element_input_type * mybrstd1 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, brstd1, ofm_idx, 0, handle->ofmblock));
-  for(my_h = 0 ; my_h < handle->desc.H ; my_h++)
+
+  for(my_h = 0 ; my_h < handle->desc.H ; my_h+=handle->desc.u)
   {
-    for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
+    for(my_w = 0 ; my_w < handle->desc.W ; my_w+=handle->desc.v)
     {
       #pragma omp simd
       #pragma vector aligned
       for(my_c = 0 ; my_c < handle->ofmblock ; my_c++)
       {
-        int _my_h = my_h + my_pad_h;
-        int _my_w = my_w + my_pad_w;
+        int _my_h = (my_h/handle->desc.u) + my_pad_h;
+        int _my_w = (my_w/handle->desc.v) + my_pad_w;
 	myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw] = 
-	  mygamma[my_c] * mybrstd1[my_c] * 1.0f * (1.0f * (myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw]) ) - mydbeta[my_c] + (( myinput_r[my_c + (my_w + handle->desc.pad_w_out) * handle->ofmblock + (my_h + handle->desc.pad_h_out) * handle->ofmblock * handle->ofwp] )) * mydgamma[my_c] * mybrstd1[my_c];
+	  mygamma[my_c] * mybrstd1[my_c] * 1.0f * (1.0f * (myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw]) ) - mydbeta[my_c] + (( myinput_r[my_c + (my_w + handle->desc.pad_w_out) * handle->ofmblock + (my_h + handle->desc.pad_h_out) * handle->ofmblock * handle->ofwp]  - mybmean1[my_c])) * mydgamma[my_c] * mybrstd1[my_c];
       }
     }
   }
