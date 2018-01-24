@@ -235,7 +235,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-            if (handle->padding_flag == 1) {
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
 #include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -310,7 +310,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-            if (handle->padding_flag == 1) {
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
 #include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -384,7 +384,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-            if (handle->padding_flag == 1) {
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
 #include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -478,7 +478,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-            if (handle->padding_flag == 1) {
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
 #include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
