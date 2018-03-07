@@ -358,13 +358,28 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
 
   /* internal data representation */
   libxsmm_dnn_tensor* reg_input;
+  libxsmm_dnn_tensor* reg_input_st;
+  libxsmm_dnn_tensor* reg_input_st_bwd;
+  libxsmm_dnn_tensor* reg_input_st_bwd2;
   libxsmm_dnn_tensor* reg_output;
   libxsmm_dnn_tensor* reg_filter;
   libxsmm_dnn_tensor* grad_input;
   libxsmm_dnn_tensor* grad_output;
   libxsmm_dnn_tensor* grad_filter;
   libxsmm_dnn_tensor* reg_bias;
+  libxsmm_dnn_tensor* reg_expect;
+  libxsmm_dnn_tensor* reg_stddev;
+  libxsmm_dnn_tensor* reg_gamma;
+  libxsmm_dnn_tensor* reg_beta;
+  libxsmm_dnn_tensor* reg_bmean1;
+  libxsmm_dnn_tensor* reg_brstd1;
+  libxsmm_dnn_tensor* reg_bmean2;
+  libxsmm_dnn_tensor* reg_brstd2;
+  libxsmm_dnn_tensor* reg_gamma_bwd;
+  libxsmm_dnn_tensor* reg_lcl_gamma_beta;
   libxsmm_dnn_tensor* grad_bias;
+  libxsmm_dnn_tensor* grad_beta;
+  libxsmm_dnn_tensor* grad_gamma;
   /* internal data representations for copies of tensors */
   libxsmm_dnn_tensor* reg_input_tr;
   libxsmm_dnn_tensor* reg_filter_tr;
