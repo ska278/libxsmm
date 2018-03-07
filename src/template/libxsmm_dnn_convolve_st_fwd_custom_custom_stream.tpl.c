@@ -107,6 +107,7 @@ if (handle->use_lp_kernel == 1) {
 LIBXSMM_ALIGNED(float *max_vals, 64);
 #ifdef __AVX512F__
 __m512 max_abs;
+#error
 #else
 /* won't happen as this code only runs on AVX512 platforms */
 #endif

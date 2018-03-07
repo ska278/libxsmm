@@ -64,7 +64,7 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
   element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx, 0, handle->ifmblock));
   if(handle->ifmblock == 16)
   {
-#define __AVX512F__
+//#define __AVX512F__
 #ifdef __AVX512F__
     // load batch norm parameters
     __m512 _expect = _mm512_load_ps(myexpect);
