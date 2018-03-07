@@ -32,6 +32,9 @@
 #define IFM_LOOP_INIT 1
 #define IFM_LOOP_CLOSE 2
 #define CONVOLUTION_KERNEL 3
+#define OFM_LOOP_CLOSE_S 4
+#define OFM_LOOP_FIRST_TOUCH 5
+#define IMG_LOOP_CLOSE 6
 
 const int ltid = tid-start_thread;
 
@@ -261,7 +264,20 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             }
           }
 
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+#include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
+            }
+          }
+
+	  if (instr == OFM_LOOP_FIRST_TOUCH ) {
+	    ofm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_bwd_custom_custom_apply_bn2.tpl.c"
+	  }
           if ( instr == IFM_LOOP_INIT ) {
+            ifm1 = code_stream[pc].aux_index;
             /* Apply bias if requested  */
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) {
               /*#include "libxsmm_dnn_fwd_custom_custom_bias.tpl.c"*/
@@ -273,6 +289,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           }
 
           if ( instr == IFM_LOOP_CLOSE) {
+            ifm1 = code_stream[pc].aux_index;
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
               ifm1 =  code_stream[pc].aux_index;
               element_input_type* cur_vec = &LIBXSMM_VLA_ACCESS(5, del_input, img, ifm1, 0, 0, 0,
@@ -302,6 +319,13 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             pool_index++;
             i+=3;
           }
+
+          if ( instr == IFM_LOOP_CLOSE) {
+            ifm1 = code_stream[pc].aux_index;
+            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
+#include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
+	    }
+	  }
         }
       } else {
         for (pc = 0; pc < n_segments; pc++) {
@@ -315,7 +339,20 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             }
           }
 
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+#include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
+            }
+          }
+
+	  if (instr == OFM_LOOP_FIRST_TOUCH ) {
+	    ofm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_bwd_custom_custom_apply_bn2.tpl.c"
+	  }
           if ( instr == IFM_LOOP_INIT ) {
+            ifm1 = code_stream[pc].aux_index;
             /* Apply bias if requested  */
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) {
               /*#include "libxsmm_dnn_fwd_custom_custom_bias.tpl.c"*/
@@ -327,6 +364,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           }
 
           if ( instr == IFM_LOOP_CLOSE) {
+            ifm1 = code_stream[pc].aux_index;
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
               ifm1 =  code_stream[pc].aux_index;
               element_input_type* cur_vec = &LIBXSMM_VLA_ACCESS(5, del_input, img, ifm1, 0, 0, 0,
@@ -355,6 +393,12 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, regular_input_base + offset_o, &scale_factor, max_vals);
             i+=3;
           }
+          if ( instr == IFM_LOOP_CLOSE) {
+            ifm1 = code_stream[pc].aux_index;
+            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
+#include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
+	    }
+	  }
         }
       }
     } else { /* We don't do RELU stuff in the kernel  */
@@ -371,7 +415,20 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             }
           }
 
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+#include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
+            }
+          }
+
+	  if (instr == OFM_LOOP_FIRST_TOUCH ) {
+	    ofm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_bwd_custom_custom_apply_bn2.tpl.c"
+	  }
           if ( instr == IFM_LOOP_INIT ) {
+            ifm1 = code_stream[pc].aux_index;
             /* Apply bias if requested  */
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) {
               /*#include "libxsmm_dnn_fwd_custom_custom_bias.tpl.c"*/
@@ -383,9 +440,8 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           }
 
           if ( instr == IFM_LOOP_CLOSE ) {
+            ifm1 = code_stream[pc].aux_index;
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) {
-#ifdef __AVX512F__
-              ifm1 = code_stream[pc].aux_index;
               LIBXSMM_VLA_DECL(5, element_input_type, input, (element_input_type*) handle->reg_input->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
               LIBXSMM_VLA_DECL(5, element_input_type, del_input_2, (element_input_type*) handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
               element_input_type *orig_input_ptr;
@@ -438,6 +494,12 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             pool_index++;
             i+=3;
           }
+	if ( instr == IFM_LOOP_CLOSE) {
+            ifm1 = code_stream[pc].aux_index;
+            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
+#include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
+	    }
+	  }
         }
       } else {
         for (pc = 0; pc < n_segments; pc++) {
@@ -451,6 +513,19 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             }
           }
 
+          if (instr == IMG_LOOP_CLOSE) {
+            img = code_stream[pc].aux_index;
+            /* Apply padding  */
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+#include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
+            }
+          }
+
+	  if (instr == OFM_LOOP_FIRST_TOUCH ) {
+	    ofm1 = code_stream[pc].aux_index;
+#include "libxsmm_dnn_bwd_custom_custom_apply_bn2.tpl.c"
+	  }
+
           if ( instr == IFM_LOOP_INIT ) {
             /* Apply bias if requested  */
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) {
@@ -463,9 +538,13 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           }
 
           if ( instr == IFM_LOOP_CLOSE ) {
+            ifm1 = code_stream[pc].aux_index;
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) {
+<<<<<<< HEAD
 #ifdef __AVX512F__
               ifm1 = code_stream[pc].aux_index;
+=======
+>>>>>>> initial add
               LIBXSMM_VLA_DECL(5, element_input_type, input, (element_input_type*) handle->reg_input->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
               LIBXSMM_VLA_DECL(5, element_input_type, del_input_2, (element_input_type*) handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
               element_input_type *orig_input_ptr;
@@ -517,6 +596,13 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
             i+=3;
           }
+
+	  if ( instr == IFM_LOOP_CLOSE) {
+            ifm1 = code_stream[pc].aux_index;
+            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
+#include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
+	    }
+	  }
         }
       }
     }
