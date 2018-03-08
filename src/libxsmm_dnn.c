@@ -437,32 +437,26 @@ LIBXSMM_API libxsmm_dnn_tensor* libxsmm_dnn_link_qtensor(const libxsmm_dnn_tenso
 
 LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(const libxsmm_dnn_layer* handle, const libxsmm_dnn_tensor_type type, libxsmm_dnn_err_t* status) {
   libxsmm_dnn_tensor_datalayout* layout;
-  fprintf(stderr, "hello\n");
 
   *status = LIBXSMM_DNN_SUCCESS;
   layout = 0;
 
   if (handle != 0) {
     layout = (libxsmm_dnn_tensor_datalayout*) malloc(sizeof(libxsmm_dnn_tensor_datalayout));
-    fprintf(stderr, "here0\n");
 
     if (layout != 0) {
       memset(layout, 0, sizeof(libxsmm_dnn_tensor_datalayout));
       layout->custom_format = handle->custom_format_type;
-      fprintf(stderr, "here00\n");
       if ( (type == LIBXSMM_DNN_REGULAR_INPUT)  || (type == LIBXSMM_DNN_GRADIENT_INPUT)  || (type == LIBXSMM_DNN_INPUT)  ||
            (type == LIBXSMM_DNN_REGULAR_OUTPUT) || (type == LIBXSMM_DNN_GRADIENT_OUTPUT) || (type == LIBXSMM_DNN_OUTPUT) ||
 	   (type == LIBXSMM_DNN_REGULAR_INPUT_ST) || (type == LIBXSMM_DNN_REGULAR_INPUT_ST_BWD ) || (type == LIBXSMM_DNN_REGULAR_INPUT_ST_BWD2) ) {
         layout->format = handle->buffer_format;
         layout->tensor_type = LIBXSMM_DNN_ACTIVATION;
-        fprintf(stderr, "here000\n");
 
         if ((handle->buffer_format & LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM) > 0) {
           if ( ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_F32) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32) ) ) {
             layout->datatype = LIBXSMM_DNN_DATATYPE_F32;
-	    fprintf(stderr, "here1\n");
             if (handle->custom_format_type == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_1) {
-	    fprintf(stderr, "here2\n");
               layout->dim_type = (libxsmm_dnn_tensor_dimtype*) malloc(5*sizeof(libxsmm_dnn_tensor_dimtype));
               layout->dim_size = (unsigned int*) malloc(5*sizeof(unsigned int));
 
@@ -492,13 +486,11 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
                   free(layout->dim_size);
                   free(layout);
                   layout = 0; /* make sure a NULL is returned */
-                  fprintf(stderr, "1\n");
 
                   *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
                 }
               }
             } else if (handle->custom_format_type == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_2) {
-	    fprintf(stderr, "here3\n");
               layout->dim_type = (libxsmm_dnn_tensor_dimtype*) malloc(6*sizeof(libxsmm_dnn_tensor_dimtype));
               layout->dim_size = (unsigned int*) malloc(6*sizeof(unsigned int));
               if (0 != layout->dim_type && 0 != layout->dim_size) { /* TODO: handle the error */
@@ -530,14 +522,12 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
                   free(layout->dim_size);
                   free(layout);
                   layout = 0; /* make sure a NULL is returned */
-                  fprintf(stderr, "2\n");
                   *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
                 }
               }
             } else {
               free(layout);
               layout = 0; /* make sure a NULL is returned */
-                  fprintf(stderr, "3\n");
               *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
             }
           /* @TODO this need to change */
@@ -579,7 +569,6 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
                 free(layout->dim_size);
                 free(layout);
                 layout = 0; /* make sure a NULL is returned */
-                  fprintf(stderr, "4\n");
                 *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
               }
             }
@@ -652,7 +641,6 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
                 free(layout->dim_size);
                 free(layout);
                 layout = 0; /* make sure a NULL is returned */
-                  fprintf(stderr, "5\n");
                 *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
               }
             }
@@ -687,7 +675,6 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
                 free(layout->dim_size);
                 free(layout);
                 layout = 0; /* make sure a NULL is returned */
-                  fprintf(stderr, "6\n");
                 *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
               }
             }
@@ -1103,7 +1090,6 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
       } else {
         free(layout);
         layout = 0; /* make sure a NULL is returned */
-                  fprintf(stderr, "7\n");
         *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
       }
     } else {
@@ -1716,7 +1702,6 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_bind_tensor(libxsmm_dnn_layer* handle,
       (type != LIBXSMM_DNN_REGULAR_LCL_GAMMA_BETA)         &&
       (type != LIBXSMM_DNN_GRADIENT_GAMMA)         && (type != LIBXSMM_DNN_GRADIENT_BETA)   &&
       (type != LIBXSMM_DNN_REGULAR_FILTER_TRANS) && (type != LIBXSMM_DNN_BATCH_STATS) && (type != LIBXSMM_DNN_MAX_STATS_FWD) && (type != LIBXSMM_DNN_MAX_STATS_BWD)  && (type != LIBXSMM_DNN_MAX_STATS_UPD)  ) {
-                  fprintf(stderr, "8\n");
     status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
     return status;
   }
@@ -1817,7 +1802,6 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_release_tensor(libxsmm_dnn_layer* hand
       (type != LIBXSMM_DNN_REGULAR_LCL_GAMMA_BETA)         && 
       (type != LIBXSMM_DNN_GRADIENT_GAMMA)         && (type != LIBXSMM_DNN_GRADIENT_BETA)   &&
       (type != LIBXSMM_DNN_REGULAR_FILTER_TRANS) && (type != LIBXSMM_DNN_BATCH_STATS) && (type != LIBXSMM_DNN_MAX_STATS_FWD) && (type != LIBXSMM_DNN_MAX_STATS_BWD)  && (type != LIBXSMM_DNN_MAX_STATS_UPD)  ) {
-                  fprintf(stderr, "9\n");
     status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
     return status;
   }
@@ -2444,7 +2428,6 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_transpose_filter(libxsmm_dnn_layer* ha
 
   /* check for filter type */
   if ( (type != LIBXSMM_DNN_REGULAR_FILTER) ) {
-                  fprintf(stderr, "10\n");
     status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
     return status;
   }
@@ -2501,7 +2484,6 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_reduce_wu_filters(libxsmm_dnn_layer* h
 
   /* check for filter type */
   if ( (type != LIBXSMM_DNN_GRADIENT_FILTER) ) {
-                  fprintf(stderr, "11\n");
     status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
     return status;
   }
@@ -3039,28 +3021,6 @@ LIBXSMM_API_INTERN libxsmm_sconvfunction libxsmm_create_sconv_forward(const libx
 }
 
 
-LIBXSMM_API_INTERN libxsmm_sconvfunction libxsmm_create_sconv_backward(const libxsmm_convolution_backward_descriptor* descriptor)
-{
-  libxsmm_code_pointer code = { 0 };
-  LIBXSMM_INIT
-  if (0 != descriptor) {
-    libxsmm_build_request request;
-    request.descriptor.cbwd = descriptor;
-    request.kind = LIBXSMM_BUILD_KIND_CBWD;
-    libxsmm_build(&request, LIBXSMM_CAPACITY_REGISTRY/*not managed*/, &code);
-  }
-#if !defined(NDEBUG) /* library code is expected to be mute */
-  else {
-    static int error_once = 0;
-    if (1 == LIBXSMM_ATOMIC_ADD_FETCH(&error_once, 1, LIBXSMM_ATOMIC_RELAXED)) {
-      fprintf(stderr, "LIBXSMM ERROR: invalid descriptor (backward convolution)!\n");
-    }
-  }
-#endif
-  return code.xconv.sconv;
-}
-
-
 LIBXSMM_API_INTERN libxsmm_sconvfunction libxsmm_create_sconv_update_weights(const libxsmm_convolution_weight_update_descriptor* descriptor)
 {
   libxsmm_code_pointer code = { 0 };
@@ -3098,28 +3058,6 @@ LIBXSMM_API_INTERN void* libxsmm_create_xconv_forward(const libxsmm_convolution_
     static int error_once = 0;
     if (1 == LIBXSMM_ATOMIC_ADD_FETCH(&error_once, 1, LIBXSMM_ATOMIC_RELAXED)) {
       fprintf(stderr, "LIBXSMM ERROR: invalid descriptor (forward convolution)!\n");
-    }
-  }
-#endif
-  return code.pmm;
-}
-
-
-LIBXSMM_API_INTERN void* libxsmm_create_xconv_backward(const libxsmm_convolution_backward_descriptor* descriptor)
-{
-  libxsmm_code_pointer code = { 0 };
-  LIBXSMM_INIT
-  if (0 != descriptor) {
-    libxsmm_build_request request;
-    request.descriptor.cbwd = descriptor;
-    request.kind = LIBXSMM_BUILD_KIND_CBWD;
-    libxsmm_build(&request, LIBXSMM_CAPACITY_REGISTRY/*not managed*/, &code);
-  }
-#if !defined(NDEBUG) /* library code is expected to be mute */
-  else {
-    static int error_once = 0;
-    if (1 == LIBXSMM_ATOMIC_ADD_FETCH(&error_once, 1, LIBXSMM_ATOMIC_RELAXED)) {
-      fprintf(stderr, "LIBXSMM ERROR: invalid descriptor (backward convolution)!\n");
     }
   }
 #endif

@@ -26,23 +26,23 @@
  ** NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS        **
  ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
  ******************************************************************************/
-/* Alexander Heinecke, Evangelos Georganas, Hans Pabst (Intel Corp.)
+/* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
-if (handle->custom_format_type == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_1 ) {
-  if ( handle->use_thread_private_jit ) {
-    if ( handle->exploit_duality == 1  ) {
-#include "libxsmm_dnn_convolve_st_bwd_via_fwd_custom_custom_stream.tpl.c"
-    } else {
-#include "libxsmm_dnn_convolve_st_bwd_custom_custom_stream.tpl.c"
-    }
-  } else {
-    /* should not happen as we use the generic code */
+
+/* Padding code via jitted matcopy kernel */
+img = code_stream[pc].aux_index;
+for (ofm1 = handle->blocksofm-1; ofm1 >= 1; ofm1--) {
+  for (ih = input_h_start; ih < input_h_end; ih++) {
+    input_ptr = (element_output_type*)&LIBXSMM_VLA_ACCESS(6, del_out, img, ofm1, ih, 0, 0, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock_lp, handle->fm_lp_block);
+    copy_ptr = (element_output_type*)&LIBXSMM_VLA_ACCESS(5, output_buffer, ofm1, handle->desc.pad_h+ih, handle->desc.pad_w, 0, 0, padded_h, padded_w, handle->ofmblock_lp, handle->fm_lp_block);
+    prefetch_ptr = (element_output_type*)&LIBXSMM_VLA_ACCESS(6, del_out, img, ofm1-1, ih, 0, 0, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock_lp, handle->fm_lp_block);
+    jitted_matcopy(input_ptr, NULL, copy_ptr, NULL, prefetch_ptr);
   }
-} else if (handle->custom_format_type == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_2) {
-#if 0
-#include "libxsmm_dnn_convolve_st_bwd_custom_custom_2.tpl.c"
-#endif
 }
-else {
-  /* New custom format code here */
+for (ih = input_h_start; ih < input_h_end; ih++) {
+  input_ptr = (element_output_type*)&LIBXSMM_VLA_ACCESS(6, del_out, img, ofm1, ih, 0, 0, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock_lp, handle->fm_lp_block);
+  copy_ptr = (element_output_type*)&LIBXSMM_VLA_ACCESS(5, output_buffer, ofm1, handle->desc.pad_h+ih, handle->desc.pad_w, 0, 0, padded_h, padded_w, handle->ofmblock_lp, handle->fm_lp_block);
+  prefetch_ptr = (element_output_type*)&LIBXSMM_VLA_ACCESS(6, del_out, img+1, handle->blocksofm-1, ih, 0, 0, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock_lp, handle->fm_lp_block);
+  jitted_matcopy(input_ptr, NULL, copy_ptr, NULL, prefetch_ptr);
 }
+

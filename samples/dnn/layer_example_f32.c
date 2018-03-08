@@ -949,25 +949,21 @@ int main(int argc, char* argv[])
     CHKERR_LIBXSMM_DNN( status );
 
     /* setup LIBXSMM buffers and filter */
-    fprintf(stderr, "blah 0\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_INPUT, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_input  = libxsmm_dnn_link_tensor( libxsmm_layout,  input_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dinput = libxsmm_dnn_link_tensor( libxsmm_layout, dinput_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 1\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_OUTPUT, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_output  = libxsmm_dnn_link_tensor( libxsmm_layout,  output_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_doutput = libxsmm_dnn_link_tensor( libxsmm_layout, doutput_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 2\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_FILTER, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_filter  = libxsmm_dnn_link_tensor( libxsmm_layout,  filter_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dfilter = libxsmm_dnn_link_tensor( libxsmm_layout, dfilter_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 3\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_FILTER, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_BIAS, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_bias  = libxsmm_dnn_link_tensor( libxsmm_layout,  bias_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
@@ -975,78 +971,63 @@ int main(int argc, char* argv[])
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 #ifdef USE_FUSED_BN_RELU
 
-    fprintf(stderr, "blah 4\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_INPUT_ST, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_input_st  = libxsmm_dnn_link_tensor( libxsmm_layout, input_st_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 5\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_INPUT_ST_BWD, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_input_st_bwd  = libxsmm_dnn_link_tensor( libxsmm_layout, input_st_bwd_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 6\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_INPUT_ST_BWD2, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_input_st_bwd2  = libxsmm_dnn_link_tensor( libxsmm_layout, input_st_bwd2_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 7\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_LCL_GAMMA_BETA, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_lcl_gamma_beta  = libxsmm_dnn_link_tensor( libxsmm_layout,  lcl_gamma_beta_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 8\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_EXPECT, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_expect  = libxsmm_dnn_link_tensor( libxsmm_layout,  expect_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 9\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_STDDEV, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_stddev  = libxsmm_dnn_link_tensor( libxsmm_layout,  stddev_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 10\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_GAMMA, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_gamma  = libxsmm_dnn_link_tensor( libxsmm_layout,  gamma_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 11\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_BETA, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_beta  = libxsmm_dnn_link_tensor( libxsmm_layout,  beta_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
     // BWD specific
-    fprintf(stderr, "blah 12\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_BMEAN1, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_bmean1  = libxsmm_dnn_link_tensor( libxsmm_layout,  bmean1_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 13\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_BRSTD1, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_brstd1  = libxsmm_dnn_link_tensor( libxsmm_layout,  brstd1_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 14\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_BMEAN2, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_bmean2  = libxsmm_dnn_link_tensor( libxsmm_layout,  bmean2_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 15\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_BRSTD2, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_brstd2  = libxsmm_dnn_link_tensor( libxsmm_layout,  brstd2_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 16\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_GAMMA_BWD, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_gamma_bwd  = libxsmm_dnn_link_tensor( libxsmm_layout, gamma_bwd_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 17\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_GRADIENT_BETA, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dbeta  = libxsmm_dnn_link_tensor( libxsmm_layout,  dbeta_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-    fprintf(stderr, "blah 18\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_GRADIENT_GAMMA, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dgamma  = libxsmm_dnn_link_tensor( libxsmm_layout,  dgamma_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
@@ -1055,13 +1036,11 @@ int main(int argc, char* argv[])
 
 
 
-    fprintf(stderr, "blah 19\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_FILTER_TRANS, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_filter_tr  = libxsmm_dnn_link_tensor( libxsmm_layout, filtertr_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
 #ifdef USE_FUSED_BATCH_STATS
-    fprintf(stderr, "blah 20\n");
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_BATCH_STATS, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_batchstats  = libxsmm_dnn_link_tensor( libxsmm_layout, batchstats_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );

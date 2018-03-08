@@ -1042,6 +1042,16 @@ LIBXSMM_API_INLINE const char* internal_get_typename(int datatype)
     case LIBXSMM_DATATYPE_I16: return "i16";
     case LIBXSMM_DATATYPE_I8:  return "i8";
   }
+  if ( LIBXSMM_GEMM_PRECISION_I16 == LIBXSMM_GETENUM_INP( datatype ) && LIBXSMM_GEMM_PRECISION_I32 == LIBXSMM_GETENUM_OUT( datatype ) ) {
+    return "i16i32";
+  } else if ( LIBXSMM_GEMM_PRECISION_I16 == LIBXSMM_GETENUM_INP( datatype ) && LIBXSMM_GEMM_PRECISION_F32 == LIBXSMM_GETENUM_OUT( datatype ) ) {
+    return "i16f32";
+  } else if ( LIBXSMM_GEMM_PRECISION_I8 == LIBXSMM_GETENUM_INP( datatype ) && LIBXSMM_GEMM_PRECISION_I32 == LIBXSMM_GETENUM_OUT( datatype ) ) {
+    return "i8i32";
+  } else {
+    return "void";
+  }
+  
   return "void";
 }
 
@@ -1211,35 +1221,6 @@ LIBXSMM_API_INTERN int libxsmm_build(const libxsmm_build_request* request, unsig
             (unsigned int)request->descriptor.cfwd->ofh_rb/*register block ofh*/,
             (int)request->descriptor.cfwd->prefetch/*binary OR'd prefetch flags*/,
             (int)request->descriptor.cfwd->format/*binary OR'd format flags*/);
-        }
-      }
-    } break;
-    case LIBXSMM_BUILD_KIND_CBWD: { /* backward convolution */
-      assert(0 != request->descriptor.cbwd);
-      if (0 < request->descriptor.cbwd->kw && 0 < request->descriptor.cbwd->kh &&
-          0 != request->descriptor.cbwd->stride_w && 0 != request->descriptor.cbwd->stride_h)
-      {
-        LIBXSMM_NO_OFFLOAD(void, libxsmm_generator_convolution_backward_kernel, &generated_code, request->descriptor.cbwd, target_arch);
-# if !defined(LIBXSMM_VTUNE)
-        if (0 > libxsmm_verbosity)
-# endif
-        {
-          const char *const precision_in = internal_get_typename(request->descriptor.cbwd->datatype);
-          const char *const precision_out = internal_get_typename(request->descriptor.cbwd->datatype_itm);
-          /* adopt scheme which allows kernel names of LIBXSMM to appear in order (Intel VTune, etc.) */
-          LIBXSMM_SNPRINTF(jit_name, sizeof(jit_name), "libxsmm_%s_bwd_%s_%s_%ux%u_%ux%uu_s%ii%io_vl%ui%uo_ri%ux%u_ro%ux%u_r%ux%u_p%i_f%i.conv",
-            target_arch/*code path name*/, precision_in, precision_out,
-            (unsigned int)request->descriptor.cbwd->kw/*kernel width*/, (unsigned int)request->descriptor.cbwd->kh/*kernel height*/,
-            (unsigned int)request->descriptor.cbwd->unroll_kw/*width*/, (unsigned int)request->descriptor.cbwd->unroll_kh/*height*/,
-            (int)request->descriptor.cbwd->stride_w/*input offset*/, (int)request->descriptor.cbwd->stride_h/*output offsets*/,
-            (unsigned int)request->descriptor.cbwd->ifm_block/*VLEN*/, (unsigned int)request->descriptor.cbwd->ofm_block/*VLEN*/,
-            (unsigned int)request->descriptor.cbwd->ifw_padded, (unsigned int)request->descriptor.cbwd->ifh_padded,
-            (unsigned int)request->descriptor.cbwd->ofw_padded/*1D and 2D register block*/,
-            (unsigned int)request->descriptor.cbwd->ofh_padded/*2D register block*/,
-            (unsigned int)request->descriptor.cbwd->ofw_rb/*register block ofw*/,
-            (unsigned int)request->descriptor.cbwd->ofh_rb/*register block ofh*/,
-            (int)request->descriptor.cbwd->prefetch/*binary OR'd prefetch flags*/,
-            (int)request->descriptor.cbwd->format/*binary OR'd format flags*/);
         }
       }
     } break;
@@ -1873,7 +1854,7 @@ LIBXSMM_API libxsmm_smmfunction libxsmm_smmdispatch(libxsmm_blasint m, libxsmm_b
 }
 
 
-LIBXSMM_API libxsmm_wmmfunction libxsmm_wmmdispatch(libxsmm_blasint m, libxsmm_blasint n, libxsmm_blasint k,
+LIBXSMM_API libxsmm_wimmfunction libxsmm_wimmdispatch(libxsmm_blasint m, libxsmm_blasint n, libxsmm_blasint k,
   const libxsmm_blasint* lda, const libxsmm_blasint* ldb, const libxsmm_blasint* ldc,
   const int* alpha, const int* beta, const int* flags, const int* prefetch)
 {
@@ -1882,7 +1863,20 @@ LIBXSMM_API libxsmm_wmmfunction libxsmm_wmmdispatch(libxsmm_blasint m, libxsmm_b
     0 != lda ? *lda : m, 0 != ldb ? *ldb : k, 0 != ldc ? *ldc : m,
     0 != alpha ? *alpha : LIBXSMM_ALPHA, 0 != beta ? *beta : LIBXSMM_BETA,
     0 == flags ? LIBXSMM_FLAGS : *flags, libxsmm_get_gemm_xprefetch(prefetch));
-  return libxsmm_xmmdispatch(desc).wmm;
+  return libxsmm_xmmdispatch(desc).wimm;
+}
+
+
+LIBXSMM_API libxsmm_wsmmfunction libxsmm_wsmmdispatch(libxsmm_blasint m, libxsmm_blasint n, libxsmm_blasint k,
+  const libxsmm_blasint* lda, const libxsmm_blasint* ldb, const libxsmm_blasint* ldc,
+  const int* alpha, const int* beta, const int* flags, const int* prefetch)
+{
+  libxsmm_descriptor_blob blob;
+  const libxsmm_gemm_descriptor *const desc = libxsmm_wsgemm_descriptor_init(&blob, m, n, k,
+    0 != lda ? *lda : m, 0 != ldb ? *ldb : k, 0 != ldc ? *ldc : m,
+    0 != alpha ? *alpha : LIBXSMM_ALPHA, 0 != beta ? *beta : LIBXSMM_BETA,
+    0 == flags ? LIBXSMM_FLAGS : *flags, libxsmm_get_gemm_xprefetch(prefetch));
+  return libxsmm_xmmdispatch(desc).wsmm;
 }
 
 

@@ -215,7 +215,11 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
   handle->use_upd_generic = 1;
 
   /* @FIXME, we should find a better knob */
+#ifdef __AVX512F__
   handle->use_thread_private_jit = 1;
+#else
+  handle->use_thread_private_jit = 0;
+#endif
 
   /* If we do not have AVX512 arch disable kernel streams  */
   if (libxsmm_target_archid != LIBXSMM_X86_AVX512_MIC  &&
@@ -250,7 +254,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
     handle->perform_relu_in_kernel = 0;
 
     /* let's check for duality */
-    if ( (handle->use_thread_private_jit > 0) && ( (handle->desc.R == 1 && handle->desc.S == 1) || (handle->desc.u == 1 && handle->desc.v == 1) ) && !((handle->desc.R > 1 && handle->desc.pad_h == 0) || (handle->desc.S > 1 && handle->desc.pad_w == 0)) )  {
+    if ( (handle->use_thread_private_jit > 0) && ( (handle->desc.R == 1 && handle->desc.S == 1 && handle->desc.pad_h == 0 && handle->desc.pad_w == 0) || (handle->desc.u == 1 && handle->desc.v == 1) ) && !((handle->desc.R > 1 && handle->desc.pad_h == 0) || (handle->desc.S > 1 && handle->desc.pad_w == 0)) )  {
       handle->exploit_duality = 1;
     } else {
       handle->exploit_duality = 0;
@@ -934,7 +938,11 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
               if (handle->exploit_duality == 1) {
                 if (handle->padding_flag == 1) {
                   handle->matcopy_bwd[0].xmatcopy = libxsmm_xmcopydispatch(&matcopy_descriptor);
+                  matcopy_descriptor.n = 1;
+                  handle->matcopy_bwd[2].xmatcopy = libxsmm_xmcopydispatch(&matcopy_descriptor);
                 }
+
+
                 fwd_equivalent_descriptor.n_variants = handle->n_variants;
                 fwd_equivalent_descriptor.prefetch = LIBXSMM_CONVOLUTION_PREFETCH_ALL;
                 if ( handle->n_variants == 1) {
@@ -1034,6 +1042,15 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
                 matzero_descriptor_overwrite.typesize = (unsigned char)libxsmm_dnn_typesize(handle->datatype_out);
                 matzero_descriptor_overwrite.flags = LIBXSMM_MATCOPY_FLAG_ZERO_SOURCE;
                 handle->matcopy_bwd[1].xmatcopy = libxsmm_xmcopydispatch(&matzero_descriptor_overwrite);
+
+                if (handle->buffer_format == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM) {
+                  matzero_descriptor_overwrite.m = handle->ifwp*handle->ifmblock_hp;
+                  matzero_descriptor_overwrite.ldi = handle->ifwp*handle->ifmblock_hp;
+                  matzero_descriptor_overwrite.ldo = handle->ifwp*handle->ifmblock_hp;
+                } else { /* Assumes NHWC format */
+                  status = LIBXSMM_DNN_ERR_INVALID_FORMAT_GENERAL;
+                }
+                handle->matcopy_bwd[3].xmatcopy = libxsmm_xmcopydispatch(&matzero_descriptor_overwrite);
               }
               /* compute kernel stream overhead */
               ks_overhead += handle->desc.threads*5*sizeof(int);
@@ -1231,7 +1248,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
                 handle->output_lp_padding = 0;
                 int enforce_sfma_kernel = 0;
 
-                if ((libxsmm_target_archid == LIBXSMM_X86_AVX512_CORE || libxsmm_target_archid == LIBXSMM_X86_AVX512_MIC || libxsmm_target_archid == LIBXSMM_X86_AVX512_ICL || ( (handle->desc.R!=1 || handle->desc.S!=1) && (handle->desc.u!=1 || handle->desc.v!=1) )) && (handle->use_lp_kernel == 0)  ) {
+                if ((libxsmm_target_archid == LIBXSMM_X86_AVX512_CORE || libxsmm_target_archid == LIBXSMM_X86_AVX512_MIC || libxsmm_target_archid == LIBXSMM_X86_AVX512_ICL || ( (handle->desc.R!=1 || handle->desc.S!=1 || handle->desc.pad_h!=0 || handle->desc.pad_w!=0) && (handle->desc.u!=1 || handle->desc.v!=1) )) && (handle->use_lp_kernel == 0)  ) {
                   enforce_sfma_kernel = 1;
                 }
 
@@ -1253,7 +1270,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
                   handle->output_lp_padding = output_lp_padding;
                 }
 
-                if (handle->desc.R == 1 && handle->desc.S == 1 && (libxsmm_target_archid == LIBXSMM_X86_AVX512_KNM || ((libxsmm_target_archid == LIBXSMM_X86_AVX512_CORE || libxsmm_target_archid == LIBXSMM_X86_AVX512_MIC || libxsmm_target_archid == LIBXSMM_X86_AVX512_ICL) && handle->use_lp_kernel == 1)) && (handle->desc.u != 1 || handle->desc.v != 1)) {
+                if (handle->desc.R == 1 && handle->desc.S == 1 && handle->desc.pad_h == 0 && handle->desc.pad_w == 0 && (libxsmm_target_archid == LIBXSMM_X86_AVX512_KNM || ((libxsmm_target_archid == LIBXSMM_X86_AVX512_CORE || libxsmm_target_archid == LIBXSMM_X86_AVX512_MIC || libxsmm_target_archid == LIBXSMM_X86_AVX512_ICL) && handle->use_lp_kernel == 1)) && (handle->desc.u != 1 || handle->desc.v != 1)) {
                   handle->resize_input = 1;
                   handle->trans_ofw_ifm = 1;
                   handle->ifwp_resized = handle->ifwp/handle->desc.u;
@@ -1362,7 +1379,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
                   }
                 }
 
-                if (handle->ofh == 28 || handle->ofh == 56 || ( handle->ofh == 14 && ( handle->desc.C == 512 && (handle->desc.K == 1024 || handle->desc.K == 256) ))) {
+                if (handle->ofh == 28 || handle->ofh == 56 || ( handle->ofh == 14 && ( handle->desc.C == 512 && (handle->desc.K == 1024 || handle->desc.K == 256) ) )) {
                   handle->use_hybrid_wu_parallelism = 0;
                   handle->weight_copies = handle->desc.threads;
                   descriptor.ncopies = handle->weight_copies;
@@ -1381,7 +1398,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
                   } else {
                     spread_out = 1;
                   }
-                  if (spread_out == 1) {
+                  if (spread_out == 1 && handle->desc.threads > 1) {
                     handle->use_hybrid_wu_parallelism = 0;
                     handle->weight_copies = handle->desc.threads;
                     handle->blocksimg_blocking = 1;
