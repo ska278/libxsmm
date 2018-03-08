@@ -351,8 +351,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         oj_use = oj * handle->desc.v;
                       }
 
+                      int ifm_init_marked = 0;
                       if (mark_ifm_init == 1) {
 		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0) {
+			  ifm_init_marked = 1;
                           tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
                           tmp_stream_index++;
 			}
@@ -376,15 +378,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       if (handle->n_variants == 2) {
                         if (handle->h_variants) {
                           if (oj + handle->fwd_ofh_rb <= handle->ofh) {
-                            kernel_variant[local_entries/3] = 0;
+                            kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
                           } else {
-                            kernel_variant[local_entries/3] = 1;
+                            kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                           }
                         } else {
                           if (oi + handle->fwd_ofw_rb <= handle->ofw) {
-                            kernel_variant[local_entries/3] = 0;
+                            kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
                           } else {
-                            kernel_variant[local_entries/3] = 1;
+                            kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                           }
                         }
                       }
@@ -443,6 +445,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         oj_use = oj * handle->desc.v;
                       }
 
+                      int ifm_init_marked = 0;
+                      if (mark_ifm_init == 1) {
+		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0) {
+			  ifm_init_marked = 1;
+                          tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
+                          tmp_stream_index++;
+			}
+		      }
+
                       if (mark_ofm_init == 1) {
                         if (ifm1 == 0 && oj == 0 && oi == 0) {
                           tmp_expanded_stream[tmp_stream_index] = OFM_LOOP_INIT;
@@ -462,15 +473,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       if (handle->n_variants == 2) {
                         if (handle->h_variants) {
                           if (oj + handle->fwd_ofh_rb <= handle->ofh) {
-                            kernel_variant[local_entries/3] = 0;
+                            kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
                           } else {
-                            kernel_variant[local_entries/3] = 1;
+                            kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                           }
                         } else {
                           if (oi + handle->fwd_ofw_rb <= handle->ofw) {
-                            kernel_variant[local_entries/3] = 0;
+                            kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
                           } else {
-                            kernel_variant[local_entries/3] = 1;
+                            kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                           }
                         }
                       }
@@ -542,8 +553,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       oj_use = oj * handle->desc.v;
                     }
 
+                    int ifm_init_marked = 0;
                     if (mark_ifm_init == 1) {
 		      if (ofmb == my_ofm_start && ojb == 0 && oj == ojb && oi == 0 && ofm1 == ofmb) {
+		        ifm_init_marked = 1;
                         tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
                         tmp_stream_index++;
 		      }
@@ -567,15 +580,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                     if (handle->n_variants == 2) {
                       if (handle->h_variants) {
                         if (oj + handle->fwd_ofh_rb <= handle->ofh) {
-                          kernel_variant[local_entries/3] = 0;
+                          kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
                         } else {
-                          kernel_variant[local_entries/3] = 1;
+                          kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                         }
                       } else {
                         if (oi + handle->fwd_ofw_rb <= handle->ofw) {
-                          kernel_variant[local_entries/3] = 0;
+                          kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
                         } else {
-                          kernel_variant[local_entries/3] = 1;
+                          kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                         }
                       }
                     }

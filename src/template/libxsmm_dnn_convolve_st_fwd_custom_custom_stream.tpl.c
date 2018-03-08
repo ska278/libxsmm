@@ -28,6 +28,16 @@
  ******************************************************************************/
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
+
+void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid)
+{
+  printf("In wrapper\n");
+  LIBXSMM_VLA_DECL(5, element_input_type, input_buffer, ((element_input_type*)handle->scratch5) + ltid * BLOCKSIFM * padded_h * padded_w * handle->ifmblock * handle->fm_lp_block, padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
+  LIBXSMM_VLA_DECL(6, element_input_type, input, (element_input_type*)handle->reg_input->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+  k( input1, weight1, output1, input2, weight2, output2, sf, mv);
+}
+
 #define IMG_LOOP_INIT 0
 #define OFM_LOOP_INIT 1
 #define OFM_LOOP_CLOSE 2
@@ -72,9 +82,11 @@ libxsmm_xmcopyfunction jitted_matcopy = handle->matcopy_fwd[0].xmatcopy;
 libxsmm_xmcopyfunction jitted_zero_overwrite = handle->matcopy_fwd[1].xmatcopy;
 libxsmm_convfunction kernel = (libxsmm_convfunction)handle->code_fwd[2].xconv.sconv;
 libxsmm_convfunction kernel2 = (libxsmm_convfunction)handle->code_fwd[3].xconv.sconv;
-libxsmm_convfunction kernel_pool[2];
+libxsmm_convfunction kernel_pool[4];
 kernel_pool[0] = kernel;
 kernel_pool[1] = kernel2;
+kernel_pool[2] = kernel;
+kernel_pool[3] = kernel2;
 char *variant = handle->kernel_fwd_variant_ptrs[ltid];
 int pool_index = 0;
 
@@ -248,7 +260,15 @@ if (n_segments) {
             pw = stream[i+4];
             po = stream[i+5];
             offset_bn = bn_stream[bn_i];
-            kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
+	    if(variant[pool_index] < 2)
+	    {
+              kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
+	    }
+	    else
+	    {
+              kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
+	    }
+	    pool_index++;
             i+=3;
             bn_i++;
           }
@@ -419,7 +439,7 @@ if (n_segments) {
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
 	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
              ifm1 = code_stream[pc].aux_index;
-#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+//#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
            }
 	  }
           if ( instr == OFM_LOOP_CLOSE ) {
@@ -509,7 +529,16 @@ if (n_segments) {
             pi = stream[i+3];
             pw = stream[i+4];
             po = stream[i+5];
-            kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+	    if(variant[pool_index] < 2)
+	    {
+              kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+	    }
+	    else
+	    {
+              //kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid);
+	    }
+	    pool_index++;
             i+=3;
           }
         }
@@ -552,7 +581,7 @@ if (n_segments) {
       if ( instr == IFM_LOOP_FIRST_TOUCH ) {
 	 if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
            ifm1 = code_stream[pc].aux_index;
-#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+//#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
          }
       }
 
@@ -564,7 +593,16 @@ if (n_segments) {
         pi = stream[i+3];
         pw = stream[i+4];
         po = stream[i+5];
-        kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+	if(variant[pool_index] < 2)
+        {
+	  kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+	}
+	else
+	{
+	  //kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+          wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid);
+	}
+	pool_index++;
         i+=3;
       }
     }
@@ -602,7 +640,15 @@ if (n_segments) {
         pw = stream[i+4];
         po = stream[i+5];
         offset_bn = bn_stream[bn_i];
-        kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po,  bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
+	if(variant[pool_index] < 2)
+	{
+          kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po,  bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
+	}
+	else
+	{
+          kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po,  bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
+	}
+	pool_index++;
         i+=3;
         bn_i++;
       }
@@ -627,7 +673,15 @@ if (n_segments) {
         pi = stream[i+3];
         pw = stream[i+4];
         po = stream[i+5];
-        kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+	if(variant[pool_index] < 2)
+	{
+          kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+	}
+	else
+	{
+          kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+	}
+	pool_index++;
         i+=3;
       }
     }
