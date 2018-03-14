@@ -389,7 +389,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                             kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                           }
                         }
-                      }
+                      } else {
+                        kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
+		      }
 
                       if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS) > 0) && (handle->use_fwd_for_bwd == 0) && (handle->use_nts_fwd == 1) ) {
                         bn_indices[local_entries/3] =  img * handle->ofmblock + ofm1 * handle->ofmblock * handle->desc.N;
@@ -484,7 +486,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                             kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                           }
                         }
-                      }
+                      } else {
+                        kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
+		      }
 
 
                       if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS) > 0) && (handle->use_fwd_for_bwd == 0) && (handle->use_nts_fwd == 1) ) {
@@ -591,7 +595,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                           kernel_variant[local_entries/3] = (ifm_init_marked) ? 3 : 1;
                         }
                       }
-                    }
+                    } else {
+                      kernel_variant[local_entries/3] = (ifm_init_marked) ? 2 : 0;
+		    }
 
                     if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS) > 0) && (handle->use_fwd_for_bwd == 0) && (handle->use_nts_fwd == 1) ) {
                       bn_indices[local_entries/3] = img * handle->ofmblock + ofm1 * handle->ofmblock * handle->desc.N;

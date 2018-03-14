@@ -31,9 +31,9 @@
 
 void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid)
 {
-  printf("In wrapper\n");
   LIBXSMM_VLA_DECL(5, element_input_type, input_buffer, ((element_input_type*)handle->scratch5) + ltid * BLOCKSIFM * padded_h * padded_w * handle->ifmblock * handle->fm_lp_block, padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
   LIBXSMM_VLA_DECL(6, element_input_type, input, (element_input_type*)handle->reg_input->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+  // Only run this on pixels which are inputs to convolution kernel
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
   k( input1, weight1, output1, input2, weight2, output2, sf, mv);
 }
@@ -436,8 +436,10 @@ if (n_segments) {
             }
           }
 
+          int do_bn = 0;
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
 	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
+	     do_bn = 1;
              ifm1 = code_stream[pc].aux_index;
 //#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
            }
@@ -529,13 +531,27 @@ if (n_segments) {
             pi = stream[i+3];
             pw = stream[i+4];
             po = stream[i+5];
+	    // offset_i: offset where pixels start in the beginning of sliding window
+	    // offset_w
+	    // handle->ofw_rb handle->ofh_rb
+	    // handle->kernel_width, ofw_rb, ofh_rb from this calculate input window
+	    // start with 1x1, stride=1. Run from position we are in pointer. Then batch norm ofw_rb pixels in w dim and ofw_hb in h dimension
+	    // Then 3x3 case or any other, calculate from output ifw_rb and ifh_rb. In the beginning, run 3, then next row run 1
+	    // ofw_rb x ofh_rb is roughly 28
+	    // for (ifw_rb x ifh_rb)  // in wrapper
+	    // {
+	    //   batch norm // forward jumps
+	    // }
+	    // for(ofw_rb x ofh_rb)
+	    // {
+	    //   conv
+	    // }
 	    if(variant[pool_index] < 2)
 	    {
               kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 	    }
 	    else
 	    {
-              //kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
               wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid);
 	    }
 	    pool_index++;
@@ -578,10 +594,12 @@ if (n_segments) {
           }
         }
       }
+      int do_bn = 0;
       if ( instr == IFM_LOOP_FIRST_TOUCH ) {
 	 if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
            ifm1 = code_stream[pc].aux_index;
-//#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+	   do_bn = 1;
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
          }
       }
 
@@ -599,8 +617,8 @@ if (n_segments) {
 	}
 	else
 	{
-	  //kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
-          wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid);
+	  kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+          //wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid);
 	}
 	pool_index++;
         i+=3;
