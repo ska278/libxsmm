@@ -351,10 +351,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         oj_use = oj * handle->desc.v;
                       }
 
-                      int ifm_init_marked = 0;
+                      int ifm_init_marked = (mark_ifm_init == 1) && (ofmb == my_ofm_start && ofm1 == ofmb);;
                       if (mark_ifm_init == 1) {
 		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0) {
-			  ifm_init_marked = 1;
                           tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
                           tmp_stream_index++;
 			}
@@ -447,10 +446,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         oj_use = oj * handle->desc.v;
                       }
 
-                      int ifm_init_marked = 0;
+                      int ifm_init_marked = (mark_ifm_init == 1) && (ofmb == my_ofm_start && ofm1 == ofmb);;
                       if (mark_ifm_init == 1) {
 		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0) {
-			  ifm_init_marked = 1;
                           tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
                           tmp_stream_index++;
 			}
@@ -557,10 +555,9 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       oj_use = oj * handle->desc.v;
                     }
 
-                    int ifm_init_marked = 0;
+                    int ifm_init_marked = (mark_ifm_init == 1) && (ofmb == my_ofm_start && ofm1 == ofmb);;
                     if (mark_ifm_init == 1) {
 		      if (ofmb == my_ofm_start && ojb == 0 && oj == ojb && oi == 0 && ofm1 == ofmb) {
-		        ifm_init_marked = 1;
                         tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
                         tmp_stream_index++;
 		      }

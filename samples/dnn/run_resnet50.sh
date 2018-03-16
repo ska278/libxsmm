@@ -19,7 +19,7 @@ then
   ITERS=1
   NUMA=1
   BIN=f32
-  TYPE="A"
+  TYPE="F"
   FORMAT="L"
   PAD=0
 else
@@ -70,6 +70,7 @@ else
 fi
 
 ${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64   256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}  
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64    64 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}   
 
 # ./layer_example_${BIN} iters inpWidth inpHeight nImg nIfm nOfm kw kh padw padh stride type
 

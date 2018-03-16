@@ -29,12 +29,67 @@
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
 
-void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid)
+void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi)
 {
   LIBXSMM_VLA_DECL(5, element_input_type, input_buffer, ((element_input_type*)handle->scratch5) + ltid * BLOCKSIFM * padded_h * padded_w * handle->ifmblock * handle->fm_lp_block, padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
   LIBXSMM_VLA_DECL(6, element_input_type, input, (element_input_type*)handle->reg_input->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-  // Only run this on pixels which are inputs to convolution kernel
-#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+  LIBXSMM_VLA_DECL(2, element_input_type, expect, (element_input_type*)handle->reg_expect->data, handle->ifmblock);
+  LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg_stddev->data, handle->ifmblock);
+  LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma->data, handle->ifmblock);
+  LIBXSMM_VLA_DECL(2, element_input_type, beta, (element_input_type*)handle->reg_beta->data, handle->ifmblock);
+
+  // handle, ifm1, padded_w, 
+  printf("%d %d Should be %d %d but is %d %d\n", offset_i, pi, handle->fwd_ofw_rb, handle->fwd_ofh_rb, handle->desc.W, handle->desc.H);
+
+  int my_h, my_w, my_c, ifm_idx, my_ldw, my_pad_h, my_pad_w;
+  for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ ) 
+  {
+    element_input_type * myinput;
+    element_input_type * myinput_st;
+    if (handle->padding_flag == 1) {
+      LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+      myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_buffer, ifm_idx, 0, 0, 0, 0,
+        padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
+      myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
+          BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+      my_ldw = padded_w;
+      my_pad_h = handle->desc.pad_h;
+      my_pad_w = handle->desc.pad_w;
+    } else {
+      LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+      myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input, img, ifm_idx, 0, 0, 0, 0,
+          BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+      myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
+          BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+      my_ldw = handle->ifwp;
+      my_pad_h = handle->desc.pad_h_in;
+      my_pad_w = handle->desc.pad_w_in;
+    }
+    element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx, 0, handle->ifmblock));
+    element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx, 0, handle->ifmblock));
+    element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx, 0, handle->ifmblock));
+    element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx, 0, handle->ifmblock));
+    for(my_h = 0 ; my_h < handle->fwd_ofh_rb ; my_h++) 
+    {
+      for(my_w = 0 ; my_w < handle->fwd_ofw_rb ; my_w++)
+      {
+        #pragma omp simd
+        #pragma vector aligned nontemporal(myinput_st)
+        for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+        {
+          int _my_h = my_h + my_pad_h;
+          int _my_w = my_w + my_pad_w;
+
+	  // Streaming store input to other buffer
+	  myinput_st[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+
+          element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
+          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
+        }
+      }
+    }
+  }
+
   k( input1, weight1, output1, input2, weight2, output2, sf, mv);
 }
 
@@ -552,7 +607,7 @@ if (n_segments) {
 	    }
 	    else
 	    {
-              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid);
+              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi);
 	    }
 	    pool_index++;
             i+=3;
