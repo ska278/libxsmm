@@ -39,7 +39,9 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
   LIBXSMM_VLA_DECL(2, element_input_type, beta, (element_input_type*)handle->reg_beta->data, handle->ifmblock);
 
   // handle, ifm1, padded_w, 
-  printf("%d %d Should be %d %d but is %d %d\n", offset_i, pi, handle->fwd_ofw_rb, handle->fwd_ofh_rb, handle->desc.W, handle->desc.H);
+  printf("%d %d Should be %d %d to %d %d but is %d %d\n", offset_i, pi, handle->fwd_ofw_rb, handle->fwd_ofh_rb, 
+                                                               handle->fwd_ofw_rb_2, handle->fwd_ofh_rb_2,
+							       handle->desc.W, handle->desc.H);
 
   int my_h, my_w, my_c, ifm_idx, my_ldw, my_pad_h, my_pad_w;
   for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ ) 
@@ -135,8 +137,8 @@ LIBXSMM_VLA_DECL(5, element_input_type, input_buffer, ((element_input_type*)hand
 /* Kernel related variables  */
 libxsmm_xmcopyfunction jitted_matcopy = handle->matcopy_fwd[0].xmatcopy;
 libxsmm_xmcopyfunction jitted_zero_overwrite = handle->matcopy_fwd[1].xmatcopy;
-libxsmm_convfunction kernel = (libxsmm_convfunction)handle->code_fwd[2].xconv.sconv;
-libxsmm_convfunction kernel2 = (libxsmm_convfunction)handle->code_fwd[3].xconv.sconv;
+libxsmm_convfunction kernel = (libxsmm_convfunction)handle->code_fwd[0].xconv.sconv;
+libxsmm_convfunction kernel2 = (libxsmm_convfunction)handle->code_fwd[1].xconv.sconv;
 libxsmm_convfunction kernel_pool[4];
 kernel_pool[0] = kernel;
 kernel_pool[1] = kernel2;
@@ -168,7 +170,7 @@ n_segments = handle->n_fwd_code_segments[ltid];
 
 LIBXSMM_ALIGNED(float scale_factor, 64);
 if (handle->use_lp_kernel == 1) {
-  scale_factor = (float) pow(2.0, -1.0*((double)(handle->reg_filter->scf + handle->reg_input->scf)));
+  scale_factor = libxsmm_sexp2(-1.f*((float)(handle->reg_filter->scf + handle->reg_input->scf)));
 }
 
 LIBXSMM_ALIGNED(float *max_vals, 64);

@@ -54,6 +54,7 @@
 #if defined(__MIC__) && !defined(LIBXSMM_INTRINSICS_NONE)
 # define LIBXSMM_STATIC_TARGET_ARCH LIBXSMM_X86_IMCI
 # define LIBXSMM_INTRINSICS(TARGET)
+# define LIBXSMM_INTRINSICS_INCLUDE
 #elif !defined(LIBXSMM_INTRINSICS_NONE) /*!defined(__MIC__)*/
 # if    defined(__AVX512F__)  && defined(__AVX512CD__) \
    &&   defined(__AVX512DQ__) && defined(__AVX512BW__) && defined(__AVX512VL__) && defined(__AVX512VNNI__) \
@@ -428,6 +429,7 @@
 # define LIBXSMM_INTRINSICS_MM512_ABS_PS(A) _mm512_abs_ps(A)
 # define LIBXSMM_INTRINSICS_MM512_UNDEFINED_EPI32() _mm512_undefined_epi32()
 # define LIBXSMM_INTRINSICS_MM512_UNDEFINED() _mm512_undefined()
+# define LIBXSMM_INTRINSICS_MM_UNDEFINED_PD() _mm_undefined_pd()
 #else
 # define LIBXSMM_INTRINSICS_MM512_SET_EPI16(A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, \
                                   A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27, A28, A29, A30, A31) \
@@ -442,6 +444,7 @@
                            _mm512_castps_si512(A), _mm512_set1_epi32(0x7FFFFFFF)))
 # define LIBXSMM_INTRINSICS_MM512_UNDEFINED_EPI32() _mm512_set1_epi32(0)
 # define LIBXSMM_INTRINSICS_MM512_UNDEFINED() _mm512_set1_ps(0)
+# define LIBXSMM_INTRINSICS_MM_UNDEFINED_PD() _mm_set1_pd(0)
 #endif
 
 LIBXSMM_API_INLINE int LIBXSMM_INTRINSICS_BITSCANFWD32_SW(unsigned int n) {

@@ -209,7 +209,7 @@ include $(ROOTDIR)/Makefile.inc
 VERSION_MAJOR ?= $(shell $(PYTHON) $(SCRDIR)/libxsmm_utilities.py 1)
 VERSION_MINOR ?= $(shell $(PYTHON) $(SCRDIR)/libxsmm_utilities.py 2)
 VERSION_UPDATE ?= $(shell $(PYTHON) $(SCRDIR)/libxsmm_utilities.py 3)
-VERSION_API ?= $(VERSION_MAJOR).$(VERSION_MINOR)
+VERSION_API ?= $(VERSION_MAJOR)
 
 # target library for a broad range of systems
 ifneq (0,$(JIT))
@@ -269,14 +269,15 @@ HEADERS = $(wildcard $(SRCDIR)/template/*.c) $(wildcard $(SRCDIR)/*.h) \
           $(ROOTDIR)/include/libxsmm_intrinsics_x86.h \
           $(ROOTDIR)/include/libxsmm_macros.h \
           $(ROOTDIR)/include/libxsmm_malloc.h \
+          $(ROOTDIR)/include/libxsmm_math.h \
           $(ROOTDIR)/include/libxsmm_mhd.h \
           $(ROOTDIR)/include/libxsmm_spmdm.h \
           $(ROOTDIR)/include/libxsmm_sync.h \
           $(ROOTDIR)/include/libxsmm_timer.h \
           $(ROOTDIR)/include/libxsmm_typedefs.h
 SRCFILES_LIB = $(patsubst %,$(SRCDIR)/%, \
-          libxsmm_main.c libxsmm_cpuid_x86.c libxsmm_malloc.c libxsmm_python.c \
-          libxsmm_sync.c libxsmm_mhd.c libxsmm_timer.c libxsmm_perf.c \
+          libxsmm_main.c libxsmm_cpuid_x86.c libxsmm_malloc.c libxsmm_math.c libxsmm_sync.c \
+          libxsmm_python.c libxsmm_mhd.c libxsmm_timer.c libxsmm_perf.c \
           libxsmm_gemm.c libxsmm_trans.c libxsmm_bgemm.c \
           libxsmm_spmdm.c libxsmm_fsspmdm.c \
           libxsmm_dnn.c libxsmm_dnn_dryruns.c libxsmm_dnn_handle.c \
@@ -545,6 +546,7 @@ $(INCDIR)/libxsmm_config.h: $(INCDIR)/.make .state $(SRCDIR)/template/libxsmm_co
 	@$(CP) $(ROOTDIR)/include/libxsmm_intrinsics_x86.h $(INCDIR) 2>/dev/null || true
 	@$(CP) $(ROOTDIR)/include/libxsmm_macros.h $(INCDIR) 2>/dev/null || true
 	@$(CP) $(ROOTDIR)/include/libxsmm_malloc.h $(INCDIR) 2>/dev/null || true
+	@$(CP) $(ROOTDIR)/include/libxsmm_math.h $(INCDIR) 2>/dev/null || true
 	@$(CP) $(ROOTDIR)/include/libxsmm_mhd.h $(INCDIR) 2>/dev/null || true
 	@$(CP) $(ROOTDIR)/include/libxsmm_spmdm.h $(INCDIR) 2>/dev/null || true
 	@$(CP) $(ROOTDIR)/include/libxsmm_sync.h $(INCDIR) 2>/dev/null || true
@@ -809,7 +811,7 @@ module: module_hst module_mic
 build_generator_lib: $(OUTDIR)/libxsmmgen.$(LIBEXT)
 $(OUTDIR)/libxsmmgen.$(LIBEXT): $(OUTDIR)/.make $(OBJFILES_GEN_LIB)
 ifeq (0,$(STATIC))
-	$(LD) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(OBJFILES_GEN_LIB) $(LDFLAGS) $(CLDFLAGS) $(LIBRT)
+	$(LIB_LD) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(OBJFILES_GEN_LIB) $(LDFLAGS) $(CLDFLAGS) $(LIBRT)
 else # static
 	$(AR) -rs $@ $(OBJFILES_GEN_LIB)
 endif
@@ -835,7 +837,7 @@ ifneq (0,$(MPSS))
 clib_mic: $(OUTDIR)/mic/libxsmm.$(LIBEXT)
 $(OUTDIR)/mic/libxsmm.$(LIBEXT): $(OUTDIR)/mic/.make $(OBJFILES_MIC) $(KRNOBJS_MIC)
 ifeq (0,$(STATIC))
-	$(LD) -o $@.$(VERSION_MAJOR).$(VERSION_MINOR) -mmic -shared $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(OBJFILES_MIC) $(KRNOBJS_MIC) $(LDFLAGS) $(CLDFLAGS)
+	$(LIB_LD) -o $@.$(VERSION_MAJOR).$(VERSION_MINOR) -mmic $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(OBJFILES_MIC) $(KRNOBJS_MIC) $(LDFLAGS) $(CLDFLAGS)
 else # static
 	$(AR) -rs $@ $(OBJFILES_MIC) $(KRNOBJS_MIC)
 endif
@@ -846,7 +848,7 @@ endif
 clib_hst: $(OUTDIR)/libxsmm.$(LIBEXT)
 $(OUTDIR)/libxsmm.$(LIBEXT): $(OUTDIR)/.make $(OBJFILES_HST) $(OBJFILES_GEN_LIB) $(KRNOBJS_HST) $(LIBJITPROFILING)
 ifeq (0,$(STATIC))
-	$(LD) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(OBJFILES_HST) $(OBJFILES_GEN_LIB) $(KRNOBJS_HST) $(LIBJITPROFILING) $(LDFLAGS) $(CLDFLAGS)
+	$(LIB_LD) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(OBJFILES_HST) $(OBJFILES_GEN_LIB) $(KRNOBJS_HST) $(LIBJITPROFILING) $(LDFLAGS) $(CLDFLAGS)
 else # static
 	$(AR) -rs $@ $(OBJFILES_HST) $(OBJFILES_GEN_LIB) $(KRNOBJS_HST) $(OBJJITPROFILING)
 endif
@@ -858,7 +860,7 @@ ifneq (,$(strip $(FC)))
 flib_mic: $(OUTDIR)/mic/libxsmmf.$(LIBEXT)
 ifeq (0,$(STATIC))
 $(OUTDIR)/mic/libxsmmf.$(LIBEXT): $(INCDIR)/mic/libxsmm.mod $(OUTDIR)/mic/libxsmm.$(LIBEXT)
-	$(FLD) -o $@.$(VERSION_MAJOR).$(VERSION_MINOR) -mmic -shared $(FCMTFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
+	$(LIB_FLD) -o $@.$(VERSION_MAJOR).$(VERSION_MINOR) -mmic $(FCMTFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
 		$(BLDDIR)/mic/libxsmm-mod.o $(call abslib,$(OUTDIR)/mic/libxsmm.$(IMPEXT)) $(LDFLAGS) $(FLDFLAGS)
 else # static
 $(OUTDIR)/mic/libxsmmf.$(LIBEXT): $(INCDIR)/mic/libxsmm.mod $(OUTDIR)/mic/.make
@@ -875,7 +877,7 @@ ifneq (,$(strip $(FC)))
 flib_hst: $(OUTDIR)/libxsmmf.$(LIBEXT)
 ifeq (0,$(STATIC))
 $(OUTDIR)/libxsmmf.$(LIBEXT): $(INCDIR)/libxsmm.mod $(OUTDIR)/libxsmm.$(LIBEXT)
-	$(FLD) $(FCMTFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
+	$(LIB_FLD) $(FCMTFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
 		$(BLDDIR)/intel64/libxsmm-mod.o $(call abslib,$(OUTDIR)/libxsmm.$(IMPEXT)) $(LDFLAGS) $(FLDFLAGS)
 else # static
 $(OUTDIR)/libxsmmf.$(LIBEXT): $(INCDIR)/libxsmm.mod $(OUTDIR)/.make
@@ -891,7 +893,7 @@ ifneq (0,$(MPSS))
 ext_mic: $(OUTDIR)/mic/libxsmmext.$(LIBEXT)
 ifeq (0,$(STATIC))
 $(OUTDIR)/mic/libxsmmext.$(LIBEXT): $(OUTDIR)/mic/.make $(EXTOBJS_MIC) $(OUTDIR)/mic/libxsmm.$(LIBEXT)
-	$(LD) -o $@.$(VERSION_MAJOR).$(VERSION_MINOR) -mmic -shared $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
+	$(LIB_LD) -o $@.$(VERSION_MAJOR).$(VERSION_MINOR) -mmic $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
 		$(EXTOBJS_MIC) $(call abslib,$(OUTDIR)/mic/libxsmm.$(IMPEXT)) $(LDFLAGS) $(CLDFLAGS)
 else # static
 $(OUTDIR)/mic/libxsmmext.$(LIBEXT): $(OUTDIR)/mic/.make $(EXTOBJS_MIC)
@@ -905,14 +907,14 @@ ext_hst: $(OUTDIR)/libxsmmext.$(LIBEXT)
 ifeq (0,$(STATIC))
 $(OUTDIR)/libxsmmext.$(LIBEXT): $(OUTDIR)/.make $(EXTOBJS_HST) $(OUTDIR)/libxsmm.$(LIBEXT)
 ifneq (Darwin,$(UNAME))
-	$(LD) $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
+	$(LIB_LD) $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
 		$(EXTOBJS_HST)  $(call abslib,$(OUTDIR)/libxsmm.$(IMPEXT)) $(LDFLAGS) $(CLDFLAGS)
 else ifneq (0,$(INTEL)) # intel @ osx
-	$(LD) $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
-		$(EXTOBJS_HST)  $(call abslib,$(OUTDIR)/libxsmm.$(IMPEXT)) $(LDFLAGS) $(CLDFLAGS)
+	$(LIB_LD) $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
+			$(EXTOBJS_HST)  $(call abslib,$(OUTDIR)/libxsmm.$(IMPEXT)) $(LDFLAGS) $(CLDFLAGS)
 else # osx
-	$(LD)               $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
-		$(EXTOBJS_HST)  $(call abslib,$(OUTDIR)/libxsmm.$(IMPEXT)) $(LDFLAGS) $(CLDFLAGS)
+	$(LIB_LD)               $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) \
+			$(EXTOBJS_HST)  $(call abslib,$(OUTDIR)/libxsmm.$(IMPEXT)) $(LDFLAGS) $(CLDFLAGS)
 endif
 else # static
 $(OUTDIR)/libxsmmext.$(LIBEXT): $(OUTDIR)/.make $(EXTOBJS_HST)
@@ -925,7 +927,7 @@ ifneq (0,$(MPSS))
 noblas_mic: $(OUTDIR)/mic/libxsmmnoblas.$(LIBEXT)
 ifeq (0,$(STATIC))
 $(OUTDIR)/mic/libxsmmnoblas.$(LIBEXT): $(OUTDIR)/mic/.make $(NOBLAS_MIC)
-	$(LD) -o $@.$(VERSION_MAJOR).$(VERSION_MINOR) -mmic -shared $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(NOBLAS_MIC) $(LDFLAGS) $(CLDFLAGS)
+	$(LIB_LD) -o $@.$(VERSION_MAJOR).$(VERSION_MINOR) -mmic $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(NOBLAS_MIC) $(LDFLAGS) $(CLDFLAGS)
 else # static
 $(OUTDIR)/mic/libxsmmnoblas.$(LIBEXT): $(OUTDIR)/mic/.make $(NOBLAS_MIC)
 	$(AR) -rs $@ $(NOBLAS_MIC)
@@ -938,11 +940,11 @@ noblas_hst: $(OUTDIR)/libxsmmnoblas.$(LIBEXT)
 ifeq (0,$(STATIC))
 $(OUTDIR)/libxsmmnoblas.$(LIBEXT): $(OUTDIR)/.make $(NOBLAS_HST)
 ifneq (Darwin,$(UNAME))
-	$(LD) $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(NOBLAS_HST) $(LDFLAGS) $(CLDFLAGS)
+	$(LIB_LD) $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(NOBLAS_HST) $(LDFLAGS) $(CLDFLAGS)
 else ifneq (0,$(INTEL)) # intel @ osx
-	$(LD) $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(NOBLAS_HST) $(LDFLAGS) $(CLDFLAGS)
+	$(LIB_LD) $(EXTLDFLAGS) $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(NOBLAS_HST) $(LDFLAGS) $(CLDFLAGS)
 else # osx
-	$(LD)               $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(NOBLAS_HST) $(LDFLAGS) $(CLDFLAGS)
+	$(LIB_LD)               $(call soname,$@,$(VERSION_MAJOR),$(VERSION_MINOR),$(VERSION_UPDATE),$(VERSION_API)) $(NOBLAS_HST) $(LDFLAGS) $(CLDFLAGS)
 endif
 else # static
 $(OUTDIR)/libxsmmnoblas.$(LIBEXT): $(OUTDIR)/.make $(NOBLAS_HST)
@@ -1233,8 +1235,7 @@ cpp-test: test-cpp
 .PHONY: test-cpp
 test-cpp: $(INCDIR)/libxsmm_source.h
 	@$(FLOCK) $(SPLDIR)/cp2k "$(MAKE) --no-print-directory DEPSTATIC=$(STATIC) TRACE=0 \
-		EFLAGS=$(EFLAGS) ELDFLAGS=$(ELDFLAGS) ECFLAGS=$(ECFLAGS) EFCFLAGS=$(EFCFLAGS) \
-		ECXXFLAGS=-DUSE_HEADER_ONLY $(ECXXFLAGS) clean compile"
+		ECXXFLAGS='-DUSE_HEADER_ONLY $(ECXXFLAGS)' clean compile"
 
 .PHONY: test-cp2k
 test-cp2k: $(SPLDIR)/cp2k/cp2k-test.txt

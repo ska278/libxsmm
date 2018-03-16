@@ -570,7 +570,7 @@ LIBXSMM_API_INLINE void internal_init(void)
       }
 #endif
     }
-    internal_statistic_mnk = libxsmm_cbrt_u64(LIBXSMM_MAX_MNK);
+    internal_statistic_mnk = libxsmm_icbrt_u32(LIBXSMM_MAX_MNK);
     internal_statistic_sml = 13;
     internal_statistic_med = 23;
 #if defined(LIBXSMM_TRACE)
@@ -716,8 +716,7 @@ LIBXSMM_API LIBXSMM_ATTRIBUTE_CTOR void libxsmm_init(void)
       once = 1;
     }
     else while (1) {
-      if (0 != once) break;
-      else LIBXSMM_SYNC_PAUSE;
+      if (0 != once) break; else { LIBXSMM_SYNC_PAUSE; }
     }
 #endif
     internal_init();
@@ -1044,15 +1043,16 @@ LIBXSMM_API_INLINE const char* internal_get_typename(int datatype)
   }
   if ( LIBXSMM_GEMM_PRECISION_I16 == LIBXSMM_GETENUM_INP( datatype ) && LIBXSMM_GEMM_PRECISION_I32 == LIBXSMM_GETENUM_OUT( datatype ) ) {
     return "i16i32";
-  } else if ( LIBXSMM_GEMM_PRECISION_I16 == LIBXSMM_GETENUM_INP( datatype ) && LIBXSMM_GEMM_PRECISION_F32 == LIBXSMM_GETENUM_OUT( datatype ) ) {
+  }
+  else if ( LIBXSMM_GEMM_PRECISION_I16 == LIBXSMM_GETENUM_INP( datatype ) && LIBXSMM_GEMM_PRECISION_F32 == LIBXSMM_GETENUM_OUT( datatype ) ) {
     return "i16f32";
-  } else if ( LIBXSMM_GEMM_PRECISION_I8 == LIBXSMM_GETENUM_INP( datatype ) && LIBXSMM_GEMM_PRECISION_I32 == LIBXSMM_GETENUM_OUT( datatype ) ) {
+  }
+  else if ( LIBXSMM_GEMM_PRECISION_I8 == LIBXSMM_GETENUM_INP( datatype ) && LIBXSMM_GEMM_PRECISION_I32 == LIBXSMM_GETENUM_OUT( datatype ) ) {
     return "i8i32";
-  } else {
+  }
+  else {
     return "void";
   }
-  
-  return "void";
 }
 
 
@@ -1869,7 +1869,7 @@ LIBXSMM_API libxsmm_wimmfunction libxsmm_wimmdispatch(libxsmm_blasint m, libxsmm
 
 LIBXSMM_API libxsmm_wsmmfunction libxsmm_wsmmdispatch(libxsmm_blasint m, libxsmm_blasint n, libxsmm_blasint k,
   const libxsmm_blasint* lda, const libxsmm_blasint* ldb, const libxsmm_blasint* ldc,
-  const int* alpha, const int* beta, const int* flags, const int* prefetch)
+  const float* alpha, const float* beta, const int* flags, const int* prefetch)
 {
   libxsmm_descriptor_blob blob;
   const libxsmm_gemm_descriptor *const desc = libxsmm_wsgemm_descriptor_init(&blob, m, n, k,
@@ -2057,79 +2057,6 @@ LIBXSMM_API void libxsmm_release_kernel(const void* jit_code)
       fprintf(stderr, "LIBXSMM ERROR: failed to release kernel!\n");
     }
   }
-}
-
-
-LIBXSMM_API int libxsmm_matdiff(libxsmm_datatype datatype, libxsmm_blasint m, libxsmm_blasint n,
-  const void* ref, const void* tst, const libxsmm_blasint* ldref, const libxsmm_blasint* ldtst,
-  libxsmm_matdiff_info* info)
-{
-  int result = EXIT_SUCCESS;
-  if (0 != ref && 0 != tst && 0 != info) {
-    libxsmm_blasint mm = m, nn = n, ldr = (0 == ldref ? m : *ldref), ldt = (0 == ldtst ? m : *ldtst);
-    if (1 == n) { mm = ldr = ldt = 1; nn = m; } /* ensure row-vector shape to standardize results */
-    memset(info, 0, sizeof(*info)); /* nullify */
-    switch(datatype) {
-      case LIBXSMM_DATATYPE_F64: {
-#       define LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE double
-#       include "template/libxsmm_matdiff.tpl.c"
-#       undef  LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE
-      } break;
-      case LIBXSMM_DATATYPE_F32: {
-#       define LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE float
-#       include "template/libxsmm_matdiff.tpl.c"
-#       undef  LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE
-      } break;
-      case LIBXSMM_DATATYPE_I32: {
-#       define LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE int
-#       include "template/libxsmm_matdiff.tpl.c"
-#       undef  LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE
-      } break;
-      case LIBXSMM_DATATYPE_I16: {
-#       define LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE short
-#       include "template/libxsmm_matdiff.tpl.c"
-#       undef  LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE
-      } break;
-      case LIBXSMM_DATATYPE_I8: {
-#       define LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE signed char
-#       include "template/libxsmm_matdiff.tpl.c"
-#       undef  LIBXSMM_MATDIFF_TEMPLATE_ELEM_TYPE
-      } break;
-      default: {
-        static int error_once = 0;
-        if (0 != libxsmm_verbosity /* library code is expected to be mute */
-         && 1 == LIBXSMM_ATOMIC_ADD_FETCH(&error_once, 1, LIBXSMM_ATOMIC_RELAXED))
-        {
-          fprintf(stderr, "LIBXSMM ERROR: unsupported data-type requested for libxsmm_matdiff!\n");
-        }
-        result = EXIT_FAILURE;
-      }
-    }
-  }
-  else {
-    result = EXIT_FAILURE;
-  }
-  if (EXIT_SUCCESS == result) { /* square-root without libm dependency */
-    int i;
-    if (0 < info->l2_abs) {
-      const double squared = info->l2_abs; info->l2_abs *= 0.5;
-      for (i = 0; i < 16; ++i) info->l2_abs = 0.5 * (info->l2_abs + squared / info->l2_abs);
-    }
-    if (0 < info->l2_rel) {
-      const double squared = info->l2_rel; info->l2_rel *= 0.5;
-      for (i = 0; i < 16; ++i) info->l2_rel = 0.5 * (info->l2_rel + squared / info->l2_rel);
-    }
-    if (0 < info->normf_rel) {
-      const double squared = info->normf_rel; info->normf_rel *= 0.5;
-      for (i = 0; i < 16; ++i) info->normf_rel = 0.5 * (info->normf_rel + squared / info->normf_rel);
-    }
-    if (1 == n) {
-      const libxsmm_blasint tmp = info->linf_abs_m;
-      info->linf_abs_m = info->linf_abs_n;
-      info->linf_abs_n = tmp;
-    }
-  }
-  return result;
 }
 
 

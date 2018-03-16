@@ -443,13 +443,11 @@ LIBXSMM_API void libxsmm_bgemm(const libxsmm_bgemm_handle* handle,
 #         include "template/libxsmm_bgemm.tpl.c"
 #         undef LIBXSMM_BGEMM_TEMPLATE_REAL_TYPE_C
         }
-        else {
-#if 0
-/* @TODO fix the macros to support his flavor of bgemm */
+        else { /* WSMM */
 #         define LIBXSMM_BGEMM_TEMPLATE_REAL_TYPE_C float
 #         include "template/libxsmm_bgemm.tpl.c"
 #         undef LIBXSMM_BGEMM_TEMPLATE_REAL_TYPE_C
-#endif
+          LIBXSMM_ASSERT(LIBXSMM_GEMM_PRECISION_F32 == handle->oprec);
         }
 #       undef LIBXSMM_BGEMM_TEMPLATE_REAL_TYPE_AB
       } break;
