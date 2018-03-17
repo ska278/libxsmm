@@ -21,7 +21,7 @@ then
   BIN=f32
   TYPE="F"
   FORMAT="L"
-  PAD=0
+  PAD=1
 else
   MB=$1
   ITERS=$2
