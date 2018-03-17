@@ -21,7 +21,7 @@ then
   BIN=f32
   TYPE="F"
   FORMAT="L"
-  PAD=1
+  PAD=0
 else
   MB=$1
   ITERS=$2
@@ -69,7 +69,25 @@ else
   echo "using environment OMP settings!"
 fi
 
-${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64   256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}  
+${NUMACTL} ./layer_example_${BIN} ${ITERS}  14  14  ${MB} 1024  256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64   256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD} 
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64    64 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  256   64 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  256  512 1 1 0 0 2 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  256  128 1 1 0 0 2 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  28  28  ${MB}  128  512 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  28  28  ${MB}  512  128 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  28  28  ${MB}  512 1024 1 1 0 0 2 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  28  28  ${MB}  512  256 1 1 0 0 2 ${TYPE} ${FORMAT} ${PAD}  
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  14  14  ${MB}  256 1024 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  14  14  ${MB} 1024  256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  14  14  ${MB} 1024 2048 1 1 0 0 2 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  14  14  ${MB} 1024  512 1 1 0 0 2 ${TYPE} ${FORMAT} ${PAD}
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}   7   7  ${MB}  512 2048 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}   
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}   7   7  ${MB} 2048  512 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64   256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}  
 #${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64    64 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}   
 
 # ./layer_example_${BIN} iters inpWidth inpHeight nImg nIfm nOfm kw kh padw padh stride type

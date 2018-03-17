@@ -47,23 +47,25 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
       my_ldw = handle->ifwp;
       my_ldh = handle->ifhp;
     }
-    element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx, 0, handle->ifmblock));
-    element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx, 0, handle->ifmblock));
-    element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx, 0, handle->ifmblock));
-    element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx, 0, handle->ifmblock));
+    element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
+    element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
+    element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
+    element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
 
-    for(my_h = 0 ; my_h < handle->fwd_ofh_rb ; my_h++) 
+    for(my_h = 0 ; my_h < handle->fwd_ofh_rb * handle->desc.u; my_h++)
     {
-      for(my_w = 0 ; my_w < handle->fwd_ofw_rb ; my_w++)
+      for(my_w = 0 ; my_w < handle->fwd_ofw_rb * handle->desc.v ; my_w++)
       {
         #pragma omp simd
         for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
         {
+	  int _my_h = my_h;
+	  int _my_w = my_w;
 	  // For 3x3 figure out.
 	  // Streaming store input to other buffer
-          input1_st[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + my_w * handle->ifmblock + my_h * handle->ifmblock * my_ldw] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + my_w * handle->ifmblock + my_h * handle->ifmblock * my_ldw];
-          element_input_type after = (input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + my_w * handle->ifmblock + my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-          input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + my_w * handle->ifmblock + my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
+          input1_st[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+          element_input_type after = (input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
+          input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
         }
       }
     }
