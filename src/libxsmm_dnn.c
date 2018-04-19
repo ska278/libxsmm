@@ -206,9 +206,9 @@ LIBXSMM_API libxsmm_dnn_layer* libxsmm_dnn_create_conv_layer(
       /* error */
     } else if ( (conv_desc.datatype_in == LIBXSMM_DNN_DATATYPE_I16) && (conv_desc.datatype_out != LIBXSMM_DNN_DATATYPE_F32) ) {
       /* error */
-    }  else if ( (conv_desc.datatype_in == LIBXSMM_DNN_DATATYPE_I8) && (conv_desc.datatype_out != LIBXSMM_DNN_DATATYPE_I32) ) {
+    } else if ( (conv_desc.datatype_in == LIBXSMM_DNN_DATATYPE_I8) && (conv_desc.datatype_out != LIBXSMM_DNN_DATATYPE_I32) ) {
       /* error */
-    }  else if ( (conv_desc.datatype_in == LIBXSMM_DNN_DATATYPE_I8) && (conv_desc.datatype_out != LIBXSMM_DNN_DATATYPE_F32) ) {
+    } else if ( (conv_desc.datatype_in == LIBXSMM_DNN_DATATYPE_I8) && (conv_desc.datatype_out != LIBXSMM_DNN_DATATYPE_F32) ) {
       /* error */
     } else {
       /* fine, no error */
@@ -262,7 +262,7 @@ LIBXSMM_API libxsmm_dnn_layer* libxsmm_dnn_create_conv_layer(
       handle = 0;
       return 0;
     }
-    /* @TODO we might want to fall back to direct convolution if winograd fails */
+    /* @TODO we might want to fall back to direct convolution if Winograd fails */
     if ( handle->algo == LIBXSMM_DNN_CONV_ALGO_WINOGRAD ) {
       *status = libxsmm_dnn_internal_create_conv_handle_winograd_check( handle );
       if ( *status == LIBXSMM_DNN_WARN_FALLBACK ) {
@@ -286,7 +286,6 @@ LIBXSMM_API libxsmm_dnn_layer* libxsmm_dnn_create_conv_layer(
 LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_destroy_conv_layer(const libxsmm_dnn_layer* handle)
 {
   libxsmm_dnn_err_t status = LIBXSMM_DNN_SUCCESS;
-  int loop;
 
   if (0 != handle) {
     /* deallocate data components; not an error to deallocate a NULL-pointer
@@ -323,6 +322,7 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_destroy_conv_layer(const libxsmm_dnn_l
 #if 0
     /* Deallocate per-thread jitted data structures */
     if ( handle->use_thread_private_jit ) {
+      int loop;
 
       /* Free per thread allocated arrays  */
       for (loop = 0; loop < handle->desc.threads; loop++) {
@@ -366,7 +366,7 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_destroy_conv_layer(const libxsmm_dnn_l
         }
         if ( handle->copy_upd_indices_ptrs[loop] != NULL ) {
           libxsmm_free( handle->copy_upd_indices_ptrs[loop] );
-        }     
+        }
       }
 
       /* Free shared arrays  */
@@ -389,11 +389,11 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_destroy_conv_layer(const libxsmm_dnn_l
       free( handle->compute_upd_indices_ptrs );
       free( handle->kernel_upd_variant_ptrs );
       free( handle->n_entries_upd );
-      free( handle->n_entries_init_upd );   
+      free( handle->n_entries_init_upd );
       free( handle->n_upd_code_segments );
       free( handle->upd_code_segments );
       free( handle->init_upd_indices_ptrs );
-      free( handle->n_entries_copy_upd );   
+      free( handle->n_entries_copy_upd );
       free( handle->copy_upd_indices_ptrs );
 
     }
@@ -1850,7 +1850,7 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_release_tensor(libxsmm_dnn_layer* hand
       handle->reg_filter_tr = 0;
     } else if ( type == LIBXSMM_DNN_BATCH_STATS ) {
       handle->batch_stats = 0;
-    }  else if ( type == LIBXSMM_DNN_MAX_STATS_FWD ) {
+    } else if ( type == LIBXSMM_DNN_MAX_STATS_FWD ) {
       handle->maxstats_fwd = 0;
     } else if ( type == LIBXSMM_DNN_MAX_STATS_BWD ) {
       handle->maxstats_bwd = 0;
@@ -2004,6 +2004,14 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_bind_scratch(libxsmm_dnn_layer* handle
       }
       address += handle->scratch4_size + 64;
       if (address % 64 == 0) {
+        handle->scratch7 = (void*)address;
+      }
+      else {
+        offset = (64 - address % 64);
+        handle->scratch7 = (void*)(address + offset);
+      }
+      address += handle->scratch7_size + 64;
+      if (address % 64 == 0) {
         handle->scratchIw = (void*)address;
       } else {
         offset = (64 - address % 64);
@@ -2030,7 +2038,7 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_bind_scratch(libxsmm_dnn_layer* handle
       switch (kind) {
         case LIBXSMM_DNN_COMPUTE_KIND_FWD: {
                                              if (handle->padding_flag == 1) {
-                                               scratch5_size = handle->fwdbwd_scratch_size;;
+                                               scratch5_size = handle->fwdbwd_scratch_size;
                                                if (address % 64 == 0) {
                                                  handle->scratch5 = (void*)address;
                                                } else {
@@ -2038,6 +2046,15 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_bind_scratch(libxsmm_dnn_layer* handle
                                                  handle->scratch5 = (void*)(address+offset);
                                                }
                                                address += scratch5_size + 64;
+                                             }
+                                             if (handle->use_fwd_generic != 0) {
+                                               if (address % 64 == 0) {
+                                                 handle->scratch7 = (void*)address;
+                                               } else {
+                                                 offset = (64 - address % 64);
+                                                 handle->scratch7 = (void*)(address+offset);
+                                               }
+                                               address += handle->scratch7_size + 64;
                                              }
                                            } break;
         case LIBXSMM_DNN_COMPUTE_KIND_BWD: {
@@ -2049,7 +2066,7 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_bind_scratch(libxsmm_dnn_layer* handle
                                                handle->scratch1 = (void*)(address+offset);
                                              }
                                              if (handle->padding_flag == 1) {
-                                               scratch5_size = handle->fwdbwd_scratch_size;;
+                                               scratch5_size = handle->fwdbwd_scratch_size;
                                                address += handle->scratch1_size + 64;
                                                if (address % 64 == 0) {
                                                  handle->scratch5 = (void*)address;
@@ -2057,6 +2074,16 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_bind_scratch(libxsmm_dnn_layer* handle
                                                  offset = (64 - address % 64);
                                                  handle->scratch5 = (void*)(address+offset);
                                                }
+                                               address += scratch5_size + 64;
+                                             }
+                                             if (handle->use_bwd_generic != 0) {
+                                               if (address % 64 == 0) {
+                                                 handle->scratch7 = (void*)address;
+                                               } else {
+                                                 offset = (64 - address % 64);
+                                                 handle->scratch7 = (void*)(address+offset);
+                                               }
+                                               address += handle->scratch7_size + 64;
                                              }
                                            } break;
         case LIBXSMM_DNN_COMPUTE_KIND_UPD: {
@@ -2096,6 +2123,22 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_bind_scratch(libxsmm_dnn_layer* handle
                                                  handle->scratch6 = (void*)(address+offset);
                                                }
                                                address += handle->scratch6_size + 64;
+                                             }
+                                             if (handle->use_upd_generic != 0) {
+                                               if (address % 64 == 0) {
+                                                 handle->scratch8 = (void*)address;
+                                               } else {
+                                                 offset = (64 - address % 64);
+                                                 handle->scratch8 = (void*)(address+offset);
+                                               }
+                                               address += handle->scratch8_size + 64;
+                                               if (address % 64 == 0) {
+                                                 handle->scratch9 = (void*)address;
+                                               } else {
+                                                 offset = (64 - address % 64);
+                                                 handle->scratch9 = (void*)(address+offset);
+                                               }
+                                               address += handle->scratch9_size + 64;
                                              }
                                            } break;
         case LIBXSMM_DNN_COMPUTE_KIND_ALL: {
@@ -2144,6 +2187,31 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_bind_scratch(libxsmm_dnn_layer* handle
                                                }
                                                address += handle->scratch6_size + 64;
                                              }
+                                             if (handle->use_fwd_generic != 0 || handle->use_bwd_generic != 0 || handle->use_upd_generic != 0) {
+                                               if (address % 64 == 0) {
+                                                 handle->scratch7 = (void*)address;
+                                               } else {
+                                                 offset = (64 - address % 64);
+                                                 handle->scratch7 = (void*)(address+offset);
+                                               }
+                                               address += handle->scratch7_size + 64;
+                                             }
+                                             if (handle->use_upd_generic != 0) {
+                                               if (address % 64 == 0) {
+                                                 handle->scratch8 = (void*)address;
+                                               } else {
+                                                 offset = (64 - address % 64);
+                                                 handle->scratch8 = (void*)(address+offset);
+                                               }
+                                               address += handle->scratch8_size + 64;
+                                               if (address % 64 == 0) {
+                                                 handle->scratch9 = (void*)address;
+                                               } else {
+                                                 offset = (64 - address % 64);
+                                                 handle->scratch9 = (void*)(address+offset);
+                                               }
+                                               address += handle->scratch9_size + 64;
+                                             }
                                            } break;
         default: {
                    status = LIBXSMM_DNN_ERR_INVALID_KIND;
@@ -2167,6 +2235,7 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_release_scratch(libxsmm_dnn_layer* han
       handle->scratch1 = 0;
       handle->scratch3 = 0;
       handle->scratch4 = 0;
+      handle->scratch7 = 0;
       handle->scratchIw = 0;
       handle->scratchOw = 0;
       handle->scratchVk = 0;
@@ -2178,20 +2247,26 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_release_scratch(libxsmm_dnn_layer* han
         case LIBXSMM_DNN_COMPUTE_KIND_BWD: {
                                              handle->scratch1 = 0;
                                              handle->scratch5 = 0;
+                                             handle->scratch7 = 0;
                                            } break;
         case LIBXSMM_DNN_COMPUTE_KIND_UPD: {
                                              handle->scratch3 = 0;
                                              handle->scratch4 = 0;
                                              handle->scratch5 = 0;
                                              handle->scratch6 = 0;
-                                           } break;
+                                             handle->scratch8 = 0;
+                                             handle->scratch9 = 0;
+        } break;
         case LIBXSMM_DNN_COMPUTE_KIND_ALL: {
                                              handle->scratch1 = 0;
                                              handle->scratch3 = 0;
                                              handle->scratch4 = 0;
                                              handle->scratch5 = 0;
                                              handle->scratch6 = 0;
-                                           } break;
+                                             handle->scratch7 = 0;
+                                             handle->scratch8 = 0;
+                                             handle->scratch9 = 0;
+        } break;
         default: {
                    status = LIBXSMM_DNN_ERR_INVALID_KIND;
                  }
@@ -2587,22 +2662,21 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_get_parallel_tasks(libxsmm_dnn_layer* 
 }
 
 
-LIBXSMM_API float libxsmm_internal_get_max( float* in_buffer, int length ) {
+LIBXSMM_API_INTERN float libxsmm_internal_get_max( float* in_buffer, int length );
+LIBXSMM_API_INTERN float libxsmm_internal_get_max( float* in_buffer, int length ) {
+  float absmax_value = (float)fabs((double)(in_buffer[0]));
   int i = 0;
-  float absmax_value = 0.0f;
-
-  absmax_value = (float)fabs((double)(in_buffer[0]));
 #ifdef _OPENMP
-#pragma omp parallel private(i)
+# pragma omp parallel private(i)
   {
     float my_absmax_value = absmax_value;
-#pragma omp for private(i)
+#   pragma omp for private(i)
     for( i = 0; i < length; ++i ) {
       if ((float)fabs((double)(in_buffer[i])) > my_absmax_value) {
         my_absmax_value = (float)fabs((double)(in_buffer[i]));
       }
     }
-#pragma omp critical
+#   pragma omp critical
     {
       if (my_absmax_value > absmax_value) {
         absmax_value = my_absmax_value;
@@ -2621,12 +2695,12 @@ LIBXSMM_API float libxsmm_internal_get_max( float* in_buffer, int length ) {
 }
 
 
-LIBXSMM_API unsigned char libxsmm_internal_get_max_exp( float* in_buffer, int length ) {
+LIBXSMM_API_INLINE unsigned char libxsmm_internal_get_max_exp( float* in_buffer, int length ) {
   libxsmm_intfloat exp;
   unsigned char max_exp = 0;
 
   /* bit-wise conversion to int */
-  exp.f = libxsmm_internal_get_max( in_buffer, length ) ;
+  exp.f = libxsmm_internal_get_max( in_buffer, length );
   /* shift by mantissa to the right and convert to char */
   max_exp = (unsigned char)((exp.ui & LIBXSMM_DNN_MASK_ABS_F32) >> LIBXSMM_DNN_MANT_SZ_F32);
 
@@ -2634,7 +2708,7 @@ LIBXSMM_API unsigned char libxsmm_internal_get_max_exp( float* in_buffer, int le
 }
 
 
-LIBXSMM_API short libxsmm_internal_quantize_scalar_no_scf( float input, unsigned char max_exp, unsigned char add_shift, int round_mode ) {
+LIBXSMM_API_INLINE short libxsmm_internal_quantize_scalar_no_scf( float input, unsigned char max_exp, unsigned char add_shift, int round_mode ) {
   libxsmm_intfloat value;
   unsigned int qvalue = 0;
   unsigned int mant = 0;
@@ -2643,16 +2717,16 @@ LIBXSMM_API short libxsmm_internal_quantize_scalar_no_scf( float input, unsigned
   unsigned char exp_off = 0;
 
   /* in case of zero we don't need to do anything */
-  if (input == 0.0f) {
+  if (LIBXSMM_FEQ(input, 0)) {
     qvalue = 0;
   } else {
     /* let's get a float copy to work on */
-    /* vinp = _mm512_load_ps( in_buffer[i] ); */
+    /* vinp = LIBXSMM_INTRINSICS_MM512_LOAD_PS( in_buffer[i] ); */
     value.f = input;
     /* let's compute the offset of the current exp at pos i from max offset, we need to mask the sign bit though */
     /*__m512i vexp     = _mm512_cvtps_epi32(_mm512_getexp_ps (vinp));
       __m512i vexp_off = _mm512_sub_epi32(maxexpf, vexp);*/
-    exp_off = max_exp - (unsigned char)((value.ui & LIBXSMM_DNN_MASK_ABS_F32) >> LIBXSMM_DNN_MANT_SZ_F32);
+    exp_off = (unsigned char)(max_exp - ((value.ui & LIBXSMM_DNN_MASK_ABS_F32) >> LIBXSMM_DNN_MANT_SZ_F32));
     /* cut out mantissa and set leading bit */
     /*__m512i mmask = _mm512_set1_epi32(LIBXSMM_DNN_MASK_MANT_F32);
       __m512i vmant = _mm512_or_epi32(_mm512_set1_epi32(0x1 << LIBXSMM_DNN_MANT_SZ_F32), _mm512_and_epi32( _mm512_castps_si512( vinp ), mmask));*/
@@ -2660,13 +2734,13 @@ LIBXSMM_API short libxsmm_internal_quantize_scalar_no_scf( float input, unsigned
     /* extract sign */
     /* __mmask16 smask =  _mm512_cmplt_ps_mask (inp, _mm512_set1_ps(0)); */
     sign = ((value.ui & LIBXSNN_DNN_MASK_SIGN_F32) >> (LIBXSMM_DNN_SZ_F32-1));
-    /* caclulate rhs, be aware of the now explicit leading bit, @TODO add DFP8/4 */
+    /* calculate rhs, be aware of the now explicit leading bit, @TODO add DFP8/4 */
     rhs = (unsigned char)((LIBXSMM_DNN_MANT_SZ_F32+1) - LIBXSMM_DNN_MANT_DFP16 + exp_off + add_shift);
     /* some safety, to generate 0 when we fall off quant region, @TODO issue a LIBXSMM Warning that we shifted out the entire mantissa */
     if (rhs > (LIBXSMM_DNN_MANT_SZ_F32+1)) {
       rhs = (LIBXSMM_DNN_MANT_SZ_F32+1);
     }
-    /* finally shfit the value into the region we need, this is now a 15-add_rhs bit number for the max value in in_buffer */
+    /* finally shift the value into the region we need, this is now a 15-add_rhs bit number for the max value in in_buffer */
     qvalue = (mant >> rhs);
     /* handle sign, 2 complement */
     if ( (sign > 0) && (qvalue > 0) ) {
@@ -2689,18 +2763,18 @@ LIBXSMM_API short libxsmm_internal_quantize_scalar_no_scf( float input, unsigned
       }
     } else if (round_mode == LIBXSMM_DNN_QUANT_STOCH_ROUND) {
       /* stochastic rounding, as implemented in the IBM paper from 2015, @TODO, fix F64 and DFP8 */
-      float p, q;
+      const float eps = LIXSMMM_DNN_RES_DFP16;
+      const float r = (float)fabs((double)rand());
       libxsmm_intfloat fvalue;
-      float eps = LIXSMMM_DNN_RES_DFP16;
+      float p, q;
       /* masking all bits which will be shifted out */
       fvalue.ui = value.ui & ((LIBXSMM_DNN_MASK_FULL_F32) << rhs);
       /* drawing a random number */
-      float r = (float)fabs((double)rand());
       p = r/((float)RAND_MAX);
       q = (input - fvalue.f)/eps;
       /* apply rounding if needed */
-      if (p+q > 0.5f) {
-        qvalue++;
+      if ((p + q) > 0.5f) {
+        ++qvalue;
       }
     } else {
       /* do nothing about rounding, just chop */
@@ -2715,21 +2789,21 @@ LIBXSMM_API short libxsmm_internal_quantize_scalar_no_scf( float input, unsigned
 LIBXSMM_API void libxsmm_dnn_quantize( float* in_buffer, short* out_buffer, int length, unsigned char add_shift, unsigned char* scf, int round_mode ) {
   int i = 0;
 
-  /* in case we are using FP-Mul based quatization we use a different path for now
+  /* in case we are using FP-Mul based quantization we use a different path for now
      @TODO let's unify the paths by using the similar vectorization for both */
   if ( round_mode == LIBXSMM_DNN_QUANT_FPHW_ROUND ) {
-    float max = libxsmm_internal_get_max( in_buffer, length );
+    const float max_value = libxsmm_internal_get_max( in_buffer, length );
     int maxexp = 0;
-    float scfq = 0.0f;
-    frexpf(max, &maxexp);
-    maxexp -= (15-add_shift);
-    scfq = libxsmm_sexp2((float)-maxexp);
+    float scfq = 0;
+    frexpf(max_value, &maxexp);
+    maxexp -= (15/*LIBXSMM_DNN_MANT_DFP16?*/ - add_shift);
+    scfq = libxsmm_sexp2_i8i(-maxexp);
 
 #if defined(__AVX512F__)
     if ( length % 16 == 0 ) {
       __m512 vscfq = _mm512_set1_ps(scfq);
 #ifdef _OPENMP
-#pragma omp parallel for private(i)
+#     pragma omp parallel for private(i)
 #endif
       for( i = 0; i < length; i+=16 ) {
         _mm256_stream_si256( (__m256i *)&(out_buffer[i]), _mm512_quantize_near_ps_epi16( &(in_buffer[i]), vscfq ) );
@@ -2737,7 +2811,7 @@ LIBXSMM_API void libxsmm_dnn_quantize( float* in_buffer, short* out_buffer, int 
     } else {
 #endif
 #ifdef _OPENMP
-#pragma omp parallel for private(i)
+#     pragma omp parallel for private(i)
 #endif
       for( i = 0; i < length; ++i ) {
         out_buffer[i] = (short)round(in_buffer[i]*scfq);
@@ -2745,7 +2819,7 @@ LIBXSMM_API void libxsmm_dnn_quantize( float* in_buffer, short* out_buffer, int 
 #if defined(__AVX512F__)
     }
 #endif
-    /* @TODO, we need to potentialy fix this unsigned char problem */
+    /* @TODO, we need to potentially fix this unsigned char problem */
 #if !defined(NDEBUG) /* library code is expected to be mute */
     if (maxexp > 0) {
       fprintf(stderr, "error quant fil\n");
@@ -2762,44 +2836,44 @@ LIBXSMM_API void libxsmm_dnn_quantize( float* in_buffer, short* out_buffer, int 
     }
 
 #ifdef _OPENMP
-#pragma omp parallel for private(i)
+#   pragma omp parallel for private(i)
 #endif
     for( i = 0; i < length; ++i ) {
       out_buffer[i] = libxsmm_internal_quantize_scalar_no_scf( in_buffer[i], max_exp, add_shift, round_mode );
     }
 
-    *scf = 14-add_shift-(max_exp-127);
+    *scf = (unsigned char)(14 - add_shift - (max_exp - 127));
   }
 }
 
 
 LIBXSMM_API void libxsmm_dnn_quantize_act( float* in_buffer, short* out_buffer, unsigned int N, unsigned int C, unsigned int H, unsigned int W, unsigned int cblk_f32, unsigned int cblk_i16, unsigned int lp_blk, unsigned char add_shift, unsigned char* scf, int round_mode ) {
-  LIBXSMM_VLA_DECL(5, float, in,  in_buffer,  C/cblk_f32, H, W, cblk_f32);
+  LIBXSMM_VLA_DECL(5, const float, in,  in_buffer,  C/cblk_f32, H, W, cblk_f32);
   LIBXSMM_VLA_DECL(6, short, out, out_buffer, C/(cblk_i16*lp_blk), H, W, cblk_i16, lp_blk);
-  unsigned int cblk = C/(cblk_i16*lp_blk);
+  const unsigned int cblk = C/(cblk_i16*lp_blk);
   int i1, i2, i3, i4, i5, i6;
 
   /* some quick and dirty checks */
   assert((C % cblk_f32) == 0);
   assert((C % cblk_i16) == 0);
 
-  /* in case we are using FP-Mul based quatization we use a different path for now
+  /* in case we are using FP-Mul based quantization we use a different path for now
      @TODO let's unify the paths by using the similar vectorization for both */
   if ( round_mode == LIBXSMM_DNN_QUANT_FPHW_ROUND ) {
-    float max = libxsmm_internal_get_max( in_buffer, N*C*H*W );
+    const float max_value = libxsmm_internal_get_max( in_buffer, N*C*H*W );
     int maxexp = 0;
-    float scfq = 0.0f;
-    frexpf(max, &maxexp);
-    maxexp -= (15-add_shift);
-    scfq = libxsmm_sexp2((float)-maxexp);
+    float scfq = 0;
+    frexpf(max_value, &maxexp);
+    maxexp -= (15/*LIBXSMM_DNN_MANT_DFP16?*/ - add_shift);
+    scfq = libxsmm_sexp2_i8i(-maxexp);
 
 #if defined(__AVX512F__)
     if ( (cblk_f32 == 16) && (cblk_i16*lp_blk == 16) ) {
       __m512 vscfq = _mm512_set1_ps(scfq);
 #ifdef _OPENMP
-#pragma omp parallel for private(i1)
+#     pragma omp parallel for private(i1)
 #endif
-      for( i1 = 0; i1 < N*C*H*W; i1+=16 ) {
+      for( i1 = 0; i1 < (int)(N*C*H*W); i1 += 16 ) {
         _mm256_stream_si256( (__m256i *)&(out_buffer[i1]), _mm512_quantize_near_ps_epi16( &(in_buffer[i1]), vscfq ) );
       }
     } else {
@@ -2807,18 +2881,19 @@ LIBXSMM_API void libxsmm_dnn_quantize_act( float* in_buffer, short* out_buffer, 
 #ifdef _OPENMP
 #     pragma omp parallel for private(i1, i2, i3, i4, i5, i6) LIBXSMM_OPENMP_COLLAPSE(4)
 #endif
-      for( i1 = 0; i1 < N; ++i1 ) {
-        for( i2 = 0; i2 < cblk; ++i2 ) {
-          for( i3 = 0; i3 < H; ++i3 ) {
-            for( i4 = 0; i4 < W; ++i4 ) {
-              for( i5 = 0; i5 < cblk_i16; ++i5 ) {
-                for( i6 = 0; i6 < lp_blk; ++i6 ) {
-                  int fi1 = i1;
-                  int fi2 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i6)/cblk_f32;
-                  int fi3 = i3;
-                  int fi4 = i4;
-                  int fi5 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i6)%cblk_f32;
-                  out[i1][i2][i3][i4][i5][i6] = (short)round(in[fi1][fi2][fi3][fi4][fi5] * scfq);
+      for( i1 = 0; i1 < (int)N; ++i1 ) {
+        for( i2 = 0; i2 < (int)cblk; ++i2 ) {
+          for( i3 = 0; i3 < (int)H; ++i3 ) {
+            for( i4 = 0; i4 < (int)W; ++i4 ) {
+              for( i5 = 0; i5 < (int)cblk_i16; ++i5 ) {
+                for( i6 = 0; i6 < (int)lp_blk; ++i6 ) {
+                  const int fi1 = i1;
+                  const int fi2 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i6)/cblk_f32;
+                  const int fi3 = i3;
+                  const int fi4 = i4;
+                  const int fi5 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i6)%cblk_f32;
+                  LIBXSMM_VLA_ACCESS(6, out, i1, i2, i3, i4, i5, i6, cblk, H, W, cblk_i16, lp_blk) = (short)round(
+                  LIBXSMM_VLA_ACCESS(5, in, fi1, fi2, fi3, fi4, fi5, C / cblk_f32, H, W, cblk_f32) * scfq);
                 }
               }
             }
@@ -2828,7 +2903,7 @@ LIBXSMM_API void libxsmm_dnn_quantize_act( float* in_buffer, short* out_buffer, 
 #if defined(__AVX512F__)
     }
 #endif
-    /* @TODO, we need to potentialy fix this unsigned char problem */
+    /* @TODO, we need to potentially fix this unsigned char problem */
 #if !defined(NDEBUG) /* library code is expected to be mute */
     if (maxexp > 0) {
       fprintf(stderr, "error quant act\n");
@@ -2839,7 +2914,7 @@ LIBXSMM_API void libxsmm_dnn_quantize_act( float* in_buffer, short* out_buffer, 
     /* get max exponent */
     unsigned char max_exp = libxsmm_internal_get_max_exp( in_buffer, N*C*H*W );
 
-    /* if we go for stochstic rounding, let's intialize random seed */
+    /* if we go for stochastic rounding, let's initialize random seed */
     if ( round_mode == LIBXSMM_DNN_QUANT_STOCH_ROUND ) {
       srand(libxsmm_timer_tick() % ((unsigned int)-1));
     }
@@ -2847,18 +2922,19 @@ LIBXSMM_API void libxsmm_dnn_quantize_act( float* in_buffer, short* out_buffer, 
 #ifdef _OPENMP
 #   pragma omp parallel for private(i1, i2, i3, i4, i5, i6) LIBXSMM_OPENMP_COLLAPSE(4)
 #endif
-    for( i1 = 0; i1 < N; ++i1 ) {
-      for( i2 = 0; i2 < cblk; ++i2 ) {
-        for( i3 = 0; i3 < H; ++i3 ) {
-          for( i4 = 0; i4 < W; ++i4 ) {
-            for( i5 = 0; i5 < cblk_i16; ++i5 ) {
-              for( i6 = 0; i6 < lp_blk; ++i6 ) {
-                int fi1 = i1;
-                int fi2 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i6)/cblk_f32;
-                int fi3 = i3;
-                int fi4 = i4;
-                int fi5 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i6)%cblk_f32;
-                out[i1][i2][i3][i4][i5][i6] = libxsmm_internal_quantize_scalar_no_scf( in[fi1][fi2][fi3][fi4][fi5], max_exp, add_shift, round_mode );
+    for( i1 = 0; i1 < (int)N; ++i1 ) {
+      for( i2 = 0; i2 < (int)cblk; ++i2 ) {
+        for( i3 = 0; i3 < (int)H; ++i3 ) {
+          for( i4 = 0; i4 < (int)W; ++i4 ) {
+            for( i5 = 0; i5 < (int)cblk_i16; ++i5 ) {
+              for( i6 = 0; i6 < (int)lp_blk; ++i6 ) {
+                const int fi1 = i1;
+                const int fi2 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i6)/cblk_f32;
+                const int fi3 = i3;
+                const int fi4 = i4;
+                const int fi5 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i6)%cblk_f32;
+                LIBXSMM_VLA_ACCESS(6, out, i1, i2, i3, i4, i5, i6, cblk, H, W, cblk_i16, lp_blk) = libxsmm_internal_quantize_scalar_no_scf(
+                LIBXSMM_VLA_ACCESS(5, in, fi1, fi2, fi3, fi4, fi5, C / cblk_f32, H, W, cblk_f32), max_exp, add_shift, round_mode);
               }
             }
           }
@@ -2866,14 +2942,14 @@ LIBXSMM_API void libxsmm_dnn_quantize_act( float* in_buffer, short* out_buffer, 
       }
     }
 
-    *scf = 14-add_shift-(max_exp-127);
+    *scf = (unsigned char)(14 - add_shift - (max_exp - 127));
   }
 }
 
 
 LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, unsigned int K, unsigned int C, unsigned int R, unsigned int S, unsigned int cblk_f32, unsigned int cblk_i16, unsigned int kblk_f32, unsigned int kblk_i16, unsigned int lp_blk, unsigned char add_shift, unsigned char* scf, int round_mode ) {
-  LIBXSMM_VLA_DECL(6, float, in,  in_buffer,  C/cblk_f32, R, S, cblk_f32, kblk_f32);
-  LIBXSMM_VLA_DECL(7, short, out, out_buffer, C/(cblk_i16*lp_blk), R, S, cblk_i16, kblk_i16, lp_blk );
+  LIBXSMM_VLA_DECL(6, const float, in,  in_buffer,  C/cblk_f32, R, S, cblk_f32, kblk_f32);
+  LIBXSMM_VLA_DECL(7, short, out, out_buffer, C/(cblk_i16*lp_blk), R, S, cblk_i16, kblk_i16, lp_blk);
   unsigned int cblk = C/(cblk_i16*lp_blk);
   unsigned int kblk = K/kblk_i16;
   int i1, i2, i3, i4, i5, i6, i7;
@@ -2885,15 +2961,15 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
   assert((K % kblk_i16) == 0);
   assert((lp_blk % 2) == 0);
 
-  /* in case we are using FP-Mul based quatization we use a different path for now
+  /* in case we are using FP-Mul based quantization we use a different path for now
      @TODO let's unify the paths by using the similar vectorization for both */
   if ( round_mode == LIBXSMM_DNN_QUANT_FPHW_ROUND ) {
-    float max = libxsmm_internal_get_max( in_buffer, K*C*R*S );
+    const float max_value = libxsmm_internal_get_max( in_buffer, K*C*R*S );
     int maxexp = 0;
     float scfq = 0.0f;
-    frexpf(max, &maxexp);
-    maxexp -= (15-add_shift);
-    scfq = libxsmm_sexp2((float)-maxexp);
+    frexpf(max_value, &maxexp);
+    maxexp -= (15/*LIBXSMM_DNN_MANT_DFP16?*/ - add_shift);
+    scfq = libxsmm_sexp2_i8i(-maxexp);
 
 #if defined(__AVX512F__)
     if ( (kblk_f32 == 16) && (cblk_f32 == 16) && (kblk_i16 == 16) && (cblk_i16*lp_blk == 16) ) {
@@ -2902,19 +2978,23 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
 #ifdef _OPENMP
 #     pragma omp parallel for private(i1, i2, i3, i4, i5) LIBXSMM_OPENMP_COLLAPSE(4)
 #endif
-      for( i1 = 0; i1 < kblk; ++i1 ) {
-        for( i2 = 0; i2 < cblk; ++i2 ) {
-          for( i3 = 0; i3 < R; ++i3 ) {
-            for( i4 = 0; i4 < S; ++i4 ) {
+      for( i1 = 0; i1 < (int)kblk; ++i1 ) {
+        for( i2 = 0; i2 < (int)cblk; ++i2 ) {
+          for( i3 = 0; i3 < (int)R; ++i3 ) {
+            for( i4 = 0; i4 < (int)S; ++i4 ) {
               for( i5 = 0; i5 < 16; i5+=2 ) {
-                __m256i even_ch = _mm512_quantize_near_ps_epi16( &(in[i1][i2][i3][i4][i5+0][0]), vscfq );
-                __m256i odd_ch  = _mm512_quantize_near_ps_epi16( &(in[i1][i2][i3][i4][i5+1][0]), vscfq );
-                __m256i compressed_lo  = _mm256_unpacklo_epi16(even_ch, odd_ch);
-                __m256i compressed_hi  = _mm256_unpackhi_epi16(even_ch, odd_ch);
+                __m256i even_ch = _mm512_quantize_near_ps_epi16(
+                  &LIBXSMM_VLA_ACCESS(6, in, i1, i2, i3, i4, i5 + 0, 0, C / cblk_f32, R, S, cblk_f32, kblk_f32), vscfq);
+                __m256i odd_ch  = _mm512_quantize_near_ps_epi16(
+                  &LIBXSMM_VLA_ACCESS(6, in, i1, i2, i3, i4, i5 + 1, 0, C / cblk_f32, R, S, cblk_f32, kblk_f32), vscfq);
+                __m256i compressed_lo = _mm256_unpacklo_epi16(even_ch, odd_ch);
+                __m256i compressed_hi = _mm256_unpackhi_epi16(even_ch, odd_ch);
                 __m512i compact =  _mm512_inserti64x4( _mm512_setzero_si512(), compressed_lo, 0);
-                compact =  _mm512_inserti64x4(compact, compressed_hi, 1);
-                compact =  LIBXSMM_INTRINSICS_MM512_PERMUTEVAR_EPI32(permute_compact_idx, compact);
-                _mm512_stream_si512(&(out[i1][i2][i3][i4][i5/2][0][0]), compact);
+                compact = _mm512_inserti64x4(compact, compressed_hi, 1);
+                compact = LIBXSMM_INTRINSICS_MM512_PERMUTEVAR_EPI32(permute_compact_idx, compact);
+                LIBXSMM_INTRINSICS_MM512_STREAM_SI512(
+                  (void*)&LIBXSMM_VLA_ACCESS(7, out, i1, i2, i3, i4, i5 / 2, 0, 0, cblk, R, S, cblk_i16, kblk_i16, lp_blk),
+                  compact);
               }
             }
           }
@@ -2925,20 +3005,21 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
 #ifdef _OPENMP
 #     pragma omp parallel for private(i1, i2, i3, i4, i5, i6, i7) LIBXSMM_OPENMP_COLLAPSE(4)
 #endif
-      for( i1 = 0; i1 < kblk; ++i1 ) {
-        for( i2 = 0; i2 < cblk; ++i2 ) {
-          for( i3 = 0; i3 < R; ++i3 ) {
-            for( i4 = 0; i4 < S; ++i4 ) {
-              for( i5 = 0; i5 < cblk_i16; ++i5 ) {
-                for( i6 = 0; i6 < kblk_i16; ++i6 ) {
-                  for( i7 = 0; i7 < lp_blk; ++i7 ) {
-                    int fi1 = ((i1*kblk_i16)+i6)/kblk_f32;
-                    int fi2 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i7)/cblk_f32;
-                    int fi3 = i3;
-                    int fi4 = i4;
-                    int fi5 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i7)%cblk_f32;
-                    int fi6 = ((i1*kblk_i16)+i6)%kblk_f32;
-                    out[i1][i2][i3][i4][i5][i6][i7] = (short)round(in[fi1][fi2][fi3][fi4][fi5][fi6]*scfq);
+      for( i1 = 0; i1 < (int)kblk; ++i1 ) {
+        for( i2 = 0; i2 < (int)cblk; ++i2 ) {
+          for( i3 = 0; i3 < (int)R; ++i3 ) {
+            for( i4 = 0; i4 < (int)S; ++i4 ) {
+              for( i5 = 0; i5 < (int)cblk_i16; ++i5 ) {
+                for( i6 = 0; i6 < (int)kblk_i16; ++i6 ) {
+                  for( i7 = 0; i7 < (int)lp_blk; ++i7 ) {
+                    const int fi1 = ((i1*kblk_i16)+i6)/kblk_f32;
+                    const int fi2 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i7)/cblk_f32;
+                    const int fi3 = i3;
+                    const int fi4 = i4;
+                    const int fi5 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i7)%cblk_f32;
+                    const int fi6 = ((i1*kblk_i16)+i6)%kblk_f32;
+                    LIBXSMM_VLA_ACCESS(7, out, i1, i2, i3, i4, i5, i6, i7, cblk, R, S, cblk_i16, kblk_i16, lp_blk) = (short)round(
+                    LIBXSMM_VLA_ACCESS(6, in, fi1, fi2, fi3, fi4, fi5, fi6, C / cblk_f32, R, S, cblk_f32, kblk_f32) * scfq);
                   }
                 }
               }
@@ -2949,7 +3030,7 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
 #if defined(__AVX512F__)
     }
 #endif
-    /* @TODO, we need to potentialy fix this unsigned char problem */
+    /* @TODO, we need to potentially fix this unsigned char problem */
 #if !defined(NDEBUG) /* library code is expected to be mute */
     if (maxexp > 0) {
       fprintf(stderr, "error quant fil\n");
@@ -2960,7 +3041,7 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
     /* get max exponent */
     unsigned char max_exp = libxsmm_internal_get_max_exp( in_buffer, K*C*R*S );
 
-    /* if we go for stochstic rounding, let's intialize random seed */
+    /* if we go for stochastic rounding, let's initialize random seed */
     if ( round_mode == LIBXSMM_DNN_QUANT_STOCH_ROUND ) {
       srand(libxsmm_timer_tick() % ((unsigned int)-1));
     }
@@ -2968,20 +3049,21 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
 #ifdef _OPENMP
 #   pragma omp parallel for private(i1, i2, i3, i4, i5, i6, i7) LIBXSMM_OPENMP_COLLAPSE(4)
 #endif
-    for( i1 = 0; i1 < kblk; ++i1 ) {
-      for( i2 = 0; i2 < cblk; ++i2 ) {
-        for( i3 = 0; i3 < R; ++i3 ) {
-          for( i4 = 0; i4 < S; ++i4 ) {
-            for( i5 = 0; i5 < cblk_i16; ++i5 ) {
-              for( i6 = 0; i6 < kblk_i16; ++i6 ) {
-                for( i7 = 0; i7 < lp_blk; ++i7 ) {
-                  int fi1 = ((i1*kblk_i16)+i6)/kblk_f32;
-                  int fi2 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i7)/cblk_f32;
-                  int fi3 = i3;
-                  int fi4 = i4;
-                  int fi5 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i7)%cblk_f32;
-                  int fi6 = ((i1*kblk_i16)+i6)%kblk_f32;
-                  out[i1][i2][i3][i4][i5][i6][i7] = libxsmm_internal_quantize_scalar_no_scf( in[fi1][fi2][fi3][fi4][fi5][fi6], max_exp, add_shift, round_mode );
+    for( i1 = 0; i1 < (int)kblk; ++i1 ) {
+      for( i2 = 0; i2 < (int)cblk; ++i2 ) {
+        for( i3 = 0; i3 < (int)R; ++i3 ) {
+          for( i4 = 0; i4 < (int)S; ++i4 ) {
+            for( i5 = 0; i5 < (int)cblk_i16; ++i5 ) {
+              for( i6 = 0; i6 < (int)kblk_i16; ++i6 ) {
+                for( i7 = 0; i7 < (int)lp_blk; ++i7 ) {
+                  const int fi1 = ((i1*kblk_i16)+i6)/kblk_f32;
+                  const int fi2 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i7)/cblk_f32;
+                  const int fi3 = i3;
+                  const int fi4 = i4;
+                  const int fi5 = ((i2*cblk_i16*lp_blk)+(i5*lp_blk)+i7)%cblk_f32;
+                  const int fi6 = ((i1*kblk_i16)+i6)%kblk_f32;
+                  LIBXSMM_VLA_ACCESS(7, out, i1, i2, i3, i4, i5, i6, i7, cblk, R, S, cblk_i16, kblk_i16, lp_blk) = libxsmm_internal_quantize_scalar_no_scf(
+                  LIBXSMM_VLA_ACCESS(6, in, fi1, fi2, fi3, fi4, fi5, fi6, C / cblk_f32, R, S, cblk_f32, kblk_f32), max_exp, add_shift, round_mode);
                 }
               }
             }
@@ -2990,19 +3072,19 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
       }
     }
 
-    *scf = 14-add_shift-(max_exp-127);
+    *scf = (unsigned char)(14 - add_shift - (max_exp - 127));
   }
 }
 
 
 LIBXSMM_API void libxsmm_dnn_dequantize( short* in_buffer, float* out_buffer, int length, unsigned char scf ) {
+  const float exp = libxsmm_sexp2_i8i(-scf);
   int i = 0;
-  float exp = libxsmm_sexp2(-scf);
 
 #ifdef _OPENMP
-#pragma omp parallel for private(i)
+# pragma omp parallel for private(i)
 #endif
-  for ( i = 0 ; i < length; ++i ) {
+  for ( i = 0; i < length; ++i ) {
     out_buffer[i] = ((float)in_buffer[i])*exp;
   }
 }

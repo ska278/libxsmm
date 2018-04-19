@@ -197,6 +197,10 @@ LIBXSMM_EXTERN_C typedef struct LIBXSMM_RETARGETABLE LIBXSMM_MAY_ALIAS libxsmm_c
   const void* values;
 } libxsmm_csc_soa_descriptor;
 
+LIBXSMM_EXTERN_C typedef struct LIBXSMM_RETARGETABLE LIBXSMM_MAY_ALIAS libxsmm_rm_ac_soa_descriptor {
+  const libxsmm_gemm_descriptor* gemm;
+} libxsmm_rm_ac_soa_descriptor;
+
 LIBXSMM_EXTERN_C typedef struct LIBXSMM_RETARGETABLE LIBXSMM_MAY_ALIAS libxsmm_csr_reg_descriptor {
   const libxsmm_gemm_descriptor* gemm;
   const unsigned int* row_ptr;
@@ -333,6 +337,7 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
   int blocksimg_blocking;
   int use_nts_fwd;
   int use_nts_bwd;
+  int use_nts_upd;
   int use_fwd_for_bwd;
   int exploit_duality;
   int qfma_input_pad;
@@ -356,6 +361,7 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
   int n_variants;
   int w_variants;
   int h_variants;
+  int loop_order;
 
   /* internal data representation */
   libxsmm_dnn_tensor* reg_input;
@@ -403,7 +409,10 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
   size_t scratch4_size;
   void* scratch5;             /* This scratch is used as a copy buffer when padding needs to be applied */
   void* scratch6;
-  size_t scratch6_size;
+  void* scratch7;             /* [H][W][c-block] tensor (generic fwd/bwd convolution) */
+  void* scratch8;             /* output_scratch (generic update convolution) */
+  void* scratch9;             /* filter_scratch (generic update convolution) */
+  size_t scratch6_size, scratch7_size, scratch8_size, scratch9_size;
   size_t minibatch_scratch_size;
   size_t fwdbwd_scratch_size;
   size_t max_scratch5_size;
@@ -503,6 +512,7 @@ typedef enum libxsmm_build_kind {
   LIBXSMM_BUILD_KIND_GEMM,
   LIBXSMM_BUILD_KIND_SRSOA,
   LIBXSMM_BUILD_KIND_SCSOA,
+  LIBXSMM_BUILD_KIND_RMACSOA,
   LIBXSMM_BUILD_KIND_SREG,
   LIBXSMM_BUILD_KIND_CFWD,
   LIBXSMM_BUILD_KIND_CUPD,
@@ -517,6 +527,7 @@ LIBXSMM_EXTERN_C typedef union LIBXSMM_RETARGETABLE libxsmm_build_descriptor {
   const libxsmm_gemm_descriptor* gemm;
   const libxsmm_csr_soa_descriptor* srsoa;
   const libxsmm_csc_soa_descriptor* scsoa;
+  const libxsmm_rm_ac_soa_descriptor* rmacsoa;
   const libxsmm_csr_reg_descriptor* sreg;
   const libxsmm_convolution_forward_descriptor* cfwd;
   const libxsmm_convolution_weight_update_descriptor* cupd;
@@ -634,8 +645,6 @@ LIBXSMM_API_INTERN void* libxsmm_create_xconv_wino_update_weights(const libxsmm_
 
 /** Global lock; create an own lock for an independent domain. */
 LIBXSMM_APIVAR_PUBLIC(LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK) libxsmm_lock_global);
-/** Verbosity level (0: quiet, 1: errors, 2: warnings, 3: info, neg.: all/dump). */
-LIBXSMM_APIVAR_PUBLIC(int libxsmm_verbosity);
 /** Target architecture (libxsmm_get_target_archid, libxsmm_set_target_archid). */
 LIBXSMM_APIVAR_PUBLIC(int libxsmm_target_archid);
 /** Determines whether a threaded implementation is synchronized or not. */

@@ -187,6 +187,11 @@ void libxsmm_generator_spgemm_csc_soa_kernel( libxsmm_generated_code*        io_
                                               const void*                    i_values );
 
 /* @TODO change int based architecture value */
+LIBXSMM_API void libxsmm_generator_gemm_rm_ac_soa( libxsmm_generated_code*         io_generated_code,
+                                                   const libxsmm_gemm_descriptor*  i_xgemm_desc,
+                                                   const char*                     i_arch );
+
+/* @TODO change int based architecture value */
 LIBXSMM_API
 void libxsmm_generator_matcopy_kernel( libxsmm_generated_code*            io_generated_code,
                                        const libxsmm_mcopy_descriptor*    i_matcopy_desc,
@@ -268,6 +273,9 @@ void libxsmm_generator_convolution_winograd_forward_directasm(const char*       
                                                               const char*                                    i_routine_name,
                                                               const libxsmm_convolution_winograd_descriptor* i_conv_desc,
                                                               const char*                                    i_arch);
+
+/** Verbosity level (0: quiet, 1: errors, 2: warnings, 3: info, neg.: all/dump). */
+LIBXSMM_APIVAR(int libxsmm_verbosity);
 
 #endif /*LIBXSMM_GENERATOR_H*/
 

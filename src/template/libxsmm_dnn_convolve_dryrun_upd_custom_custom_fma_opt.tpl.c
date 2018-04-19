@@ -31,23 +31,10 @@
 #if !defined(_OPENMP)
 int ltid;
 #endif
-int block_j = 14;
 
+int block_j = handle->upd_ofh_rb;
 handle->block_upd_ofm = 8;
 handle->block_upd_ifm = 8;
-
-if ( (handle->ofh == 14 && handle->desc.R != 3 ) ||  handle->ofh == 27 || (handle->ofh == 28 && handle->desc.R == 1) || handle->ofh == 48 || handle->ofh == 54 || handle->ofh == 56 || handle->ofh == 112 ) {
-  block_j = 4;
-}
-while ( block_j % handle->upd_ofh_rb != 0 ) {
-  block_j--;
-}
-
-if (block_j < handle->upd_ofh_rb ) {
-  block_j = handle->upd_ofh_rb ;
-}
-
-block_j = handle->upd_ofh_rb ;
 
 #if defined(_OPENMP)
 # pragma omp parallel num_threads(handle->desc.threads)
@@ -58,7 +45,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
 #if defined(_OPENMP)
   int ltid = omp_get_thread_num();
 #endif
-  int img, ifmb, ofmb, ofm1, ifm1, num_ofw_strips, oi_, oj_, oi__, ii_, ij_, kh, kw, KW, ki, kj, local_entries, stride_w, stride_h ;
+  int img, ifmb, ofmb, ofm1, ifm1, num_ofw_strips, oi_, oj_, oi__, ii_, ij_, kh, kw, KW, ki, kj, local_entries, stride_w, stride_h;
   int ojb;
 
   /* Here we assume that N % Threads == 0 */
@@ -86,7 +73,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   kw = handle->desc.S;
   num_ofw_strips = handle->ofw/handle->upd_ofw_rb;
   local_entries = 0;
-    
+
   KW = kw;
 
   /* Perform a dryrun to compute the memory requirements of the stream of indices */
@@ -116,11 +103,11 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   }
 
 
-  /* Alocate auxiliary data structures for index jitting  */
+  /* Allocate auxiliary data structures for index jitting  */
   handle->n_entries_upd[ltid] = local_entries/3;
   compute_indices = (int*) libxsmm_aligned_malloc( (local_entries+3) * sizeof(int), 2097152);
   handle->compute_upd_indices_ptrs[ltid] = compute_indices;
-  kernel_variant = (char*) libxsmm_aligned_malloc( (local_entries/3) * sizeof(char), 2097152);
+  kernel_variant = (char*)(3 <= local_entries ? libxsmm_aligned_malloc((local_entries / 3) * sizeof(char), 2097152) : NULL);
   handle->kernel_upd_variant_ptrs[ltid] = kernel_variant;
   handle->n_upd_code_segments[ltid] = n_code_segments;
 
@@ -141,7 +128,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       ii_ = oi_*stride_w;
                       ij_ = oj_*stride_h;
                       if (handle->trans_ofw_ifm == 1 ) {
-                        compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * handle->ifmblock) ) * padded_w  + (ii_ + ki) ;
+                        compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * handle->ifmblock) ) * padded_w  + (ii_ + ki);
                       } else {
                         compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * padded_w)  + (ii_ + ki) ) *  handle->ifmblock;
                       }

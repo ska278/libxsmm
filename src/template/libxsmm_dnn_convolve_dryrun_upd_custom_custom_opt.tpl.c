@@ -37,66 +37,8 @@
 #if !defined(_OPENMP)
 int ltid;
 #endif
-int block_j = 14;
-
-handle->block_upd_ofm = 8;
-handle->block_upd_ifm = 8;
-int IFMBLOCK;
-if (handle->use_lp_kernel) {
-  IFMBLOCK = handle->ifmblock_hp;
-} else {
-  IFMBLOCK = handle->ifmblock;
-}
-
-if ( (handle->ofh == 14 && handle->desc.R != 3 ) ||  handle->ofh == 27 || (handle->ofh == 28 && handle->desc.R == 1) || handle->ofh == 48 || handle->ofh == 54 || handle->ofh == 56 || handle->ofh == 112 ) {
-  block_j = 4;
-}
-while ( block_j % handle->upd_ofh_rb != 0 ) {
-  block_j--;
-}
-
-if (block_j < handle->upd_ofh_rb ) {
-  block_j = handle->upd_ofh_rb ;
-}
-
-block_j = handle->ofh ;
-
-if ( handle->ofh == 56 ) {
-  /* Pixel block is 196 Kbytes */
- handle->block_upd_ofm = handle->blocksofm;
- handle->block_upd_ifm = 1;
-
-}
-
-if ( handle->ofh == 28 ) {
-  /* Pixel block is 49 Kbytes */
- handle->block_upd_ofm = 3;
- handle->block_upd_ifm = 3;
-}
-
-if ( handle->ofh == 14 || handle->ofh == 28 || handle->ofh == 56 ) {
-  /* Pixel block is 12.25 Kbytes */
- handle->block_upd_ofm = 8;
- handle->block_upd_ifm = 32;
-}
-
-if ( handle->ofh == 7 ) {
-  /* Pixel block is 3.06 Kbytes */
- handle->block_upd_ofm = 8;
- handle->block_upd_ifm = 16;
-}
-
-
-if ( handle->ofh == 28 || handle->ofh == 56 ) {
-  /* Pixel block is 12.25 Kbytes */
- handle->block_upd_ofm = 32;
- handle->block_upd_ifm = 16;
-}
-
-
-handle->block_upd_ofm = 64;
-handle->block_upd_ifm = 64;
-
+int IFMBLOCK = handle->use_lp_kernel ? handle->ifmblock_hp : handle->ifmblock;
+int block_j = handle->ofh;
 
 #if defined(_OPENMP)
 # pragma omp parallel num_threads(handle->desc.threads)
@@ -107,7 +49,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
 #if defined(_OPENMP)
   int ltid = omp_get_thread_num();
 #endif
-  int img, ifmb, ofmb, ofm1, ifm1, num_ofw_strips, oi_, oj_, oi__, ii_, ij_, kh, kw, KW, ki, kj, local_entries, stride_w, stride_h ;
+  int img, ifmb, ofmb, ofm1, ifm1, num_ofw_strips, oi_, oj_, oi__, ii_, ij_, kh, kw, KW, ki, kj, local_entries, stride_w, stride_h;
   int ojb;
 
   /* Here we assume that N % Threads == 0 */
@@ -117,7 +59,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   int n_code_segments;
   int mark_weight_init, mark_weight_copy;
   int *tmp_expanded_stream, tmp_stream_index;
-  segment_t *encoded_code_segments;
+  segment_t *encoded_code_segments = 0;
   int expanded_size;
   int stretch_of_convs;
   int encoded_stream_index;
@@ -150,15 +92,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   kw = handle->desc.S;
   num_ofw_strips = 1; /* Internally always fully unroll W */
   local_entries = 0;
-  
+
   KW = kw;
 
   n_code_segments = 0;
   tmp_stream_index = 0;
 
   /* Skip WEIGHT_INIT and WEIGHT_COPY when kernel uses NT stores */
-  mark_weight_init = ( handle->ofh == 28 || handle->ofh == 56 ) ? 1 : 0;
-  mark_weight_copy = ( handle->ofh == 28 || handle->ofh == 56 ) ? 1 : 0;
+  mark_weight_init = ( handle->use_nts_upd == 0 ) ? 1 : 0;
+  mark_weight_copy = ( handle->use_nts_upd == 0 ) ? 1 : 0;
 
   /* Perform a dryrun to compute the memory requirements of the stream of indices */
   for (img = my_img_start; img < my_img_end; img++) {
@@ -209,11 +151,11 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   }
 
 
-  /* Alocate auxiliary data structures for index jitting  */
+  /* Allocate auxiliary data structures for index jitting  */
   handle->n_entries_upd[ltid] = local_entries/3;
   compute_indices = (int*) libxsmm_aligned_malloc( (local_entries+3) * sizeof(int), 64);
   handle->compute_upd_indices_ptrs[ltid] = compute_indices;
-  kernel_variant = (char*) libxsmm_aligned_malloc( (local_entries/3) * sizeof(char), 64);
+  kernel_variant = (char*)(3 <= local_entries ? libxsmm_aligned_malloc((local_entries / 3) * sizeof(char), 64) : NULL);
   handle->kernel_upd_variant_ptrs[ltid] = kernel_variant;
   handle->n_upd_code_segments[ltid] = n_code_segments;
   expanded_size = local_entries/3 + n_code_segments;
@@ -261,11 +203,10 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       }
 
                       if (handle->trans_ofw_ifm == 1 ) {
-                        compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * IFMBLOCK) ) * padded_w  + (ii_ + ki) ;
+                        compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * IFMBLOCK) ) * padded_w  + (ii_ + ki);
                       } else {
                         compute_indices[local_entries] =  ( ( ( ( ( (img *  handle->blocksifm) +  ifm1) * padded_h )  +  (ij_+kj)) * padded_w)  + (ii_ + ki) ) *  IFMBLOCK;
                       }
-
 
                       /* use different weights format if we can skip init and copy */
                       if (mark_weight_init == 1 && mark_weight_copy == 1) {

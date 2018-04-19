@@ -53,8 +53,8 @@
 # pragma offload_attribute(pop)
 #endif
 
-#if !defined(REAL_TYPE)
-# define REAL_TYPE double
+#if !defined(ITYPE)
+# define ITYPE double
 #endif
 
 #if !defined(MAX_SIZE)
@@ -97,25 +97,6 @@ private:
 #endif
 
 
-LIBXSMM_INLINE LIBXSMM_RETARGETABLE void init(libxsmm_blasint seed, REAL_TYPE *LIBXSMM_RESTRICT dst,
-  libxsmm_blasint nrows, libxsmm_blasint ncols, libxsmm_blasint ld, double scale)
-{
-  const double seed1 = scale * (seed + 1);
-  libxsmm_blasint i;
-  for (i = 0; i < ncols; ++i) {
-    libxsmm_blasint j = 0;
-    for (; j < nrows; ++j) {
-      const libxsmm_blasint k = i * ld + j;
-      dst[k] = (REAL_TYPE)(seed1 / (k + 1));
-    }
-    for (; j < ld; ++j) {
-      const libxsmm_blasint k = i * ld + j;
-      dst[k] = (REAL_TYPE)seed;
-    }
-  }
-}
-
-
 template<typename T>
 LIBXSMM_INLINE LIBXSMM_RETARGETABLE
 void add(T *LIBXSMM_RESTRICT dst, const T *LIBXSMM_RESTRICT src, libxsmm_blasint nrows, libxsmm_blasint ncols, libxsmm_blasint ld_src = 0)
@@ -150,7 +131,7 @@ int main(int argc, char* argv[])
 {
   int result = EXIT_SUCCESS;
   try {
-    typedef REAL_TYPE T;
+    typedef ITYPE T;
     const libxsmm_blasint m = 1 < argc ? std::atoi(argv[1]) : 23;
     const libxsmm_blasint q = ((1ULL << 30) / (3 * m * m * sizeof(T)));
     const libxsmm_blasint r = 2 < argc ? (0 < std::atoi(argv[2]) ? std::atoi(argv[2]) : ('+' == *argv[2]
@@ -161,6 +142,8 @@ int main(int argc, char* argv[])
       ? ((CP2K_MIN_NLOCAL) >> std::strlen(argv[3])) : -1))) : -1;
     const libxsmm_blasint k = 5 < argc ? std::atoi(argv[5]) : m;
     const libxsmm_blasint n = 4 < argc ? std::atoi(argv[4]) : k;
+    const char transa = 'N', transb = 'N';
+    const ITYPE alpha = 1, beta = 1;
 
     const libxsmm_blasint csize = m * n;
     if ((MAX_SIZE) < csize) {
@@ -172,6 +155,7 @@ int main(int argc, char* argv[])
     const libxsmm_blasint u = 0 < t ? t : static_cast<libxsmm_blasint>(libxsmm_isqrt_u64(s * CP2K_MIN_NLOCAL / CP2K_MIN_NPARALLEL));
     const size_t bwsize = static_cast<size_t>((s * (asize + bsize)/*load*/ + ((s + u - 1) / u) * csize * 2/*accumulate*/) * sizeof(T));
     const double gflops = 2.0 * s * m * n * k * 1E-9, scale = 1.0 / s;
+    const char *const ops = "FLOPS";
     const char *const env_check = getenv("CHECK");
     const double check = LIBXSMM_ABS(0 == env_check ? 0 : atof(env_check));
 
@@ -190,8 +174,8 @@ int main(int argc, char* argv[])
 #   pragma omp parallel for
 #endif
     for (libxsmm_blasint i = 0; i < s; ++i) {
-      init(42 + i, a + i * asize, m, k, m, scale);
-      init(24 + i, b + i * bsize, k, n, k, scale);
+      LIBXSMM_MATINIT(ITYPE, 42 + i, a + i * asize, m, k, m, scale);
+      LIBXSMM_MATINIT(ITYPE, 24 + i, b + i * bsize, k, n, k, scale);
     }
 
 #if defined(LIBXSMM_OFFLOAD_TARGET)
@@ -223,7 +207,7 @@ int main(int argc, char* argv[])
       const T zero = 0;
 
       // eventually JIT-compile the requested kernel
-      const libxsmm_mmfunction<T> xmm(LIBXSMM_FLAGS, m, n, k, LIBXSMM_PREFETCH);
+      const libxsmm_mmfunction<T> xmm(LIBXSMM_GEMM_FLAGS(transa, transb), m, n, k, LIBXSMM_PREFETCH);
 
       memset(&diff, 0, sizeof(diff));
       { // LAPACK/BLAS3 (warmup BLAS Library)
@@ -236,9 +220,8 @@ int main(int argc, char* argv[])
           const T *ai = a + i * asize, *bi = b + i * bsize;
           for (libxsmm_blasint j = 0; j < LIBXSMM_MIN(u, s - i); ++j) {
             const T *const aij = ai + asize, *const bij = bi + bsize;
-            libxsmm_blas_gemm(0/*transa*/, 0/*transb*/, m, n, k,
-              0/*alpha*/, ai, 0/*lda*/, bi, 0/*ldb*/,
-              0/*beta*/, tmp, 0/*ldc*/);
+            libxsmm_blas_gemm(&transa, &transb, m, n, k,
+              &alpha, ai, &m, bi, &k, &beta, tmp, &m);
             ai = aij;
             bi = bij;
           }
@@ -259,9 +242,8 @@ int main(int argc, char* argv[])
           for (libxsmm_blasint j = 0; j < LIBXSMM_MIN(u, s - i); ++j) {
             const T *const aij = ai + asize, *const bij = bi + bsize;
             // alternatively libxsmm_blas_gemm can be called (see above)
-            LIBXSMM_BLAS_GEMM(LIBXSMM_FLAGS, m, n, k,
-              LIBXSMM_ALPHA, ai, m, bi, k,
-              LIBXSMM_BETA, tmp, m);
+            LIBXSMM_BLAS_XGEMM(ITYPE, ITYPE, &transa, &transb, &m, &n, &k,
+              &alpha, ai, &m, bi, &k, &beta, tmp, &m);
             ai = aij;
             bi = bij;
           }
@@ -269,12 +251,12 @@ int main(int argc, char* argv[])
         }
         const double duration = libxsmm_timer_duration(start, libxsmm_timer_tick());
         if (0 < duration) {
-          fprintf(stdout, "\tperformance: %.1f GFLOPS/s\n", gflops / duration);
+          fprintf(stdout, "\tperformance: %.1f G%s/s\n", gflops / duration, ops);
           fprintf(stdout, "\tbandwidth: %.1f GB/s\n", bwsize / (duration * (1 << 30)));
           fprintf(stdout, "\tcalls/s: %.0f Hz\n", s / duration);
         }
         fprintf(stdout, "\tduration: %.0f ms\n", 1000.0 * duration);
-        if (!LIBXSMM_FEQ(0, check) && EXIT_SUCCESS == libxsmm_matdiff(LIBXSMM_DATATYPE(REAL_TYPE), m, n, expect, c, 0, 0, &d)) {
+        if (!LIBXSMM_FEQ(0, check) && EXIT_SUCCESS == libxsmm_matdiff(LIBXSMM_DATATYPE(ITYPE), m, n, expect, c, 0, 0, &d)) {
           fprintf(stdout, "\tdiff: L2abs=%f Linfo=%f\n", d.l2_abs, d.linf_abs);
           libxsmm_matdiff_reduce(&diff, &d);
         }
@@ -292,9 +274,8 @@ int main(int argc, char* argv[])
           const T *ai = a + i * asize, *bi = b + i * bsize;
           for (libxsmm_blasint j = 0; j < LIBXSMM_MIN(u, s - i); ++j) {
             const T *const aij = ai + asize, *const bij = bi + bsize;
-            LIBXSMM_INLINE_GEMM(LIBXSMM_FLAGS, m, n, k,
-              LIBXSMM_ALPHA, ai, m, bi, k,
-              LIBXSMM_BETA, tmp, m);
+            LIBXSMM_INLINE_XGEMM(ITYPE, ITYPE, &transa, &transb, &m, &n, &k,
+              &alpha, ai, &m, bi, &k, &beta, tmp, &m);
             ai = aij;
             bi = bij;
           }
@@ -302,12 +283,12 @@ int main(int argc, char* argv[])
         }
         const double duration = libxsmm_timer_duration(start, libxsmm_timer_tick());
         if (0 < duration) {
-          fprintf(stdout, "\tperformance: %.1f GFLOPS/s\n", gflops / duration);
+          fprintf(stdout, "\tperformance: %.1f G%s/s\n", gflops / duration, ops);
           fprintf(stdout, "\tbandwidth: %.1f GB/s\n", bwsize / (duration * (1 << 30)));
           fprintf(stdout, "\tcalls/s: %.0f Hz\n", s / duration);
         }
         fprintf(stdout, "\tduration: %.0f ms\n", 1000.0 * duration);
-        if (!LIBXSMM_FEQ(0, check) && EXIT_SUCCESS == libxsmm_matdiff(LIBXSMM_DATATYPE(REAL_TYPE), m, n, expect, c, 0, 0, &d)) {
+        if (!LIBXSMM_FEQ(0, check) && EXIT_SUCCESS == libxsmm_matdiff(LIBXSMM_DATATYPE(ITYPE), m, n, expect, c, 0, 0, &d)) {
           fprintf(stdout, "\tdiff: L2abs=%f Linfo=%f\n", d.l2_abs, d.linf_abs);
           libxsmm_matdiff_reduce(&diff, &d);
         }
@@ -325,9 +306,8 @@ int main(int argc, char* argv[])
           const T *ai = a + i * asize, *bi = b + i * bsize;
           for (libxsmm_blasint j = 0; j < LIBXSMM_MIN(u, s - i); ++j) {
             const T *const aij = ai + asize, *const bij = bi + bsize;
-            libxsmm_gemm(0/*transa*/, 0/*transb*/, m, n, k,
-              0/*alpha*/, ai, 0/*lda*/, bi, 0/*ldb*/,
-              0/*beta*/, tmp, 0/*ldc*/);
+            libxsmm_gemm(&transa, &transb, m, n, k,
+              &alpha, ai, &m, bi, &k, &beta, tmp, &m);
             ai = aij;
             bi = bij;
           }
@@ -335,12 +315,12 @@ int main(int argc, char* argv[])
         }
         const double duration = libxsmm_timer_duration(start, libxsmm_timer_tick());
         if (0 < duration) {
-          fprintf(stdout, "\tperformance: %.1f GFLOPS/s\n", gflops / duration);
+          fprintf(stdout, "\tperformance: %.1f G%s/s\n", gflops / duration, ops);
           fprintf(stdout, "\tbandwidth: %.1f GB/s\n", bwsize / (duration * (1 << 30)));
           fprintf(stdout, "\tcalls/s: %.0f Hz\n", s / duration);
         }
         fprintf(stdout, "\tduration: %.0f ms\n", 1000.0 * duration);
-        if (!LIBXSMM_FEQ(0, check) && EXIT_SUCCESS == libxsmm_matdiff(LIBXSMM_DATATYPE(REAL_TYPE), m, n, expect, c, 0, 0, &d)) {
+        if (!LIBXSMM_FEQ(0, check) && EXIT_SUCCESS == libxsmm_matdiff(LIBXSMM_DATATYPE(ITYPE), m, n, expect, c, 0, 0, &d)) {
           fprintf(stdout, "\tdiff: L2abs=%f Linfo=%f\n", d.l2_abs, d.linf_abs);
           libxsmm_matdiff_reduce(&diff, &d);
         }
@@ -373,12 +353,12 @@ int main(int argc, char* argv[])
         }
         const double duration = libxsmm_timer_duration(start, libxsmm_timer_tick());
         if (0 < duration) {
-          fprintf(stdout, "\tperformance: %.1f GFLOPS/s\n", gflops / duration);
+          fprintf(stdout, "\tperformance: %.1f G%s/s\n", gflops / duration, ops);
           fprintf(stdout, "\tbandwidth: %.1f GB/s\n", bwsize / (duration * (1 << 30)));
           fprintf(stdout, "\tcalls/s: %.0f Hz\n", s / duration);
         }
         fprintf(stdout, "\tduration: %.0f ms\n", 1000.0 * duration);
-        if (!LIBXSMM_FEQ(0, check) && EXIT_SUCCESS == libxsmm_matdiff(LIBXSMM_DATATYPE(REAL_TYPE), m, n, expect, c, 0, 0, &d)) {
+        if (!LIBXSMM_FEQ(0, check) && EXIT_SUCCESS == libxsmm_matdiff(LIBXSMM_DATATYPE(ITYPE), m, n, expect, c, 0, 0, &d)) {
           fprintf(stdout, "\tdiff: L2abs=%f Linfo=%f\n", d.l2_abs, d.linf_abs);
           libxsmm_matdiff_reduce(&diff, &d);
         }

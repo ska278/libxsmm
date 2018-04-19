@@ -34,11 +34,6 @@
 #include <stdio.h>
 #include <math.h>
 
-#if defined(_WIN32) || defined(__CYGWIN__) || !(defined(_SVID_SOURCE) || defined(_XOPEN_SOURCE))
-# define drand48() ((double)rand() / RAND_MAX)
-# define srand48 srand
-#endif
-
 
 LIBXSMM_INLINE
 void dfill_matrix ( double *matrix, unsigned int ld, unsigned int m, unsigned int n )
@@ -51,12 +46,12 @@ void dfill_matrix ( double *matrix, unsigned int ld, unsigned int m, unsigned in
      fprintf(stderr,"Error is dfill_matrix: ld=%u m=%u mismatched!\n",ld,m);
      exit(EXIT_FAILURE);
   }
-  for ( j = 1 ; j <= n ; j++ )
+  for ( j = 1; j <= n; j++ )
   {
      /* Fill through the leading dimension */
      for ( i = 1; i <= ld; i++ )
      {
-        dtmp = 1.0 - 2.0*drand48();
+        dtmp = 1.0 - 2.0*libxsmm_rand_f64();
         matrix [ (j-1)*ld + (i-1) ] = dtmp;
      }
   }
@@ -74,12 +69,12 @@ void sfill_matrix ( float *matrix, unsigned int ld, unsigned int m, unsigned int
      fprintf(stderr,"Error is sfill_matrix: ld=%u m=%u mismatched!\n",ld,m);
      exit(EXIT_FAILURE);
   }
-  for ( j = 1 ; j <= n ; j++ )
+  for ( j = 1; j <= n; j++ )
   {
      /* Fill through the leading dimension */
      for ( i = 1; i <= ld; i++ )
      {
-        dtmp = 1.0 - 2.0*drand48();
+        dtmp = 1.0 - 2.0*libxsmm_rand_f64();
         matrix [ (j-1)*ld + (i-1) ] = (float) dtmp;
      }
   }
@@ -95,9 +90,9 @@ double residual_stranspose ( float *A, unsigned int lda, unsigned int m, unsigne
 
   *nerrs = 0;
   derror = 0.0;
-  for ( j = 1 ; j <= n ; j++ )
+  for ( j = 1; j <= n; j++ )
   {
-     for ( i = 1 ; i <= m ; i++ )
+     for ( i = 1; i <= m; i++ )
      {
          dtmp = A[ (j-1)*lda + (i-1) ] - out [ (i-1)*ld_out + (j-1) ];
          if ( dtmp < 0.0 ) dtmp = -dtmp;
@@ -122,9 +117,9 @@ double residual_dtranspose ( double *A, unsigned int lda, unsigned int m, unsign
 
   *nerrs = 0;
   derror = 0.0;
-  for ( j = 1 ; j <= n ; j++ )
+  for ( j = 1; j <= n; j++ )
   {
-     for ( i = 1 ; i <= m ; i++ )
+     for ( i = 1; i <= m; i++ )
      {
          dtmp = A[ (j-1)*lda + (i-1) ] - out [ (i-1)*ld_out + (j-1) ];
          if ( dtmp < 0.0 ) dtmp = -dtmp;
@@ -200,7 +195,7 @@ int main(int argc, char* argv[])
 
 #ifdef COMPARE_TO_AN_ASSEMBLY_CODE
   cptr2 = (unsigned char *) &myro_;
-  i = 0 ;
+  i = 0;
   nbest = 0;
   istop = 0;
   while ( istop == 0 )

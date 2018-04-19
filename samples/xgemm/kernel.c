@@ -34,12 +34,9 @@
 #include <math.h>
 #include <string.h>
 
-#if defined(_WIN32) || defined(__CYGWIN__) || !(defined(_SVID_SOURCE) || defined(_XOPEN_SOURCE))
-# define drand48() ((double)rand() / RAND_MAX)
-# define srand48 srand
-#endif
 
 int g_reps = 0;
+
 
 LIBXSMM_INLINE void print_help(void) {
   printf("\n\n");
@@ -62,10 +59,10 @@ LIBXSMM_INLINE void print_help(void) {
 
 
 LIBXSMM_INLINE
-void run_jit_double( const libxsmm_gemm_descriptor*  i_xgemm_desc,
-                     const double*                        i_a,
-                     const double*                        i_b,
-                     double*                              o_c ) {
+void run_jit_double( const libxsmm_gemm_descriptor* i_xgemm_desc,
+                     const double*                  i_a,
+                     const double*                  i_b,
+                     double*                        o_c ) {
   /* define function pointer */
   libxsmm_xmmfunction l_test_jit;
   libxsmm_timer_tickint l_start;
@@ -105,10 +102,10 @@ void run_jit_double( const libxsmm_gemm_descriptor*  i_xgemm_desc,
 
 
 LIBXSMM_INLINE
-void run_jit_float( const libxsmm_gemm_descriptor* i_xgemm_desc,
-                    const float*                        i_a,
-                    const float*                        i_b,
-                    float*                              o_c ) {
+void run_jit_float( const libxsmm_gemm_descriptor*  i_xgemm_desc,
+                    const float*                    i_a,
+                    const float*                    i_b,
+                    float*                          o_c ) {
   /* define function pointer */
   libxsmm_xmmfunction l_test_jit;
   libxsmm_timer_tickint l_start;
@@ -148,17 +145,16 @@ void run_jit_float( const libxsmm_gemm_descriptor* i_xgemm_desc,
 
 
 LIBXSMM_INLINE
-void run_jit_short_int( const libxsmm_gemm_descriptor* i_xgemm_desc,
-                        const short*                        i_a,
-                        const short*                        i_b,
-                        int*                                o_c) {
+void run_jit_short_int( const libxsmm_gemm_descriptor*  i_xgemm_desc,
+                        const short*                    i_a,
+                        const short*                    i_b,
+                        int*                            o_c) {
   /* define function pointer */
   libxsmm_xmmfunction l_test_jit;
   libxsmm_timer_tickint l_start;
   libxsmm_mmkernel_info l_info;
   double l_jittime, l_runtime;
   int l_t;
-
 
   l_start = libxsmm_timer_tick();
   l_test_jit = libxsmm_xmmdispatch(i_xgemm_desc);
@@ -190,19 +186,19 @@ void run_jit_short_int( const libxsmm_gemm_descriptor* i_xgemm_desc,
   printf("%f GOPS for jit\n", ((double)((double)g_reps * (double)l_info.m * (double)l_info.n * (double)l_info.k) * 2.0) / (l_runtime * 1.0e9));
 }
 
+
 LIBXSMM_INLINE
-void run_jit_short_float( const libxsmm_gemm_descriptor* i_xgemm_desc,
-                          const short*                        i_a,
-                          const short*                        i_b,
-                          float*                              o_c,
-                          float*                              i_scf) {
+void run_jit_short_float( const libxsmm_gemm_descriptor*  i_xgemm_desc,
+                          const short*                    i_a,
+                          const short*                    i_b,
+                          float*                          o_c,
+                          float*                          i_scf) {
   /* define function pointer */
   libxsmm_xmmfunction l_test_jit;
   libxsmm_timer_tickint l_start;
   libxsmm_mmkernel_info l_info;
   double l_jittime, l_runtime;
   int l_t;
-
 
   l_start = libxsmm_timer_tick();
   l_test_jit = libxsmm_xmmdispatch(i_xgemm_desc);
@@ -362,13 +358,13 @@ int main(int argc, char* argv []) {
     /* touch A */
     for (l_i = 0; l_i < l_lda; l_i++) {
       for (l_j = 0; l_j < l_k; l_j++) {
-        l_a_d[(l_j * l_lda) + l_i] = (double)drand48();
+        l_a_d[(l_j * l_lda) + l_i] = libxsmm_rand_f64();
       }
     }
     /* touch B */
     for (l_i = 0; l_i < l_ldb; l_i++) {
       for (l_j = 0; l_j < l_n; l_j++) {
-        l_b_d[(l_j * l_ldb) + l_i] = (double)drand48();
+        l_b_d[(l_j * l_ldb) + l_i] = libxsmm_rand_f64();
       }
     }
     /* touch C */
@@ -389,13 +385,13 @@ int main(int argc, char* argv []) {
     /* touch A */
     for (l_i = 0; l_i < l_lda; l_i++) {
       for (l_j = 0; l_j < l_k; l_j++) {
-        l_a_f[(l_j * l_lda) + l_i] = (float)drand48();
+        l_a_f[(l_j * l_lda) + l_i] = (float)libxsmm_rand_f64();
       }
     }
     /* touch B */
     for (l_i = 0; l_i < l_ldb; l_i++) {
       for (l_j = 0; l_j < l_n; l_j++) {
-        l_b_f[(l_j * l_ldb) + l_i] = (float)drand48();
+        l_b_f[(l_j * l_ldb) + l_i] = (float)libxsmm_rand_f64();
       }
     }
     /* touch C */
@@ -418,13 +414,13 @@ int main(int argc, char* argv []) {
     /* touch A */
     for (l_i = 0; l_i < l_lda; l_i++) {
       for (l_j = 0; l_j < l_k; l_j++) {
-        l_a_w[(l_j * l_lda) + l_i] = (short)(drand48() * 10.0);
+        l_a_w[(l_j * l_lda) + l_i] = (short)(libxsmm_rand_f64() * 10.0);
       }
     }
     /* touch B */
     for (l_i = 0; l_i < l_ldb; l_i++) {
       for (l_j = 0; l_j < l_n; l_j++) {
-        l_b_w[(l_j * l_ldb) + l_i] = (short)(drand48() * 10.0);
+        l_b_w[(l_j * l_ldb) + l_i] = (short)(libxsmm_rand_f64() * 10.0);
       }
     }
     /* touch C */
@@ -446,13 +442,13 @@ int main(int argc, char* argv []) {
     /* touch A */
     for (l_i = 0; l_i < l_lda; l_i++) {
       for (l_j = 0; l_j < l_k; l_j++) {
-        l_a_w[(l_j * l_lda) + l_i] = (short)(drand48() * 10.0);
+        l_a_w[(l_j * l_lda) + l_i] = (short)(libxsmm_rand_f64() * 10.0);
       }
     }
     /* touch B */
     for (l_i = 0; l_i < l_ldb; l_i++) {
       for (l_j = 0; l_j < l_n; l_j++) {
-        l_b_w[(l_j * l_ldb) + l_i] = (short)(drand48() * 10.0);
+        l_b_w[(l_j * l_ldb) + l_i] = (short)(libxsmm_rand_f64() * 10.0);
       }
     }
     /* touch C */
@@ -474,13 +470,13 @@ int main(int argc, char* argv []) {
     /* touch A */
     for (l_i = 0; l_i < l_lda; l_i++) {
       for (l_j = 0; l_j < (l_k / 2); l_j++) {
-        l_a_b[(l_j * l_lda) + l_i] = (unsigned char)(drand48() * 10.0);
+        l_a_b[(l_j * l_lda) + l_i] = (unsigned char)(libxsmm_rand_f64() * 10.0);
       }
     }
     /* touch B */
     for (l_i = 0; l_i < l_ldb; l_i++) {
       for (l_j = 0; l_j < l_n; l_j++) {
-        l_b_b[(l_j * l_ldb) + l_i] = (char)(drand48() * 10.0);
+        l_b_b[(l_j * l_ldb) + l_i] = (char)(libxsmm_rand_f64() * 10.0);
       }
     }
     /* touch C */
