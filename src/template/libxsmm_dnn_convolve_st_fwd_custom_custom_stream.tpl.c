@@ -181,6 +181,8 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
 #define IFM_LOOP_FIRST_TOUCH 5
 #define IMG_LOOP_CLOSE 6
 
+#define LOCAL_ENTRIES_PER_CONV 7
+
 #define FP64_BN_STATS
 
 int BLOCKSIFM = handle->blocksifm_lp;
@@ -350,13 +352,13 @@ if (n_segments) {
             offset_i = stream[i];
             offset_w = stream[i+1];
             offset_o = stream[i+2];
-            pi = stream[i+6];
-            pw = stream[i+7];
-            po = stream[i+8];
+            pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+            pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+            po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
             offset_bn = bn_stream[bn_i];
             kernel_pool[vi]( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
             pool_index++;
-            i+=6;
+            i+=LOCAL_ENTRIES_PER_CONV;
             bn_i++;
           }
         }
@@ -401,9 +403,9 @@ if (n_segments) {
             offset_i = stream[i];
             offset_w = stream[i+1];
             offset_o = stream[i+2];
-            pi = stream[i+6];
-            pw = stream[i+7];
-            po = stream[i+8];
+            pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+            pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+            po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
             offset_bn = bn_stream[bn_i];
 	    if(variant[pool_index] < 2)
 	    {
@@ -414,7 +416,7 @@ if (n_segments) {
               kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
 	    }
 	    pool_index++;
-            i+=6;
+            i+=LOCAL_ENTRIES_PER_CONV;
             bn_i++;
           }
         }
@@ -545,12 +547,12 @@ if (n_segments) {
             offset_i = stream[i];
             offset_w = stream[i+1];
             offset_o = stream[i+2];
-            pi = stream[i+6];
-            pw = stream[i+7];
-            po = stream[i+8];
+            pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+            pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+            po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
             kernel_pool[vi]( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
             pool_index++;
-            i+=6;
+            i+=LOCAL_ENTRIES_PER_CONV;
           }
         }
       } else {
@@ -588,7 +590,7 @@ if (n_segments) {
 	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
 	     do_bn = 1;
              ifm1 = code_stream[pc].aux_index;
-//#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
            }
 	  }
           if ( instr == OFM_LOOP_CLOSE ) {
@@ -679,9 +681,10 @@ if (n_segments) {
             offset_i_st = stream[i+3];
             oi = stream[i+4];
             oj = stream[i+5];
-            pi = stream[i+6];
-            pw = stream[i+7];
-            po = stream[i+8];
+            ifm1 = stream[i+6];
+            pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+            pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+            po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
 	    // offset_i: offset where pixels start in the beginning of sliding window
 	    // offset_w
 	    // handle->ofw_rb handle->ofh_rb
@@ -703,11 +706,11 @@ if (n_segments) {
 	    }
 	    else
 	    {
-              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st, oi, oj);
-              //kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+              //wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st, oi, oj);
+              kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 	    }
 	    pool_index++;
-            i+=6;
+            i+=LOCAL_ENTRIES_PER_CONV;
           }
         }
       }
@@ -769,9 +772,12 @@ if (n_segments) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+6];
-        pw = stream[i+7];
-        po = stream[i+8];
+        oi = stream[i+4];
+        oj = stream[i+5];
+        ifm1 = stream[i+6];
+        pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+        pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+        po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
 	if(variant[pool_index] < 2)
         {
 	  kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
@@ -783,7 +789,7 @@ if (n_segments) {
 	  assert(0);
 	}
 	pool_index++;
-        i+=6;
+        i+=LOCAL_ENTRIES_PER_CONV;
       }
     }
   }
@@ -804,12 +810,12 @@ if (n_segments) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+6];
-        pw = stream[i+7];
-        po = stream[i+8];
+        pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+        pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+        po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
         offset_bn = bn_stream[bn_i];
         kernel_pool[vi]( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
-        i+=6;
+        i+=LOCAL_ENTRIES_PER_CONV;
         bn_i++;
       }
     } else {
@@ -817,9 +823,9 @@ if (n_segments) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+6];
-        pw = stream[i+7];
-        po = stream[i+8];
+        pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+        pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+        po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
         offset_bn = bn_stream[bn_i];
 	if(variant[pool_index] < 2)
 	{
@@ -830,7 +836,7 @@ if (n_segments) {
           kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po,  bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
 	}
 	pool_index++;
-        i+=6;
+        i+=LOCAL_ENTRIES_PER_CONV;
         bn_i++;
       }
     }
@@ -841,20 +847,20 @@ if (n_segments) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+6];
-        pw = stream[i+7];
-        po = stream[i+8];
+        pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+        pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+        po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
         kernel_pool[variant[pc]]( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
-        i+=6;
+        i+=LOCAL_ENTRIES_PER_CONV;
       }
     } else {
       for (pc = 0; pc < instr; pc++) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+6];
-        pw = stream[i+7];
-        po = stream[i+8];
+        pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+        pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+        po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
 	if(variant[pool_index] < 2)
 	{
           kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
@@ -864,7 +870,7 @@ if (n_segments) {
           kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 	}
 	pool_index++;
-        i+=6;
+        i+=LOCAL_ENTRIES_PER_CONV;
       }
     }
   }
