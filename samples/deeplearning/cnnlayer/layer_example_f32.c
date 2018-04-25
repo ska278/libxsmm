@@ -1183,6 +1183,20 @@ int main(int argc, char* argv[])
       printf("Check-norm    : %.24f\n", norms_fwd.normf_rel);
       libxsmm_matdiff_reduce(&diff, &norms_fwd);
 
+//      printf("ifhp, ifwp: %d %d\n", ifhp, ifwp);
+      int _i, _j, _c;
+      for(_i = 0 ; _i < ifhp ; _i++)
+      {
+        for(_j = 0 ; _j < ifwp ; _j++)
+	{
+	  for(_c = 2 ; _c < 3 ; _c++)
+	  {
+//	    printf("%.2f, ", (float)naive_libxsmm_input_st[(_j + _i * ifwp) + _c*ifwp*ifhp]);
+	  }
+	}
+//	printf("\n");
+      }
+
 #endif
 
 #if defined(USE_FUSED_BATCH_STATS)

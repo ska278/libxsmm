@@ -29,51 +29,148 @@
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
 
-void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, element_input_type * input1_st)
+void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_type * input1, int ifm_idx, int my_ldh, int my_ldw, int my_c,  element_input_type * myexpect, element_input_type * mystddev, element_input_type * mygamma, element_input_type * mybeta, int ltid, libxsmm_dnn_layer* handle)
 {
+  input1_st[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+  element_input_type after = (input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
+  input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
+}
+
+void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, element_input_type * input1_st, int oi, int oj)
+{
+  //if(ltid==0) printf("offset_i, R, S, oj, oi, ofh_rb, ofw_rb, %d %d %d %d %d %d %d\n", offset_i, handle->desc.R, handle->desc.S, 
+  //                        oj, oi, handle->fwd_ofh_rb, handle->fwd_ofw_rb);
+
   LIBXSMM_VLA_DECL(2, element_input_type, expect, (element_input_type*)handle->reg_expect->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg_stddev->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, beta, (element_input_type*)handle->reg_beta->data, handle->ifmblock);
-
   int my_h, my_w, my_c, ifm_idx, my_ldw, my_pad_h, my_pad_w, my_ldh;
-  // Add loop here for 1x1 case
-  for(ifm_idx = 0 ; ifm_idx < handle->blocksifm_blocking ; ifm_idx++ ) 
-  {
-    if (handle->padding_flag == 1) {
-      my_ldw = padded_w;
-      my_ldh = padded_h;
-    } else {
-      my_ldw = handle->ifwp;
-      my_ldh = handle->ifhp;
-    }
-    element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
-    element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
-    element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
-    element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
+  if (handle->padding_flag == 1) {
+    my_ldw = padded_w;
+    my_ldh = padded_h;
+    my_pad_h = handle->desc.pad_h;
+    my_pad_w = handle->desc.pad_w;
+  } else {
+    my_ldw = handle->ifwp;
+    my_ldh = handle->ifhp;
+    my_pad_h = handle->desc.pad_h_in;
+    my_pad_w = handle->desc.pad_w_in;
+  }
 
-    for(my_h = 0 ; my_h < handle->fwd_ofh_rb * handle->desc.u; my_h++)
+  if(handle->desc.R == 1 && handle->desc.S == 1)
+  {
+    for(ifm_idx = 0 ; ifm_idx < handle->blocksifm_blocking ; ifm_idx++ ) 
     {
-      for(my_w = 0 ; my_w < handle->fwd_ofw_rb * handle->desc.v ; my_w++)
+      element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
+      for(my_h = 0 ; my_h < handle->fwd_ofh_rb * handle->desc.u; my_h++)
       {
-        #pragma omp simd
-        for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+        for(my_w = 0 ; my_w < handle->fwd_ofw_rb * handle->desc.v ; my_w++)
         {
-	  int _my_h = my_h;
-	  int _my_w = my_w;
-	  // For 3x3 figure out.
-	  // Streaming store input to other buffer
-          input1_st[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
-          element_input_type after = (input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-          input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
+          int _my_h = my_h + my_pad_h;
+          int _my_w = my_w + my_pad_w;
+          int _my_h_st = my_h + handle->desc.pad_h_in;
+          int _my_w_st = my_w + handle->desc.pad_w_in;
+          for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+          {
+            do_BN(_my_h, _my_w, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+          }
         }
       }
     }
+    k( input1, weight1, output1, input2, weight2, output2, sf, mv);
   }
+  else if(handle->desc.R == 3 && handle->desc.S == 3)
+  {
+    for(ifm_idx = 0 ; ifm_idx < handle->blocksifm_blocking ; ifm_idx++ ) 
+    {
+      element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
 
-  // input1, weight1, output1
-  // input2, weight2, output2 sprinkle prefetches
-  k( input1, weight1, output1, input2, weight2, output2, sf, mv);
+      // Do BN of row plus extra column
+      if((oj == 0) && (oi == 0))
+      {
+        my_w = 0;
+        my_h = 0;
+        if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
+        {
+          for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+          {
+            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+	 }
+        }
+      }
+      if(oj == 0)
+      {
+        my_h = 0;
+        for(my_w = 1 ; my_w < (handle->fwd_ofw_rb + 1) * handle->desc.v ; my_w++)
+	{
+	  if(oi + my_w < handle->desc.W)
+	  {
+            for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+            {
+              do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+            }
+	  }
+	}
+      }
+
+      if(oi == 0)
+      {
+        my_w = 0;
+        my_h = 1;
+        if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
+        {
+          for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+          {
+
+          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+	 }
+        }
+      }
+
+      my_w = (handle->fwd_ofw_rb) * handle->desc.v;
+      my_h = 1;
+      if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
+      {
+        for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+        {
+          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+	}
+      }
+    }
+
+
+    for(ifm_idx = 0 ; ifm_idx < handle->blocksifm_blocking ; ifm_idx++ ) 
+    {
+      element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
+      element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
+
+      // Do BN of inside part 
+      my_h = 1;
+      if(oj+my_h < handle->desc.H)
+      {
+        for(my_w = 1 ; my_w < (handle->fwd_ofw_rb) * handle->desc.v ; my_w++)
+        {
+          if(oi + my_w < handle->desc.W)
+  	  {
+            for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+            {
+              do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+            }
+  	  }
+        }
+      }
+    }
+    k( input1, weight1, output1, input2, weight2, output2, sf, mv);
+  }
 }
 
 #define IMG_LOOP_INIT 0
@@ -115,7 +212,7 @@ int *bn_stream = handle->bn_indices_ptrs[ltid];
 const int padded_h = handle->ifhp + 2 * handle->desc.pad_h;
 const int padded_w = handle->ifwp + 2 * handle->desc.pad_w;
 LIBXSMM_VLA_DECL(5, element_input_type, input_buffer, ((element_input_type*)handle->scratch5) + ltid * BLOCKSIFM * padded_h * padded_w * handle->ifmblock * handle->fm_lp_block, padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
-// Mike add ifdef here?
+
 LIBXSMM_VLA_DECL(6, element_input_type, input_st_buffer, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
 /* Kernel related variables  */
 libxsmm_xmcopyfunction jitted_matcopy = handle->matcopy_fwd[0].xmatcopy;
@@ -253,13 +350,13 @@ if (n_segments) {
             offset_i = stream[i];
             offset_w = stream[i+1];
             offset_o = stream[i+2];
-            pi = stream[i+4];
-            pw = stream[i+5];
-            po = stream[i+6];
+            pi = stream[i+6];
+            pw = stream[i+7];
+            po = stream[i+8];
             offset_bn = bn_stream[bn_i];
             kernel_pool[vi]( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
             pool_index++;
-            i+=4;
+            i+=6;
             bn_i++;
           }
         }
@@ -304,9 +401,9 @@ if (n_segments) {
             offset_i = stream[i];
             offset_w = stream[i+1];
             offset_o = stream[i+2];
-            pi = stream[i+4];
-            pw = stream[i+5];
-            po = stream[i+6];
+            pi = stream[i+6];
+            pw = stream[i+7];
+            po = stream[i+8];
             offset_bn = bn_stream[bn_i];
 	    if(variant[pool_index] < 2)
 	    {
@@ -317,7 +414,7 @@ if (n_segments) {
               kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
 	    }
 	    pool_index++;
-            i+=4;
+            i+=6;
             bn_i++;
           }
         }
@@ -448,12 +545,12 @@ if (n_segments) {
             offset_i = stream[i];
             offset_w = stream[i+1];
             offset_o = stream[i+2];
-            pi = stream[i+4];
-            pw = stream[i+5];
-            po = stream[i+6];
+            pi = stream[i+6];
+            pw = stream[i+7];
+            po = stream[i+8];
             kernel_pool[vi]( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
             pool_index++;
-            i+=4;
+            i+=6;
           }
         }
       } else {
@@ -580,9 +677,11 @@ if (n_segments) {
             offset_w = stream[i+1];
             offset_o = stream[i+2];
             offset_i_st = stream[i+3];
-            pi = stream[i+4];
-            pw = stream[i+5];
-            po = stream[i+6];
+            oi = stream[i+4];
+            oj = stream[i+5];
+            pi = stream[i+6];
+            pw = stream[i+7];
+            po = stream[i+8];
 	    // offset_i: offset where pixels start in the beginning of sliding window
 	    // offset_w
 	    // handle->ofw_rb handle->ofh_rb
@@ -604,10 +703,11 @@ if (n_segments) {
 	    }
 	    else
 	    {
-              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st);
+              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st, oi, oj);
+              //kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 	    }
 	    pool_index++;
-            i+=4;
+            i+=6;
           }
         }
       }
@@ -669,9 +769,9 @@ if (n_segments) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+4];
-        pw = stream[i+5];
-        po = stream[i+6];
+        pi = stream[i+6];
+        pw = stream[i+7];
+        po = stream[i+8];
 	if(variant[pool_index] < 2)
         {
 	  kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
@@ -680,9 +780,10 @@ if (n_segments) {
 	{
 	  kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
           //wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid);
+	  assert(0);
 	}
 	pool_index++;
-        i+=4;
+        i+=6;
       }
     }
   }
@@ -703,12 +804,12 @@ if (n_segments) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+4];
-        pw = stream[i+5];
-        po = stream[i+6];
+        pi = stream[i+6];
+        pw = stream[i+7];
+        po = stream[i+8];
         offset_bn = bn_stream[bn_i];
         kernel_pool[vi]( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
-        i+=4;
+        i+=6;
         bn_i++;
       }
     } else {
@@ -716,9 +817,9 @@ if (n_segments) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+4];
-        pw = stream[i+5];
-        po = stream[i+6];
+        pi = stream[i+6];
+        pw = stream[i+7];
+        po = stream[i+8];
         offset_bn = bn_stream[bn_i];
 	if(variant[pool_index] < 2)
 	{
@@ -729,7 +830,7 @@ if (n_segments) {
           kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po,  bn_sum_base + offset_bn, bn_sum_base2 + offset_bn, &scale_factor, max_vals);
 	}
 	pool_index++;
-        i+=4;
+        i+=6;
         bn_i++;
       }
     }
@@ -740,20 +841,20 @@ if (n_segments) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+4];
-        pw = stream[i+5];
-        po = stream[i+6];
+        pi = stream[i+6];
+        pw = stream[i+7];
+        po = stream[i+8];
         kernel_pool[variant[pc]]( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
-        i+=4;
+        i+=6;
       }
     } else {
       for (pc = 0; pc < instr; pc++) {
         offset_i = stream[i];
         offset_w = stream[i+1];
         offset_o = stream[i+2];
-        pi = stream[i+4];
-        pw = stream[i+5];
-        po = stream[i+6];
+        pi = stream[i+6];
+        pw = stream[i+7];
+        po = stream[i+8];
 	if(variant[pool_index] < 2)
 	{
           kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
@@ -763,7 +864,7 @@ if (n_segments) {
           kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 	}
 	pool_index++;
-        i+=4;
+        i+=6;
       }
     }
   }

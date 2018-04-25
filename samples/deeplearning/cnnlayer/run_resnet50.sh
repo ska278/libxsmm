@@ -21,7 +21,7 @@ then
   BIN=f32
   TYPE="F"
   FORMAT="L"
-  PAD=0
+  PAD=1
 else
   MB=$1
   ITERS=$2
@@ -71,7 +71,10 @@ if [ "" = "${LIBXSMM_TARGET_HIDDEN}" ] || [ "0" = "${LIBXSMM_TARGET_HIDDEN}" ]; 
   echo
 fi
 
-${NUMACTL} ./layer_example_${BIN} ${ITERS}  14  14  ${MB} 1024  256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
+#gdb --args ${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  16    16 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}   
+${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64    64 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}   
+#gdb --args ${NUMACTL} ./layer_example_${BIN} ${ITERS}  14 14  ${MB}  16    16 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}  
+#${NUMACTL} ./layer_example_${BIN} ${ITERS}  14  14  ${MB} 1024  256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
 
 #${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64   256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD} 
 #${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64    64 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
