@@ -29,9 +29,9 @@
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
 
-void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_type * input1, int ifm_idx, int my_ldh, int my_ldw, int my_c,  element_input_type * myexpect, element_input_type * mystddev, element_input_type * mygamma, element_input_type * mybeta, int ltid, libxsmm_dnn_layer* handle)
+void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_type * input1, int ifm_idx, int my_ldh, int my_ldw, int my_c,  element_input_type * myexpect, element_input_type * mystddev, element_input_type * mygamma, element_input_type * mybeta, int ltid, libxsmm_dnn_layer* handle, int my_w,  int my_h)
 {
-  input1_st[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+  input1_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
   element_input_type after = (input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
   input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
 }
@@ -76,7 +76,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
           int _my_w_st = my_w + handle->desc.pad_w_in;
           for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
           {
-            do_BN(_my_h, _my_w, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+            do_BN(_my_h, _my_w, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
           }
         }
       }
@@ -101,7 +101,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
         {
           for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
           {
-            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
 	 }
         }
       }
@@ -114,7 +114,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
 	  {
             for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
             {
-              do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+              do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
             }
 	  }
 	}
@@ -129,7 +129,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
           for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
           {
 
-          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
 	 }
         }
       }
@@ -140,7 +140,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
       {
         for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
         {
-          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
 	}
       }
     }
@@ -163,7 +163,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
   	  {
             for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
             {
-              do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle);
+              do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
             }
   	  }
         }

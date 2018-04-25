@@ -72,7 +72,7 @@ if [ "" = "${LIBXSMM_TARGET_HIDDEN}" ] || [ "0" = "${LIBXSMM_TARGET_HIDDEN}" ]; 
 fi
 
 #gdb --args ${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  16    16 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}   
-${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64    64 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}   
+gdb --args ${NUMACTL} ./layer_example_${BIN} ${ITERS}  56  56  ${MB}  64    64 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}   
 #gdb --args ${NUMACTL} ./layer_example_${BIN} ${ITERS}  14 14  ${MB}  16    16 3 3 1 1 1 ${TYPE} ${FORMAT} ${PAD}  
 #${NUMACTL} ./layer_example_${BIN} ${ITERS}  14  14  ${MB} 1024  256 1 1 0 0 1 ${TYPE} ${FORMAT} ${PAD}
 
