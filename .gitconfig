@@ -1,2 +1,8 @@
 [merge "ours"]
 	driver = true
+
+[mailmap]
+	file = .gitx/.mailmap
+
+[log]
+	mailmap = true
