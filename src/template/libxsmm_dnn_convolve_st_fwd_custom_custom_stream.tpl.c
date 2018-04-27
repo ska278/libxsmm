@@ -29,6 +29,9 @@
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
 
+//#define FUSED_BN_CONV_WRAPPER
+
+#ifdef FUSED_BN_CONV_WRAPPER
 void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_type * input1, int ifm_idx, int my_ldh, int my_ldw, int my_c,  element_input_type * myexpect, element_input_type * mystddev, element_input_type * mygamma, element_input_type * mybeta, int ltid, libxsmm_dnn_layer* handle, int my_w,  int my_h)
 {
   input1_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
@@ -172,6 +175,8 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
     k( input1, weight1, output1, input2, weight2, output2, sf, mv);
   }
 }
+
+#endif
 
 #define IMG_LOOP_INIT 0
 #define OFM_LOOP_INIT 1
@@ -585,12 +590,12 @@ if (n_segments) {
             }
           }
 
-          int do_bn = 0;
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
 	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
-	     do_bn = 1;
              ifm1 = code_stream[pc].aux_index;
+#ifndef FUSED_BN_CONV_WRAPPER
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+#endif
            }
 	  }
           if ( instr == OFM_LOOP_CLOSE ) {
@@ -685,29 +690,17 @@ if (n_segments) {
             pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
             pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
             po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
-	    // offset_i: offset where pixels start in the beginning of sliding window
-	    // offset_w
-	    // handle->ofw_rb handle->ofh_rb
-	    // handle->kernel_width, ofw_rb, ofh_rb from this calculate input window
-	    // start with 1x1, stride=1. Run from position we are in pointer. Then batch norm ofw_rb pixels in w dim and ofw_hb in h dimension
-	    // Then 3x3 case or any other, calculate from output ifw_rb and ifh_rb. In the beginning, run 3, then next row run 1
-	    // ofw_rb x ofh_rb is roughly 28
-	    // for (ifw_rb x ifh_rb)  // in wrapper
-	    // {
-	    //   batch norm // forward jumps
-	    // }
-	    // for(ofw_rb x ofh_rb)
-	    // {
-	    //   conv
-	    // }
 	    if(variant[pool_index] < 2)
 	    {
               kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 	    }
 	    else
 	    {
-              //wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st, oi, oj);
+#ifdef FUSED_BN_CONV_WRAPPER
+              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st, oi, oj);
+#else
               kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+#endif
 	    }
 	    pool_index++;
             i+=LOCAL_ENTRIES_PER_CONV;
@@ -758,11 +751,9 @@ if (n_segments) {
           }
         }
       }
-      int do_bn = 0;
       if ( instr == IFM_LOOP_FIRST_TOUCH ) {
 	 if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
            ifm1 = code_stream[pc].aux_index;
-	   do_bn = 1;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
          }
       }
@@ -785,8 +776,6 @@ if (n_segments) {
 	else
 	{
 	  kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
-          //wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid);
-	  assert(0);
 	}
 	pool_index++;
         i+=LOCAL_ENTRIES_PER_CONV;

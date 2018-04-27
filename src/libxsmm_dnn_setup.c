@@ -752,9 +752,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_bwd( libxsmm_dnn_layer* h
   } else {
     handle->exploit_duality = 0;
   }
-#if 0
   n_variants =
-#endif
   find_rb(handle->ofw, handle->ofh, &wrb1, &hrb1, &wrb2, &hrb2);
 
   /* FIXME: Remove loop below? Doesn't algorithmic duality take care of that? */
