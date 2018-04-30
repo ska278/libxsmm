@@ -41,8 +41,8 @@ void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_t
 
 void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, element_input_type * input1_st, int oi, int oj)
 {
-  //if(ltid==0) printf("offset_i, R, S, oj, oi, ofh_rb, ofw_rb, %d %d %d %d %d %d %d\n", offset_i, handle->desc.R, handle->desc.S, 
-  //                        oj, oi, handle->fwd_ofh_rb, handle->fwd_ofw_rb);
+  if(ltid==0) printf("offset_i, R, S, oj, oi, ofh_rb, ofw_rb, %d %d %d %d %d %d %d\n", offset_i, handle->desc.R, handle->desc.S, 
+                          oj, oi, handle->fwd_ofh_rb, handle->fwd_ofw_rb);
 
   LIBXSMM_VLA_DECL(2, element_input_type, expect, (element_input_type*)handle->reg_expect->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg_stddev->data, handle->ifmblock);

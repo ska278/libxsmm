@@ -1,6 +1,4 @@
 /******************************************************************************
-
-
 ** Copyright (c) 2016-2018, Intel Corporation                                **
 ** All rights reserved.                                                      **
 **                                                                           **
@@ -351,7 +349,7 @@ LIBXSMM_INLINE void naive_conv_bp(naive_conv_t* param, float* input, float* outp
   LIBXSMM_VLA_DECL(4, const float, input_r2_t, input_r2+ (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4,       float,  naive_input_t,  naive_input_save + (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4, const float, filter_t, filter, nIfm, kh, kw);
-#if defined(USE_FUSED_RELU_BWD)
+#if defined(USE_FUSED_RELU_BWD) 
   LIBXSMM_VLA_DECL(4, const float, naive_input_t, naive_input_save + (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
 #endif
 
@@ -395,8 +393,11 @@ LIBXSMM_INLINE void naive_conv_bp(naive_conv_t* param, float* input, float* outp
 #ifdef USE_FUSED_BN_RELU
       for (ij = 0; ij < ifh; ++ij) {
         for (ii = 0; ii < ifw; ++ii) {
-          LIBXSMM_VLA_ACCESS(3, lcl_gamma_beta_t, 0, img, ifm, nImg, nIfm) += (LIBXSMM_VLA_ACCESS(4,  input_r2_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) - bmean2[ifm]) *  LIBXSMM_VLA_ACCESS(4,  input_r2_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) *brstd2[ifm];
-          LIBXSMM_VLA_ACCESS(3, lcl_gamma_beta_t, 1, img, ifm, nImg, nIfm) += (LIBXSMM_VLA_ACCESS(4,  input_r2_t, img, ifm, ij, ii, nIfm, ifhp, ifwp));
+          if ( LIBXSMM_VLA_ACCESS(4,  naive_input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp) == 0.0 ) {
+            LIBXSMM_VLA_ACCESS(4, input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp) = 0.0;
+	  }
+          LIBXSMM_VLA_ACCESS(3, lcl_gamma_beta_t, 0, img, ifm, nImg, nIfm) += (LIBXSMM_VLA_ACCESS(4,  input_r2_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) - bmean2[ifm]) *  LIBXSMM_VLA_ACCESS(4, input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp)  *brstd2[ifm];
+          LIBXSMM_VLA_ACCESS(3, lcl_gamma_beta_t, 1, img, ifm, nImg, nIfm) += LIBXSMM_VLA_ACCESS(4, input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp);
         }
       }
 #endif
@@ -482,7 +483,7 @@ int main(int argc, char* argv[])
   float *naive_dgamma, *naive_dbeta, *naive_lcl_gamma_beta, *naive_input_st_bwd, *naive_input_st_bwd2, *naive_bmean1, *naive_brstd1, *naive_gamma_bwd, *naive_bmean2, *naive_brstd2;
   float *expect_libxsmm, *stddev_libxsmm, *gamma_libxsmm, *beta_libxsmm;
   float *bmean1_libxsmm, *brstd1_libxsmm, *input_st_bwd_libxsmm, *input_st_bwd2_libxsmm, *lcl_gamma_beta_libxsmm, *gamma_bwd_libxsmm, *bmean2_libxsmm, *brstd2_libxsmm;
-  float *input_libxsmm, *filter_libxsmm, *output_libxsmm, *dinput_libxsmm, *dfilter_libxsmm, *doutput_libxsmm, *filtertr_libxsmm; 
+  float *input_libxsmm, *filter_libxsmm, *output_libxsmm, *dinput_libxsmm, *dfilter_libxsmm, *doutput_libxsmm, *filtertr_libxsmm, *input_save_libxsmm; 
   float *dbeta_libxsmm, *dgamma_libxsmm;
   float *naive_input_st, *naive_libxsmm_input_st, *input_st_libxsmm;
   float *naive_libxsmm_lcl_gamma_beta;
@@ -545,6 +546,7 @@ int main(int argc, char* argv[])
   libxsmm_dnn_tensor* libxsmm_dbias;
 #ifdef USE_FUSED_BN_RELU
   libxsmm_dnn_tensor* libxsmm_input_st;
+  libxsmm_dnn_tensor* libxsmm_input_save;
   libxsmm_dnn_tensor* libxsmm_input_st_bwd;
   libxsmm_dnn_tensor* libxsmm_input_st_bwd2;
   libxsmm_dnn_tensor* libxsmm_gamma_bwd;
@@ -700,6 +702,7 @@ int main(int argc, char* argv[])
   filter_rsck           = (float*)libxsmm_aligned_malloc( nOfm*nIfm*kh*kw*    sizeof(float), 2097152);
   dfilter_rsck          = (float*)libxsmm_aligned_malloc( nOfm*nIfm*kh*kw*    sizeof(float), 2097152);
   input_libxsmm         = (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
+  input_save_libxsmm    = (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
   filter_libxsmm        = (float*)libxsmm_aligned_malloc( nOfm*nIfm*kh*kw*    sizeof(float), 2097152);
   output_libxsmm        = (float*)libxsmm_aligned_malloc( nImg*nOfm*ofhp*ofwp*sizeof(float), 2097152);
   dinput_libxsmm        = (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
@@ -856,6 +859,7 @@ int main(int argc, char* argv[])
 
   /* first touch LIBXSMM */
   zero_buf( input_libxsmm    , nImg*nIfm*ifhp*ifwp );
+  zero_buf( input_save_libxsmm    , nImg*nIfm*ifhp*ifwp );
   zero_buf( filter_libxsmm   , nOfm*nIfm*kh*kw );
   zero_buf( output_libxsmm   , nImg*nOfm*ofhp*ofwp );
   zero_buf( dinput_libxsmm   , nImg*nIfm*ifhp*ifwp );
@@ -974,6 +978,10 @@ int main(int argc, char* argv[])
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 #ifdef USE_FUSED_BN_RELU
 
+    libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_INPUT, &status ); CHKERR_LIBXSMM_DNN( status );
+    libxsmm_input_save  = libxsmm_dnn_link_tensor( libxsmm_layout,  input_save_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
+    libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
+
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_INPUT_ST, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_input_st  = libxsmm_dnn_link_tensor( libxsmm_layout, input_st_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
@@ -1053,6 +1061,7 @@ int main(int argc, char* argv[])
     /* we can also use the layout functions and set the data on our
        own external to the library, @TODO, we plan to add an example here */
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_input,  (void*)naive_input_save,  LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
+    CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_input_save,  (void*)naive_input_save,  LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_output, (void*)naive_output_save, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_filter, (void*)naive_filter,      LIBXSMM_DNN_TENSOR_FORMAT_KCRS ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_bias,   (void*)naive_bias,        LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
@@ -1085,6 +1094,7 @@ int main(int argc, char* argv[])
     /* bind buffers and filter to handle */
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input,      LIBXSMM_DNN_REGULAR_INPUT ) );
 #ifdef USE_FUSED_BN_RELU
+    CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input_save,  LIBXSMM_DNN_REGULAR_INPUT_SAVE ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input_st,   LIBXSMM_DNN_REGULAR_INPUT_ST ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input_st_bwd,   LIBXSMM_DNN_REGULAR_INPUT_ST_BWD ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input_st_bwd2,   LIBXSMM_DNN_REGULAR_INPUT_ST_BWD2 ) );
@@ -1285,6 +1295,7 @@ int main(int argc, char* argv[])
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor(    libxsmm_doutput, (void*)naive_output_bp, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor(    libxsmm_doutput, (void*)naive_output_bp_save, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor(    libxsmm_dinput, (void*)naive_input_save, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
+      CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor(    libxsmm_input_save, (void*)naive_input_save, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
 #if defined(USE_BWD_NO_FILTER_TRANSPOSE_OVERWRITE)
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_trans_reg_filter( libxsmm_handle ) );
 #endif
@@ -1506,6 +1517,7 @@ int main(int argc, char* argv[])
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_release_tensor( libxsmm_handle, LIBXSMM_DNN_BATCH_STATS ) );
 #endif
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_input ) );
+    CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_input_save ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_output ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_filter ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_dinput ) );

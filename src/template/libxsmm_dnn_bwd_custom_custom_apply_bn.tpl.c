@@ -41,19 +41,35 @@ const int padded_w = handle->ifwp + 2 * handle->desc.pad_w;
 ifm_idx = ifm1;
 {
   element_input_type * myinput;
+  element_input_type * myinput_st;
+  element_input_type * myinput_save;
   if (handle->padding_flag == 1) {
-    LIBXSMM_VLA_DECL(6, element_input_type, input, (element_input_type*)handle->reg_input_st_bwd2->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-    myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input, img, ifm_idx, 0, 0, 0, 0,
+    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st_bwd2->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    LIBXSMM_VLA_DECL(6, element_input_type, input_save, (element_input_type*)handle->reg_input_save->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    LIBXSMM_VLA_DECL(5, element_input_type, input_di, (element_input_type*)handle->reg_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_di, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
+        BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    myinput_save = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     assert(myinput);
+    assert(myinput_st);
+    assert(myinput_save);
     my_ldw = padded_w;
     my_pad_h = handle->desc.pad_h;
     my_pad_w = handle->desc.pad_w;
   } else {
-    LIBXSMM_VLA_DECL(6, element_input_type, input, (element_input_type*)handle->reg_input_st_bwd2->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-    myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input, img, ifm_idx, 0, 0, 0, 0,
+    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st_bwd2->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    LIBXSMM_VLA_DECL(6, element_input_type, input_save, (element_input_type*)handle->reg_input_save->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    LIBXSMM_VLA_DECL(5, element_input_type, input_di, (element_input_type*)handle->reg_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_di, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
+        BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    myinput_save = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_save, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     assert(myinput);
+    assert(myinput_st);
+    assert(myinput_save);
     my_ldw = handle->ifwp;
     my_pad_h = handle->desc.pad_h_in;
     my_pad_w = handle->desc.pad_w_in;
@@ -76,9 +92,12 @@ ifm_idx = ifm1;
       {
         int _my_h = my_h + my_pad_h;
         int _my_w = my_w + my_pad_w;
-
+	if(myinput_save[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] == 0.f)
+	{
+          myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 0.f;
+	}
 	mylcl_gamma_beta0[my_c] +=
-	    (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] - mybmean2[my_c]) * 
+	    (myinput_st[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] - mybmean2[my_c]) * 
 	    (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]) * mybrstd2[my_c];
 	mylcl_gamma_beta1[my_c] +=
 	    (myinput[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]);

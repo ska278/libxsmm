@@ -365,6 +365,7 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
 
   /* internal data representation */
   libxsmm_dnn_tensor* reg_input;
+  libxsmm_dnn_tensor* reg_input_save;
   libxsmm_dnn_tensor* reg_input_st;
   libxsmm_dnn_tensor* reg_input_st_bwd;
   libxsmm_dnn_tensor* reg_input_st_bwd2;

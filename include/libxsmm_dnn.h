@@ -118,6 +118,7 @@ typedef enum libxsmm_dnn_tensor_type {
   /** regular input buffer */
   LIBXSMM_DNN_REGULAR_INPUT,
   /** regular input buffer that is stored to */
+  LIBXSMM_DNN_REGULAR_INPUT_SAVE,
   LIBXSMM_DNN_REGULAR_INPUT_ST,
   LIBXSMM_DNN_REGULAR_INPUT_ST_BWD,
   LIBXSMM_DNN_REGULAR_INPUT_ST_BWD2,
