@@ -132,10 +132,11 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
           int _my_w = my_w + my_pad_w;
 
 	  // Streaming store input to other buffer
-	  myinput_st[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+	  myinput_st[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 
+	      myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
 
           element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
+          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0.f) ? after : 0.f;
         }
       }
     }
