@@ -46,7 +46,7 @@ ifm_idx = ifm1;
   if (handle->padding_flag == 1) {
     LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st_bwd2->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     LIBXSMM_VLA_DECL(6, element_input_type, input_save, (element_input_type*)handle->reg_input_save->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-    LIBXSMM_VLA_DECL(5, element_input_type, input_di, (element_input_type*)handle->reg_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    LIBXSMM_VLA_DECL(5, element_input_type, input_di, (element_input_type*)handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_di, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
@@ -61,7 +61,7 @@ ifm_idx = ifm1;
   } else {
     LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st_bwd2->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     LIBXSMM_VLA_DECL(6, element_input_type, input_save, (element_input_type*)handle->reg_input_save->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-    LIBXSMM_VLA_DECL(5, element_input_type, input_di, (element_input_type*)handle->reg_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    LIBXSMM_VLA_DECL(5, element_input_type, input_di, (element_input_type*)handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_di, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);

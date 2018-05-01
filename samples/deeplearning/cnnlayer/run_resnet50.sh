@@ -17,13 +17,13 @@ fi
 if [ $# -ne 7 ]
 then
   echo "Usage: $(basename $0) mb iters numa (1-mcdram/0-DDR) TYPE ('A'-ALL/'F'-FP/'B'-BP/'U'-WU) FORMAT ('A'-ALL/'L'-LIBXSMM/'T'-Tensorflow/'M'-Mixed) padding; using default values; using default values: 64 1000 1 f32 A L 0"
-  MB=28
+  MB=$1
   ITERS=1
   NUMA=1
   BIN=f32
-  TYPE="F"
+  TYPE=$2
   FORMAT="L"
-  PAD=0
+  PAD=$3
 else
   MB=$1
   ITERS=$2
