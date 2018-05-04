@@ -28,6 +28,7 @@
  ******************************************************************************/
 /* Evangelos Georganas (Intel Corp.) Michael Anderson (Intel Corp.)
  ******************************************************************************/
+if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
 
 LIBXSMM_VLA_DECL(2, element_input_type, expect, (element_input_type*)handle->reg_expect->data, handle->ifmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg_stddev->data, handle->ifmblock);
@@ -68,10 +69,16 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
   {
 #ifdef __AVX512F__
     // load batch norm parameters
-    __m512 _expect = _mm512_load_ps(myexpect);
-    __m512 _stddev = _mm512_load_ps(mystddev);
-    __m512 _gamma = _mm512_load_ps(mygamma);
-    __m512 _beta = _mm512_load_ps(mybeta);
+    __m512 _expect;
+    __m512 _stddev;
+    __m512 _gamma;
+    __m512 _beta;
+    if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+      _expect = _mm512_load_ps(myexpect);
+      _stddev = _mm512_load_ps(mystddev);
+      _gamma = _mm512_load_ps(mygamma);
+      _beta = _mm512_load_ps(mybeta);
+    }
     for(my_h = 0 ; my_h < handle->desc.H ; my_h++) 
     {
       for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
@@ -85,12 +92,12 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
 	__m512 _input = _mm512_load_ps(&myinput[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
 
 	// Streaming store input to other buffer
-        if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) | ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+        if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
   	  _mm512_stream_ps(&myinput_st[(my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input);
 	}
 
 	// Apply bn
-        if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) | ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+        if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
 	  _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
 	}
 
@@ -164,4 +171,5 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
       }
     }
   }
+}
 }

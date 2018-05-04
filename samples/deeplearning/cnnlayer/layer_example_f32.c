@@ -46,9 +46,9 @@
 #define USE_FUSED_BATCH_NORM_RELU_FWD
 
 #define USE_FUSED_BATCH_NORM_BWD
-//#define USE_FUSED_BATCH_STATS_BWD
-//#define USE_FUSED_BATCH_STATS_RELU_BWD
-//#define USE_FUSED_RELU_BWD
+#define USE_FUSED_BATCH_STATS_BWD
+#define USE_FUSED_BATCH_STATS_RELU_BWD
+#define USE_FUSED_RELU_BWD
 
 #define CHKERR_LIBXSMM_DNN(A) if ( A != LIBXSMM_DNN_SUCCESS ) { fprintf(stderr, "%s\n", libxsmm_dnn_get_error(A) ); global_status = A; }
 

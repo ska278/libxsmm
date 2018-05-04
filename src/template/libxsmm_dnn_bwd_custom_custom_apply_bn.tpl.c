@@ -29,6 +29,8 @@
 /* Evangelos Georganas (Intel Corp.) Michael Anderson (Intel Corp.)
  ******************************************************************************/
 
+if((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD) || (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_RELU_BWD))
+{
 LIBXSMM_VLA_DECL(4, element_input_type, lcl_gamma_beta, (element_input_type*)handle->reg_lcl_gamma_beta->data, BLOCKSIFM, handle->desc.N, handle->ifmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, bmean2, (element_input_type*)handle->reg_bmean2->data, handle->ifmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, brstd2, (element_input_type*)handle->reg_brstd2->data, handle->ifmblock);
@@ -52,9 +54,6 @@ ifm_idx = ifm1;
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     myinput_save = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-    assert(myinput);
-    assert(myinput_st);
-    assert(myinput_save);
     my_ldw = padded_w;
     my_pad_h = handle->desc.pad_h;
     my_pad_w = handle->desc.pad_w;
@@ -67,9 +66,6 @@ ifm_idx = ifm1;
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     myinput_save = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_save, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-    assert(myinput);
-    assert(myinput_st);
-    assert(myinput_save);
     my_ldw = handle->ifwp;
     my_pad_h = handle->desc.pad_h_in;
     my_pad_w = handle->desc.pad_w_in;
@@ -78,35 +74,25 @@ ifm_idx = ifm1;
   element_input_type * mybrstd2 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, brstd2, ifm_idx, 0, handle->ifmblock));
   element_input_type * mylcl_gamma_beta0 = &(LIBXSMM_VLA_ACCESS(  4, lcl_gamma_beta, 0, ifm_idx, img, 0, BLOCKSIFM, handle->desc.N, handle->ifmblock));
   element_input_type * mylcl_gamma_beta1 = &(LIBXSMM_VLA_ACCESS(  4, lcl_gamma_beta, 1, ifm_idx, img, 0, BLOCKSIFM, handle->desc.N, handle->ifmblock));
-  assert(mybmean2);
-  assert(mybrstd2);
-  assert(mylcl_gamma_beta0);
-  assert(mylcl_gamma_beta1);
 
-  if((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD) || (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD))
+  for(my_h = 0 ; my_h < handle->desc.H ; my_h++)
   {
-    for(my_h = 0 ; my_h < handle->desc.H ; my_h++)
+    for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
     {
-      for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
+      #pragma simd
+      for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
       {
-        #pragma simd
-        for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
-        {
-          int _my_h = my_h + my_pad_h;
-          int _my_w = my_w + my_pad_w;
-	//if(myinput_save[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] == 0.f)
-//	{
-//          myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 0.f;
-//	}
-	  mylcl_gamma_beta0[my_c] +=
-	      (myinput_st[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] - mybmean2[my_c]) * 
-	      (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]) * mybrstd2[my_c];
-	  mylcl_gamma_beta1[my_c] +=
-	      (myinput[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]);
-        }
+        int _my_h = my_h + my_pad_h;
+        int _my_w = my_w + my_pad_w;
+        mylcl_gamma_beta0[my_c] +=
+          (myinput_st[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] - mybmean2[my_c]) * 
+	  (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]) * mybrstd2[my_c];
+	mylcl_gamma_beta1[my_c] +=
+	  (myinput[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]);
       }
     }
   }
+}
 }
 
 
