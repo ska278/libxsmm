@@ -39,21 +39,16 @@
 
 //# define USE_OVERWRITE
 /*# define USE_BWD_NO_FILTER_TRANSPOSE_OVERWRITE*/
-# define USE_FUSED_BATCH_STATS
 #define FP64_BN_STATS
-/*#define USE_FUSED_RELU_BWD*/
-#define USE_FUSED_BN_RELU
 
-#if !defined(USE_FUSED_BIAS) && 0
-# define USE_FUSED_BIAS
-#endif
-#if !defined(USE_FUSED_RELU) && 0
-# define USE_FUSED_RELU
-#endif
+#define USE_FUSED_BATCH_STATS
+#define USE_FUSED_BATCH_NORM_FWD
+#define USE_FUSED_BATCH_NORM_RELU_FWD
 
-#if !defined(USE_FUSED) && 0
-# define USE_FUSED_BIAS_RELU
-#endif
+#define USE_FUSED_BATCH_NORM_BWD
+//#define USE_FUSED_BATCH_STATS_BWD
+//#define USE_FUSED_BATCH_STATS_RELU_BWD
+//#define USE_FUSED_RELU_BWD
 
 #define CHKERR_LIBXSMM_DNN(A) if ( A != LIBXSMM_DNN_SUCCESS ) { fprintf(stderr, "%s\n", libxsmm_dnn_get_error(A) ); global_status = A; }
 
@@ -249,19 +244,23 @@ LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, float* input, float* outp
   LIBXSMM_VLA_DECL(4,       float,  input_t,  input + (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4,       float,  input_st_t,  input_st + (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4, const float, filter_t, filter, nIfm, kh, kw);
-#ifdef USE_FUSED_BN_RELU
   for (img = 0; img < nImg; ++img) {
     for (ifm = 0; ifm < nIfm; ++ifm) {
       for (ij = 0; ij < ifh; ++ij) {
         for (ii = 0; ii < ifw; ++ii) {
+#if defined(USE_FUSED_BATCH_NORM_FWD) || defined(USE_FUSED_BATCH_NORM_RELU_FWD)
 	  LIBXSMM_VLA_ACCESS(4,  input_st_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) = LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp);
-	  float after = (LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) - expect[ifm]) * stddev[ifm] * gamma[ifm] + beta[ifm];
-          LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) = (after > 0.f) ? after : 0.f;
+#endif
+#if defined(USE_FUSED_BATCH_NORM_FWD) || defined(USE_FUSED_BATCH_NORM_RELU_FWD)
+	  LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) = (LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) - expect[ifm]) * stddev[ifm] * gamma[ifm] + beta[ifm];
+#endif
+#if defined(USE_FUSED_BATCH_NORM_RELU_FWD)
+          LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) = (LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) > 0.f) ? LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) : 0.f;
+#endif
 	}
       }
     }
   }
-#endif
 
 #if defined(USE_FUSED_BIAS) || defined(USE_FUSED_BIAS_RELU)
 #if defined(_OPENMP)
@@ -349,11 +348,8 @@ LIBXSMM_INLINE void naive_conv_bp(naive_conv_t* param, float* input, float* outp
   LIBXSMM_VLA_DECL(4, const float, input_r2_t, input_r2+ (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4,       float,  naive_input_t,  naive_input_save + (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
   LIBXSMM_VLA_DECL(4, const float, filter_t, filter, nIfm, kh, kw);
-#if defined(USE_FUSED_RELU_BWD) 
-  LIBXSMM_VLA_DECL(4, const float, naive_input_t, naive_input_save + (pad_h_in * ifwp + pad_w_in), nIfm, ifhp, ifwp);
-#endif
 
-#ifdef USE_FUSED_BN_RELU
+#ifdef USE_FUSED_BATCH_NORM_BWD
   for (img = 0; img < nImg; ++img) {
     for (ofm = 0; ofm < nOfm; ++ofm) {
       for (oj = 0; oj < ofh; ++oj) {
@@ -390,28 +386,19 @@ LIBXSMM_INLINE void naive_conv_bp(naive_conv_t* param, float* input, float* outp
         }
       }
 
-#ifdef USE_FUSED_BN_RELU
       for (ij = 0; ij < ifh; ++ij) {
         for (ii = 0; ii < ifw; ++ii) {
+#if defined(USE_FUSED_BATCH_STATS_RELU_BWD) || defined(USE_FUSED_RELU_BWD)
           if ( LIBXSMM_VLA_ACCESS(4,  naive_input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp) == 0.0 ) {
             LIBXSMM_VLA_ACCESS(4, input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp) = 0.0;
 	  }
+#endif
+#if defined(USE_FUSED_BATCH_STATS_RELU_BWD) || defined(USE_FUSED_BATCH_STATS_BWD)
           LIBXSMM_VLA_ACCESS(3, lcl_gamma_beta_t, 0, img, ifm, nImg, nIfm) += (LIBXSMM_VLA_ACCESS(4,  input_r2_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) - bmean2[ifm]) *  LIBXSMM_VLA_ACCESS(4, input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp)  *brstd2[ifm];
           LIBXSMM_VLA_ACCESS(3, lcl_gamma_beta_t, 1, img, ifm, nImg, nIfm) += LIBXSMM_VLA_ACCESS(4, input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp);
+#endif
         }
       }
-#endif
-
-#if defined(USE_FUSED_RELU_BWD)
-      for (ij = 0; ij < ifh; ij++) {
-        for (ii = 0; ii < ifw; ii++) {
-          if ( LIBXSMM_VLA_ACCESS(4,  naive_input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp) == 0.0 ) {
-            LIBXSMM_VLA_ACCESS(4, input_t, img, ifm, ij, ii , nIfm, ifhp, ifwp) = 0.0;
-          }
-        }
-      }
-#endif
-
     }
   }
 }
@@ -534,6 +521,40 @@ int main(int argc, char* argv[])
   int i;
 
   libxsmm_dnn_conv_desc conv_desc;
+  conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_NONE;
+
+#if defined(USE_FUSED_BATCH_STATS)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_BATCH_STATS;
+#endif
+#if defined(USE_FUSED_BATCH_NORM_FWD)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD;
+#endif
+#if defined(USE_FUSED_BATCH_NORM_RELU_FWD)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD;
+#endif
+#if defined(USE_FUSED_BATCH_NORM_BWD)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_BWD;
+#endif
+#if defined(USE_FUSED_BATCH_STATS_BWD)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD;
+#endif
+#if defined(USE_FUSED_BATCH_STATS_RELU_BWD)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_RELU_BWD;
+#endif
+#if defined(USE_FUSED_RELU_BWD)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_RELU_BWD;
+#endif
+#if defined(USE_FUSED_BIAS)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_BIAS;
+#endif
+#if defined(USE_FUSED_RELU_FWD)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_RELU_FWD;
+#endif
+#if defined(USE_FUSED_MAX_STATS)
+    conv_desc.fuse_ops |= LIBXSMM_DNN_CONV_FUSE_MAX_STATS;
+#endif
+
+
   libxsmm_dnn_layer* libxsmm_handle;
   libxsmm_dnn_tensor* libxsmm_input;
   libxsmm_dnn_tensor* libxsmm_output;
@@ -544,7 +565,6 @@ int main(int argc, char* argv[])
   libxsmm_dnn_tensor* libxsmm_filter_tr;
   libxsmm_dnn_tensor* libxsmm_bias;
   libxsmm_dnn_tensor* libxsmm_dbias;
-#ifdef USE_FUSED_BN_RELU
   libxsmm_dnn_tensor* libxsmm_input_st;
   libxsmm_dnn_tensor* libxsmm_input_save;
   libxsmm_dnn_tensor* libxsmm_input_st_bwd;
@@ -561,7 +581,6 @@ int main(int argc, char* argv[])
   libxsmm_dnn_tensor* libxsmm_stddev;
   libxsmm_dnn_tensor* libxsmm_gamma;
   libxsmm_dnn_tensor* libxsmm_beta;
-#endif
 
 #ifdef USE_FUSED_BATCH_STATS
   libxsmm_dnn_tensor* libxsmm_batchstats;
@@ -678,6 +697,9 @@ int main(int argc, char* argv[])
   printf("Using Overwrite Option\n");
 #endif
 
+
+
+
   /* allocate data */
   naive_input           = (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
   naive_input_save      = (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
@@ -721,7 +743,6 @@ int main(int argc, char* argv[])
   dbias_libxsmm         = (float*)libxsmm_aligned_malloc( nOfm*               sizeof(float), 2097152);
   bias_nhwc             = (float*)libxsmm_aligned_malloc( nOfm*               sizeof(float), 2097152);
   dbias_nhwc            = (float*)libxsmm_aligned_malloc( nOfm*               sizeof(float), 2097152);
-#ifdef USE_FUSED_BN_RELU
   naive_input_st        = (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
   naive_input_st_bwd	= (float*)libxsmm_aligned_malloc( nImg*nOfm*ofhp*ofwp* sizeof(float), 2097152);
   naive_input_st_bwd2	= (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp* sizeof(float), 2097152);
@@ -756,7 +777,6 @@ int main(int argc, char* argv[])
 
   naive_libxsmm_lcl_gamma_beta		= (float*)libxsmm_aligned_malloc( 2*nImg*nIfm*               sizeof(float), 2097152);
   naive_libxsmm_input_st= (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
-#endif
 
   /* initialize data */
   float *naive_input_tmp           = (float*)libxsmm_aligned_malloc( nImg*nIfm*ifhp*ifwp*sizeof(float), 2097152);
@@ -798,10 +818,8 @@ int main(int argc, char* argv[])
 
   copy_buf(naive_input, naive_input_save, nImg*nIfm*ifhp*ifwp);
   zero_buf(naive_output_save,    nImg*nOfm*ofhp*ofwp);
-#ifdef USE_FUSED_BN_RELU
   zero_buf(naive_input_st,     nImg*nIfm*ifhp*ifwp);
   zero_buf(naive_lcl_gamma_beta,     2*nImg*nIfm);
-#endif
 
   float *naive_output_tmp          = (float*)libxsmm_aligned_malloc( nImg*nOfm*ofhp*ofwp*sizeof(float), 2097152);
   if (padding_mode == 0 ) {
@@ -813,10 +831,8 @@ int main(int argc, char* argv[])
   copy_buf(naive_output, naive_output_save, nImg*nOfm*ofhp*ofwp);
   zero_buf(naive_libxsmm_output, nImg*nOfm*ofhp*ofwp);
   zero_buf(naive_libxsmm_input,  nImg*nIfm*ifhp*ifwp);
-#ifdef USE_FUSED_BN_RELU
   zero_buf(naive_libxsmm_input_st,  nImg*nIfm*ifhp*ifwp);
   zero_buf(naive_libxsmm_lcl_gamma_beta,  2*nImg*nIfm);
-#endif
   init_buf(naive_filter,         nOfm*nIfm*kh*kw, 0, 0);
   copy_buf(naive_filter, naive_filter_wu, nOfm*nIfm*kh*kw);
   zero_buf(naive_libxsmm_filter, nOfm*nIfm*kh*kw);
@@ -830,7 +846,6 @@ int main(int argc, char* argv[])
   copy_buf(naive_bias, bias_nhwc, nOfm);
   copy_buf(naive_dbias, dbias_nhwc, nOfm);
 
-#ifdef USE_FUSED_BN_RELU
   zero_buf( input_st_libxsmm , nImg*nIfm*ifhp*ifwp );
   zero_buf(naive_libxsmm_lcl_gamma_beta, 	2*nImg*nIfm);
   init_buf(naive_expect, 	nIfm, 0, 0);
@@ -855,7 +870,6 @@ int main(int argc, char* argv[])
   copy_buf(naive_input_st_bwd, input_st_bwd_libxsmm,	nImg*nOfm*ofhp*ofwp);
   copy_buf(naive_input_st_bwd2, input_st_bwd2_libxsmm,	nImg*nIfm*ifhp*ifwp);
   copy_buf(naive_gamma_bwd, gamma_bwd_libxsmm,	nOfm);
-#endif
 
   /* first touch LIBXSMM */
   zero_buf( input_libxsmm    , nImg*nIfm*ifhp*ifwp );
@@ -923,30 +937,12 @@ int main(int argc, char* argv[])
     conv_desc.algo = (0 == algo_winograd ? LIBXSMM_DNN_CONV_ALGO_DIRECT : LIBXSMM_DNN_CONV_ALGO_AUTO);
     conv_desc.buffer_format = LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM;
     conv_desc.filter_format = LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM;
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_NONE;
 #if defined(USE_BWD_NO_FILTER_TRANSPOSE_OVERWRITE)
     conv_desc.options = LIBXSMM_DNN_CONV_OPTION_BWD_NO_FILTER_TRANSPOSE_OVERWRITE;
 #elif defined(USE_OVERWRITE)
     conv_desc.options = LIBXSMM_DNN_CONV_OPTION_OVERWRITE;
 #else
     conv_desc.options = LIBXSMM_DNN_CONV_OPTION_NONE;
-#endif
-#if defined(USE_FUSED_BIAS)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BIAS;
-#elif defined(USE_FUSED_RELU)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_RELU;
-#elif defined(USE_FUSED_BIAS_RELU)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BIAS_RELU;
-#elif defined(USE_FUSED_BN_RELU)
-   conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BATCH_NORM_RELU;
-#elif defined(USE_FUSED_BATCH_STATS)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BATCH_STATS;
-#elif defined(USE_FUSED_RELU_BWD)
-   conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_RELU_BWD;
-#elif defined(USE_FUSED_BATCH_STATCH_RELU_BWD)
-   conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_RELU_BWD;
-#else
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_NONE;
 #endif
     /*conv_desc.options = LIBXSMM_DNN_CONV_OPTION_UPD_NO_FILTER_REDUCE;*/
     conv_desc.datatype_in = LIBXSMM_DNN_DATATYPE_F32;
@@ -976,7 +972,6 @@ int main(int argc, char* argv[])
     libxsmm_bias  = libxsmm_dnn_link_tensor( libxsmm_layout,  bias_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dbias = libxsmm_dnn_link_tensor( libxsmm_layout, dbias_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
-#ifdef USE_FUSED_BN_RELU
 
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_INPUT, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_input_save  = libxsmm_dnn_link_tensor( libxsmm_layout,  input_save_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
@@ -1043,8 +1038,6 @@ int main(int argc, char* argv[])
     libxsmm_dgamma  = libxsmm_dnn_link_tensor( libxsmm_layout,  dgamma_libxsmm, &status ); CHKERR_LIBXSMM_DNN( status );
     libxsmm_dnn_destroy_tensor_datalayout( libxsmm_layout );
 
-#endif
-
 
 
     libxsmm_layout = libxsmm_dnn_create_tensor_datalayout( libxsmm_handle, LIBXSMM_DNN_REGULAR_FILTER_TRANS, &status ); CHKERR_LIBXSMM_DNN( status );
@@ -1065,7 +1058,6 @@ int main(int argc, char* argv[])
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_output, (void*)naive_output_save, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_filter, (void*)naive_filter,      LIBXSMM_DNN_TENSOR_FORMAT_KCRS ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_bias,   (void*)naive_bias,        LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
-#if defined(USE_FUSED_BN_RELU)
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_expect,   (void*)naive_expect,        LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_stddev,   (void*)naive_stddev,        LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_gamma,   (void*)naive_gamma,        LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
@@ -1081,7 +1073,6 @@ int main(int argc, char* argv[])
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_brstd2,   (void*)naive_brstd2,        LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_dgamma,   (void*)naive_dgamma,        LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyin_tensor( libxsmm_dbeta,   (void*)naive_dbeta,        LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
-#endif
 
     zero_buf(filtertr_libxsmm, nOfm*nIfm*kh*kw);
 #ifdef FP32_BN_STATS
@@ -1093,7 +1084,6 @@ int main(int argc, char* argv[])
 
     /* bind buffers and filter to handle */
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input,      LIBXSMM_DNN_REGULAR_INPUT ) );
-#ifdef USE_FUSED_BN_RELU
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input_save,  LIBXSMM_DNN_REGULAR_INPUT_SAVE ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input_st,   LIBXSMM_DNN_REGULAR_INPUT_ST ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_input_st_bwd,   LIBXSMM_DNN_REGULAR_INPUT_ST_BWD ) );
@@ -1112,7 +1102,6 @@ int main(int argc, char* argv[])
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_brstd2,       LIBXSMM_DNN_REGULAR_BRSTD2 ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_dgamma,   LIBXSMM_DNN_GRADIENT_GAMMA ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_dbeta,   LIBXSMM_DNN_GRADIENT_BETA ) );
-#endif
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_dinput,     LIBXSMM_DNN_GRADIENT_INPUT ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_output,     LIBXSMM_DNN_REGULAR_OUTPUT ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_bind_tensor( libxsmm_handle, libxsmm_doutput,    LIBXSMM_DNN_GRADIENT_OUTPUT ) );
@@ -1152,10 +1141,8 @@ int main(int argc, char* argv[])
       }
       /* copy out data */
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyout_tensor( libxsmm_output, (void*)naive_libxsmm_output, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
-#ifdef USE_FUSED_BN_RELU
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyout_tensor( libxsmm_input_st, (void*)naive_libxsmm_input_st, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyout_tensor( libxsmm_input, (void*)naive_libxsmm_input, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
-#endif
 
       /* compare */
       printf("Output\n");
@@ -1169,7 +1156,7 @@ int main(int argc, char* argv[])
       printf("Check-norm    : %.24f\n", norms_fwd.normf_rel);
       libxsmm_matdiff_reduce(&diff, &norms_fwd);
 
-#ifdef USE_FUSED_BN_RELU
+#if defined(USE_FUSED_BATCH_NORM_FWD) || defined(USE_FUSED_BATCH_NORM_RELU_FWD)
       printf("Input streaming store\n");
       libxsmm_matdiff(LIBXSMM_DATATYPE_F32, nImg*nIfm*ifhp*ifwp, 1, naive_input_st, naive_libxsmm_input_st, 0, 0, &norms_fwd);
       printf("Input store:\n");
@@ -1192,21 +1179,6 @@ int main(int argc, char* argv[])
       printf("Linf rel.error: %.24f\n", norms_fwd.linf_rel);
       printf("Check-norm    : %.24f\n", norms_fwd.normf_rel);
       libxsmm_matdiff_reduce(&diff, &norms_fwd);
-
-//      printf("ifhp, ifwp: %d %d\n", ifhp, ifwp);
-      int _i, _j, _c;
-      for(_i = 0 ; _i < ifhp ; _i++)
-      {
-        for(_j = 0 ; _j < ifwp ; _j++)
-	{
-	  for(_c = 2 ; _c < 3 ; _c++)
-	  {
-//	    printf("%.2f, ", (float)naive_libxsmm_input_st[(_j + _i * ifwp) + _c*ifwp*ifhp]);
-	  }
-	}
-//	printf("\n");
-      }
-
 #endif
 
 #if defined(USE_FUSED_BATCH_STATS)
@@ -1315,10 +1287,8 @@ int main(int argc, char* argv[])
 
       /* copy out data */
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyout_tensor( libxsmm_dinput, (void*)naive_libxsmm_input, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
-#ifdef USE_FUSED_BN_RELU
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyout_tensor( libxsmm_doutput, (void*)naive_libxsmm_output, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_copyout_tensor( libxsmm_lcl_gamma_beta, (void*)naive_libxsmm_lcl_gamma_beta, LIBXSMM_DNN_TENSOR_FORMAT_NCHW ) );
-#endif
 
       /* compare */
       libxsmm_matdiff(LIBXSMM_DATATYPE_F32, nImg*nIfm*ifhp*ifwp, 1, naive_input, naive_libxsmm_input, 0, 0, &norms_bwd);
@@ -1331,7 +1301,7 @@ int main(int argc, char* argv[])
       printf("Check-norm    : %.24f\n", norms_bwd.normf_rel);
       libxsmm_matdiff_reduce(&diff, &norms_bwd);
 
-#ifdef USE_FUSED_BN_RELU
+#ifdef USE_FUSED_BATCH_NORM_BWD
       printf("output\n");
       libxsmm_matdiff(LIBXSMM_DATATYPE_F32, nImg*nOfm*ofhp*ofwp, 1, naive_output_bp, naive_libxsmm_output, 0, 0, &norms_bwd);
       printf("L1 reference  : %.25g\n", norms_bwd.l1_ref);
@@ -1342,7 +1312,9 @@ int main(int argc, char* argv[])
       printf("Linf rel.error: %.24f\n", norms_bwd.linf_rel);
       printf("Check-norm    : %.24f\n", norms_bwd.normf_rel);
       libxsmm_matdiff_reduce(&diff, &norms_bwd);
+#endif
 
+#if defined(USE_FUSED_BATCH_STATS_BWD) || defined(USE_FUSED_BATCH_STATS_RELU_BWD)
       printf("lcl_gamma_beta\n");
       libxsmm_matdiff(LIBXSMM_DATATYPE_F32, 2*nImg*nIfm, 1, naive_lcl_gamma_beta, naive_libxsmm_lcl_gamma_beta, 0, 0, &norms_bwd);
       printf("L1 reference  : %.25g\n", norms_bwd.l1_ref);
@@ -1353,7 +1325,6 @@ int main(int argc, char* argv[])
       printf("Linf rel.error: %.24f\n", norms_bwd.linf_rel);
       printf("Check-norm    : %.24f\n", norms_bwd.normf_rel);
       libxsmm_matdiff_reduce(&diff, &norms_bwd);
-
 #endif
 
     }
@@ -1525,12 +1496,7 @@ int main(int argc, char* argv[])
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_dfilter ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_bias ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_dbias ) );
-#ifdef USE_FUSED_BN_RELU
-#endif
-#ifdef USE_FUSED_BN_RELU
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_lcl_gamma_beta ) );
-#endif
-#if defined(USE_FUSED_BN_RELU) || defined(USE_FUSED_BN_RELU)
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_expect ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_stddev ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_gamma ) );
@@ -1539,7 +1505,6 @@ int main(int argc, char* argv[])
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_brstd1 ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_bmean2 ) );
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_brstd2 ) );
-#endif
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_filter_tr ) );
 #ifdef USE_FUSED_BATCH_STATS
     CHKERR_LIBXSMM_DNN( libxsmm_dnn_destroy_tensor( libxsmm_batchstats ) );
@@ -1577,15 +1542,6 @@ int main(int argc, char* argv[])
     conv_desc.options = LIBXSMM_DNN_CONV_OPTION_OVERWRITE;
 #else
     conv_desc.options = LIBXSMM_DNN_CONV_OPTION_NONE;
-#endif
-#if defined(USE_FUSED_BIAS)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BIAS;
-#elif defined(USE_FUSED_RELU)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_RELU;
-#elif defined(USE_FUSED_BIAS_RELU)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BIAS_RELU;
-#else
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_NONE;
 #endif
     /*conv_desc.options = LIBXSMM_DNN_CONV_OPTION_UPD_NO_FILTER_REDUCE;*/
     conv_desc.datatype_in = LIBXSMM_DNN_DATATYPE_F32;
@@ -1894,15 +1850,6 @@ int main(int argc, char* argv[])
     conv_desc.options = LIBXSMM_DNN_CONV_OPTION_OVERWRITE;
 #else
     conv_desc.options = LIBXSMM_DNN_CONV_OPTION_NONE;
-#endif
-#if defined(USE_FUSED_BIAS)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BIAS;
-#elif defined(USE_FUSED_RELU)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_RELU;
-#elif defined(USE_FUSED_BIAS_RELU)
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_BIAS_RELU;
-#else
-    conv_desc.fuse_ops = LIBXSMM_DNN_CONV_FUSE_NONE;
 #endif
     /*conv_desc.options = LIBXSMM_DNN_CONV_OPTION_UPD_NO_FILTER_REDUCE;*/
     conv_desc.datatype_in = LIBXSMM_DNN_DATATYPE_F32;
@@ -2223,7 +2170,6 @@ int main(int argc, char* argv[])
   libxsmm_free(dbias_nhwc);
   libxsmm_free(bias_libxsmm);
   libxsmm_free(dbias_libxsmm);
-#ifdef USE_FUSED_BN_RELU
   libxsmm_free(naive_lcl_gamma_beta);
   libxsmm_free(naive_expect);
   libxsmm_free(naive_stddev);
@@ -2233,7 +2179,6 @@ int main(int argc, char* argv[])
   libxsmm_free(naive_brstd2);
   libxsmm_free(naive_gamma);
   libxsmm_free(naive_beta);
-#endif
 
   { const char *const env_check_scale = getenv("CHECK_SCALE");
     const double check_scale = LIBXSMM_ABS(0 == env_check_scale ? 100.0 : atof(env_check_scale));

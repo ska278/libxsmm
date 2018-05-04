@@ -268,7 +268,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_BWD) > 0) ) {
 #include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -321,12 +321,10 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
               i += LOCAL_ENTRIES_PER_CONV;
             }
 
-          if ( instr == IFM_LOOP_CLOSE) {
-            ifm1 = code_stream[pc].aux_index;
-            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
+            if ( instr == IFM_LOOP_CLOSE) {
+              ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
 	    }
-	  }
           }
         } else {
           for (pc = 0; pc < n_segments; pc++) {
@@ -343,7 +341,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_BWD) > 0) ) {
 #include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -394,10 +392,8 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
 
           if ( instr == IFM_LOOP_CLOSE) {
             ifm1 = code_stream[pc].aux_index;
-            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
 	    }
-	  }
           }
         }
       } else { /* We don't do RELU stuff in the kernel  */
@@ -417,7 +413,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_BWD) > 0) ) {
 #include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -494,9 +490,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             }
 	if ( instr == IFM_LOOP_CLOSE) {
             ifm1 = code_stream[pc].aux_index;
-            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
-	    }
 	  }
           }
         } else {
@@ -514,7 +508,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+            if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_BWD) > 0) ) {
 #include "libxsmm_dnn_bwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -588,14 +582,11 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
               i += LOCAL_ENTRIES_PER_CONV;
             }
 
-	if ( instr == IFM_LOOP_CLOSE) {
-            ifm1 = code_stream[pc].aux_index;
-            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
+	    if ( instr == IFM_LOOP_CLOSE) {
+                ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
 	    }
-	  }
           }
-
         }
       }
     } else { /* This is the the img par branch...  */
@@ -648,9 +639,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
         }
 	  if ( instr == IFM_LOOP_CLOSE) {
             ifm1 = code_stream[pc].aux_index;
-            if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {     
 #include "libxsmm_dnn_bwd_custom_custom_apply_bn.tpl.c"
-	    }
 	  }
       }    
     }

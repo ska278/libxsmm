@@ -85,15 +85,22 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
 	__m512 _input = _mm512_load_ps(&myinput[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
 
 	// Streaming store input to other buffer
-	_mm512_stream_ps(&myinput_st[(my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input);
+        if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) | ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+  	  _mm512_stream_ps(&myinput_st[(my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input);
+	}
 
 	// Apply bn
-	_input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+        if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) | ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+	  _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+	}
 
 	// Apply relu
-	__m512 _zero = _mm512_set1_ps(0.f);
-	__mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
-	_input = _mm512_maskz_add_ps(msk, _zero, _input);
+        if ( ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+	  __m512 _zero = _mm512_set1_ps(0.f);
+	  __mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
+	  _input = _mm512_maskz_add_ps(msk, _zero, _input);
+	}
+
 	_mm512_store_ps(&myinput[_my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
       }
     }
@@ -110,11 +117,19 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
           int _my_w = my_w + my_pad_w;
 
 	  // Streaming store input to other buffer
-	  myinput_st[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 
-	      myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+          if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) | ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+	    myinput_st[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 
+	        myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+          }
 
-          element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0.f) ? after : 0.f;
+          if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) | ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+            element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
+	    if((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)
+	    {
+              after = (after > 0.f) ? after : 0.f;
+	    }
+            myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = after;
+	  }
         }
       }
     }
@@ -132,11 +147,19 @@ for(ifm_idx = ifm1 ; ifm_idx < ifm1 + handle->blocksifm_blocking ; ifm_idx++ )
           int _my_w = my_w + my_pad_w;
 
 	  // Streaming store input to other buffer
-	  myinput_st[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 
-	      myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+          if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) | ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+	    myinput_st[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 
+	        myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+          }
 
-          element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-          myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0.f) ? after : 0.f;
+          if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) | ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
+            element_input_type after = (myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
+	    if((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)
+	    {
+              after = (after > 0.f) ? after : 0.f;
+	    }
+            myinput[my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = after;
+	  }
         }
       }
     }

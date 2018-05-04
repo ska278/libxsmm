@@ -83,24 +83,27 @@ ifm_idx = ifm1;
   assert(mylcl_gamma_beta0);
   assert(mylcl_gamma_beta1);
 
-  for(my_h = 0 ; my_h < handle->desc.H ; my_h++)
+  if((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD) || (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD))
   {
-    for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
+    for(my_h = 0 ; my_h < handle->desc.H ; my_h++)
     {
-      #pragma simd
-      for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+      for(my_w = 0 ; my_w < handle->desc.W ; my_w++)
       {
-        int _my_h = my_h + my_pad_h;
-        int _my_w = my_w + my_pad_w;
-	if(myinput_save[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] == 0.f)
-	{
-          myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 0.f;
-	}
-	mylcl_gamma_beta0[my_c] +=
-	    (myinput_st[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] - mybmean2[my_c]) * 
-	    (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]) * mybrstd2[my_c];
-	mylcl_gamma_beta1[my_c] +=
-	    (myinput[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]);
+        #pragma simd
+        for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+        {
+          int _my_h = my_h + my_pad_h;
+          int _my_w = my_w + my_pad_w;
+	//if(myinput_save[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] == 0.f)
+//	{
+//          myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = 0.f;
+//	}
+	  mylcl_gamma_beta0[my_c] +=
+	      (myinput_st[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] - mybmean2[my_c]) * 
+	      (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]) * mybrstd2[my_c];
+	  mylcl_gamma_beta1[my_c] +=
+	      (myinput[my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]);
+        }
       }
     }
   }

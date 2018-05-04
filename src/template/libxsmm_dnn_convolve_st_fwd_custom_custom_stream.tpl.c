@@ -330,7 +330,7 @@ if (n_segments) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-	    if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+	    if ((handle->padding_flag == 1) && (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) ) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD))) {
 #include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -345,10 +345,8 @@ if (n_segments) {
             }
           }
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
              ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
-           }
 	  }
 
           /* Run the stream of convolutions for this segment */
@@ -382,7 +380,7 @@ if (n_segments) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-	    if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+	    if ((handle->padding_flag == 1) && (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) ) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD))) {
 #include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -398,10 +396,8 @@ if (n_segments) {
           }
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
              ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
-           }
 	  }
           /* Run the stream of convolutions for this segment */
           for (conv_i = 0; conv_i < n_convs; conv_i++) {
@@ -443,7 +439,7 @@ if (n_segments) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-	    if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+	    if ((handle->padding_flag == 1) && (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) ) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD))) {
 #include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -459,10 +455,8 @@ if (n_segments) {
           }
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
              ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
-            }
 	  }
 
 
@@ -575,7 +569,7 @@ if (n_segments) {
           if (instr == IMG_LOOP_CLOSE) {
             img = code_stream[pc].aux_index;
             /* Apply padding  */
-	    if ((handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
+	    if ((handle->padding_flag == 1) && (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) ) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD))) {
 #include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
             }
           }
@@ -591,12 +585,10 @@ if (n_segments) {
           }
 
           if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-	   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
              ifm1 = code_stream[pc].aux_index;
 #ifndef FUSED_BN_CONV_WRAPPER
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
 #endif
-           }
 	  }
           if ( instr == OFM_LOOP_CLOSE ) {
             /* Compute batch norm statistics... */
@@ -724,12 +716,13 @@ if (n_segments) {
       }
 
       if (instr == IMG_LOOP_CLOSE) {
-        /* Padding code via jitted matcopy kernel */
         img = code_stream[pc].aux_index;
-	if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) {
-	  assert(0); // not supported
+        /* Apply padding  */
+        if ((handle->padding_flag == 1) && (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) ) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD))) {
+#include "libxsmm_dnn_fwd_custom_custom_padding_back.tpl.c"
         }
       }
+
       if ( instr == OFM_LOOP_INIT ) {
         /* Apply bias if requested  */
         if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) {
@@ -752,10 +745,8 @@ if (n_segments) {
         }
       }
       if ( instr == IFM_LOOP_FIRST_TOUCH ) {
-	 if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) {
            ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
-         }
       }
 
       /* Run the stream of convolutions for this segment */

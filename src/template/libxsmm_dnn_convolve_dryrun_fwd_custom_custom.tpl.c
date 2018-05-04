@@ -106,15 +106,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
     my_ofm_end = LIBXSMM_MIN((myOfmId+1) * nOfmBlocks, BLOCKSOFM);
   }
 
-  mark_ifm_init = ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ? 1 : 0;
-  mark_ofm_init =  ((((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) && (handle->use_nts_fwd == 0) ) || ( (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) || ( (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0)  ) ? 1 : 0;
+  mark_ifm_init = (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_FWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_BWD) > 0) ) ? 1 : 0;
+  mark_ofm_init =  ((((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) && (handle->use_nts_fwd == 0) ) || ( (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) ) ? 1 : 0;
   mark_ofm_close = (((((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0)  ) && (handle->use_fwd_for_bwd == 0) && (handle->use_nts_fwd == 0) ) || 
-                    ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ||
-                    ((((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0)) && (handle->use_fwd_for_bwd == 1) && (handle->use_nts_bwd == 0) ) ) ? 1 : 0;
+                    ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_RELU_BWD)) || 
+                    (( ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_RELU_BWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) || ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0)) && (handle->use_fwd_for_bwd == 1) && (handle->use_nts_bwd == 0) ) ) ? 1 : 0;
 
   mark_ifm_close = 0;
   mark_img_init = ( (handle->padding_flag == 1) || (mark_ofm_close == 1) || (mark_ifm_close == 1) || (mark_ifm_init) ) ? 1 : 0;
-  mark_img_close = ( (handle->padding_flag == 1) && ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU) > 0) ) ? 1 : 0;
+  mark_img_close = (handle->padding_flag == 1) ? 1 : 0;
 
   /* Perform a dryrun to compute the memory requirements of the stream of indices */
   if (loop_order == MIXED) {
