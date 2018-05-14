@@ -26,89 +26,51 @@
 ** NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS        **
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
 ******************************************************************************/
-/* Kunal Banerjee (Intel Corp.), Dheevatsa Mudigere (Intel Corp.)
-   Alexander Heinecke (Intel Corp.), Hans Pabst (Intel Corp.)
+/* Alexander Heinecke, Kunal Banerjee (Intel Corp.)
 ******************************************************************************/
-#include <libxsmm_bgemm.h>
-#include <libxsmm.h>
-#include "libxsmm_main.h"
+#ifndef LIBXSMM_DNN_RNNCELL_H
+#define LIBXSMM_DNN_RNNCELL_H
+
+#include "libxsmm_macros.h"
+#include "libxsmm_typedefs.h"
+#include "libxsmm_dnn.h"
 
 #if defined(LIBXSMM_OFFLOAD_TARGET)
 # pragma offload_attribute(push,target(LIBXSMM_OFFLOAD_TARGET))
 #endif
-#include <stdio.h>
-#if defined(_OPENMP)
-# include <omp.h>
+#include <stdlib.h>
+#if !defined(NDEBUG)
+# include <stdio.h>
 #endif
 #if defined(LIBXSMM_OFFLOAD_TARGET)
 # pragma offload_attribute(pop)
 #endif
 
-#if !defined(LIBXSMM_BGEMM_BARRIER) && 0
-# define LIBXSMM_BGEMM_BARRIER
-#endif
+LIBXSMM_EXTERN_C typedef struct LIBXSMM_RETARGETABLE libxsmm_dnn_rnncell {
+  int N;
+  int nThreads;
+} libxsmm_dnn_rnncell;
 
+LIBXSMM_EXTERN_C typedef struct LIBXSMM_RETARGETABLE libxsmm_dnn_rnncell_desc {
+  int N;
+  int nThreads;
+} libxsmm_dnn_rnncell_desc;
 
-LIBXSMM_APIEXT void libxsmm_bgemm_omp(const libxsmm_bgemm_handle* handle,
-  const void* a, const void* b, void* c, /*unsigned*/int count)
-{
-  static int error_once = 0;
-  if (0 < count) {
-    if (0 != a && 0 != b && 0 != c) {
-#if !defined(_OPENMP)
-      const int nthreads = 1;
-#else
-      const int nthreads = omp_get_max_threads();
-# if defined(LIBXSMM_BGEMM_BARRIER)
-      libxsmm_barrier* barrier = 0;
-      /* make an informed guess about the number of threads per core */
-      if (224 <= nthreads
-#   if !defined(__MIC__)
-        && LIBXSMM_X86_AVX512_MIC <= libxsmm_target_archid
-        && LIBXSMM_X86_AVX512_CORE > libxsmm_target_archid
-#   endif
-        )
-      {
-        barrier = libxsmm_barrier_create(nthreads / 4, 4);
-      }
-      else {
-        barrier = libxsmm_barrier_create(nthreads / 2, 2);
-      }
-# endif /*defined(LIBXSMM_BGEMM_BARRIER)*/
-#     pragma omp parallel
-#endif /*defined(_OPENMP)*/
-      {
-        int tid = 0, i;
-#if defined(_OPENMP)
-        tid = omp_get_thread_num();
-#endif
-        assert(tid < nthreads);
-#if defined(LIBXSMM_BGEMM_BARRIER)
-        libxsmm_barrier_init(barrier, tid);
-#endif
-        for (i = 0; i < count; ++i) {
-          libxsmm_bgemm(handle, a, b, c, tid, nthreads);
-#if defined(LIBXSMM_BGEMM_BARRIER)
-          libxsmm_barrier_wait(barrier, tid);
-#elif defined(_OPENMP)
-#         pragma omp barrier
-#endif
-        }
-      }
-#if defined(LIBXSMM_BGEMM_BARRIER)
-      libxsmm_barrier_release(barrier);
-#endif
-    }
-    else if (0 != libxsmm_get_verbosity() /* library code is expected to be mute */
-          && 1 == LIBXSMM_ATOMIC_ADD_FETCH(&error_once, 1, LIBXSMM_ATOMIC_RELAXED))
-    {
-      fprintf(stderr, "LIBXSMM ERROR: BGEMM matrix-operands cannot be NULL!\n");
-    }
-  }
-  else if (0 > count && 0 != libxsmm_get_verbosity() /* library code is expected to be mute */
-        && 1 == LIBXSMM_ATOMIC_ADD_FETCH(&error_once, 1, LIBXSMM_ATOMIC_RELAXED))
-  {
-    fprintf(stderr, "LIBXSMM ERROR: BGEMM count-argument cannot be negative!\n");
-  }
-}
+LIBXSMM_API libxsmm_dnn_rnncell* libxsmm_dnn_create_rnncell(libxsmm_dnn_rnncell_desc rnncell_desc, libxsmm_dnn_err_t* status);
+LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_destroy_rnncell(const libxsmm_dnn_rnncell* handle);
+
+LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_rnncell_create_tensor_datalayout(const libxsmm_dnn_rnncell* handle, const libxsmm_dnn_tensor_type type, libxsmm_dnn_err_t* status);
+
+LIBXSMM_API size_t libxsmm_dnn_rnncell_get_scratch_size(const libxsmm_dnn_rnncell* handle, const libxsmm_dnn_compute_kind kind, libxsmm_dnn_err_t* status);
+LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_rnncell_bind_scratch(libxsmm_dnn_rnncell* handle, const libxsmm_dnn_compute_kind kind, const void* scratch);
+LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_rnncell_release_scratch(libxsmm_dnn_rnncell* handle, const libxsmm_dnn_compute_kind kind);
+
+LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_rnncell_bind_tensor(libxsmm_dnn_rnncell* handle, const libxsmm_dnn_tensor* tensor, const libxsmm_dnn_tensor_type type);
+LIBXSMM_API libxsmm_dnn_tensor* libxsmm_dnn_rnncell_get_tensor(libxsmm_dnn_rnncell* handle, const libxsmm_dnn_tensor_type type, libxsmm_dnn_err_t* status);
+LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_rnncell_release_tensor(libxsmm_dnn_rnncell* handle, const libxsmm_dnn_tensor_type type);
+
+LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_rnncell_execute_st(libxsmm_dnn_rnncell* handle, libxsmm_dnn_compute_kind kind,
+  /*unsigned*/int start_thread, /*unsigned*/int tid);
+
+#endif /*LIBXSMM_DNN_RNNCELL_H*/
 
