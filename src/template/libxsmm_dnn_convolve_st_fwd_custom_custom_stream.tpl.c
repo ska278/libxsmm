@@ -29,14 +29,18 @@
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
 
-//#define FUSED_BN_CONV_WRAPPER
+#define FUSED_BN_CONV_WRAPPER
 
 #ifdef FUSED_BN_CONV_WRAPPER
-void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_type * input1, int ifm_idx, int my_ldh, int my_ldw, int my_c,  element_input_type * myexpect, element_input_type * mystddev, element_input_type * mygamma, element_input_type * mybeta, int ltid, libxsmm_dnn_layer* handle, int my_w,  int my_h)
+void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_type * input1, int ifm_idx, int my_ldh, int my_ldw, element_input_type * myexpect, element_input_type * mystddev, element_input_type * mygamma, element_input_type * mybeta, int ltid, libxsmm_dnn_layer* handle, int my_w,  int my_h)
 {
-  input1_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
-  element_input_type after = (input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-  input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
+  int my_c;
+  for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+  {
+    input1_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
+    element_input_type after = (input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
+    input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
+  }
 }
 
 void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, element_input_type * input1_st, int oi, int oj)
@@ -77,10 +81,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
           int _my_w = my_w + my_pad_w;
           int _my_h_st = my_h + handle->desc.pad_h_in;
           int _my_w_st = my_w + handle->desc.pad_w_in;
-          for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
-          {
-            do_BN(_my_h, _my_w, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-          }
+          do_BN(_my_h, _my_w, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
         }
       }
     }
@@ -95,19 +96,18 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
       element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
       element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
 
-      // Do BN of row plus extra column
+      // Do BN of left corner first
       if((oj == 0) && (oi == 0))
       {
         my_w = 0;
         my_h = 0;
         if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
         {
-          for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
-          {
-            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-	 }
+          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
         }
       }
+
+      // Do BN of row 0 for this segment, plus extra column to the right if possible
       if(oj == 0)
       {
         my_h = 0;
@@ -115,36 +115,32 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
 	{
 	  if(oi + my_w < handle->desc.W)
 	  {
-            for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
-            {
-              do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-            }
+            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
 	  }
 	}
       }
 
+      // Do BN of left corner in row below current
       if(oi == 0)
       {
         my_w = 0;
-        my_h = 1;
-        if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
-        {
-          for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+	for(my_h = 1 ; my_h < (handle->fwd_ofh_rb + 1) * handle->desc.u ; my_h++)
+	{
+          if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
           {
-
-          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-	 }
-        }
+            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+          }
+	}
       }
 
+      // Do BN of right corner in row below current
       my_w = (handle->fwd_ofw_rb) * handle->desc.v;
-      my_h = 1;
-      if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
+      for(my_h = 1 ; my_h < (handle->fwd_ofh_rb + 1) * handle->desc.v ; my_h++)
       {
-        for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
+        if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
         {
-          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-	}
+          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+        }
       }
     }
 
@@ -157,19 +153,15 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
       element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
 
       // Do BN of inside part 
-      my_h = 1;
-      if(oj+my_h < handle->desc.H)
+      for(my_w = 1 ; my_w < (handle->fwd_ofw_rb) * handle->desc.v ; my_w++)
       {
-        for(my_w = 1 ; my_w < (handle->fwd_ofw_rb) * handle->desc.v ; my_w++)
-        {
-          if(oi + my_w < handle->desc.W)
+        for(my_h = 1 ; my_h < (handle->fwd_ofh_rb + 1) * handle->desc.v ; my_h++)
+	{
+          if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
   	  {
-            for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
-            {
-              do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, my_c, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-            }
+            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
   	  }
-        }
+	}
       }
     }
     k( input1, weight1, output1, input2, weight2, output2, sf, mv);
