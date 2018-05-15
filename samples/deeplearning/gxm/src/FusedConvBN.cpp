@@ -30,7 +30,7 @@
 ******************************************************************************/
 
 #include <string>
-#include "Conv.hpp"
+#include "FusedConvBN.hpp"
 #include "fillers.hpp"
 
 #ifdef USE_MLSL
@@ -41,7 +41,7 @@
 using namespace std;
 using namespace gxm;
 
-ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
+FusedConvBNNode::FusedConvBNNode(FusedConvBNParams* p, MLEngine* e): NNNode(p, e)
 {
   nname_ = p->get_node_name();
   ntype_ = p->get_node_type();
@@ -49,11 +49,10 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
   top_ = p->get_top_names();
   bp_flag_ = p->get_bprop_flag();
   has_weights_ = true;
-  compute_stats_ = p->get_compute_stats();
+  bstats_ = p->get_bstats_fwd();
   bot_compute_engine_ = p->get_compute_engine();
 
   assert((bottom_.size() == 1) && (top_.size() == 1));
-  bool bias_term = p->get_bias_term();
 
   tenTop_ = new Tensor(top_[0]);
   assert(tenTop_ != NULL);
@@ -103,14 +102,29 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
   ts_.dims[0] = bs->dims[0]; // Minibatch size
   ts_.dims[1] = p->get_output(); // Num output feature maps
 
-  ts_.dims[2] = (bs->dims[2] - vd[0] + 2*vp[0])/vs[0] + 1; // Height
+  gparams_.physical_padding = p->get_physical_padding();
+
+  if(vd[0] == 1 && gparams_.physical_padding)
+    ts_.dims[2] = (bs->dims[2] - vd[0])/vs[0] + 1; // Height
+  else
+    ts_.dims[2] = (bs->dims[2] - vd[0] + 2*vp[0])/vs[0] + 1; // Height
 
   if(ts_.ndims == 4)
-    ts_.dims[3] = (bs->dims[3] - vd[1] + 2*vp[1])/vs[1] + 1; // Width
+    if(vd[1] == 1  && gparams_.physical_padding)
+      ts_.dims[3] = (bs->dims[3] - vd[1])/vs[1] + 1; // Width
+    else
+      ts_.dims[3] = (bs->dims[3] - vd[1] + 2*vp[1])/vs[1] + 1; // Width
   else if(ts_.ndims == 5)
   {
-    ts_.dims[3] = (bs->dims[3] - vd[1] + 2*vp[1])/vs[1] + 1; // Width
-    ts_.dims[4] = (bs->dims[4] - vd[2] + 2*vp[2])/vs[2] + 1; // Depth (for 3D)
+    if(vd[1]==1 && gparams_.physical_padding)
+      ts_.dims[3] = (bs->dims[3] - vd[1])/vs[1] + 1; // Width
+    else
+      ts_.dims[3] = (bs->dims[3] - vd[1] + 2*vp[1])/vs[1] + 1; // Width
+
+    if(vd[2]==1 && gparams_.physical_padding)
+      ts_.dims[4] = (bs->dims[4] - vd[2])/vs[2] + 1; // Width
+    else
+      ts_.dims[4] = (bs->dims[4] - vd[2] + 2*vp[2])/vs[2] + 1; // Depth (for 3D)
   }
 
   tenTop_->setShape(&ts_);
@@ -120,13 +134,11 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
 
   // Buffer space for sum and sum^2
   int tstats;
-  if(compute_stats_)
+  if(bstats_)
     tstats = 2*ts_.dims[0]*ts_.dims[1];
 
-  if(out_dtype == DT_FLOAT)
-    tsize = telem*sizeof(float) + tstats*sizeof(float);
-  else if(out_dtype == DT_DFP16)
-    tsize = (telem + tstats)*sizeof(short);
+  // Conv out + Conv saved out + unreduced batch stats + reduced batch stats + unreduced dgamma/dbeta + reduced dgamma/dbeta
+  tsize = 2*telem*sizeof(float) + tstats*(sizeof(float) + sizeof(float)) + 4*ts_.dims[1]*sizeof(float); 
 
   tenTopData_->setBufferSize(tsize);
 
@@ -179,36 +191,58 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
   lr_mult_ = p->get_lr_mult();
   decay_mult_ = p->get_decay_mult();
 
-  // Create bias tensor
-  long long int bisize;
+  Shape sss;
+  shape_setzero(&sss);
+  sss.ndims = 1;
+  sss.dims[0] = bs->dims[1];
 
-  Shape bis;
-  {
-    if(bias_term)
-    {
-      bias_ = top_[0] + "_bias";
-      tenBias_ = new Tensor(bias_);
-      assert(tenBias_ != NULL);
-      tenBias_->setOwner(this);
-      tenBias_->setType(CONVBIAS);
+  scale_ = top_[0] + "_scale";
+  tenScale_ = new Tensor(scale_);
+  assert(tenScale_ != NULL);
+  tenScale_->setOwner(this);
+  tenScale_->setType(BNORMSCALE);
+  tenScale_->setShape(&sss);
+  tenScaleData_ = tenScale_->getBuf(DATA);
+  tenScaleData_->setDataType(DT_FLOAT); //TODO: Eventually move to 16-bit? Currently it is FP32
+  tenScaleData_->setBufferType(DATA);
 
-      shape_setzero(&bis);
+  telem = sss.dims[0];
+  tsize = telem*sizeof(float);
+  tenScaleData_->setBufferSize(tsize);
 
-      bis.ndims = 1;
-      bis.dims[0] = ts_.dims[1];
-      tenBias_->setShape(&bis);
-      tenBiasData_ = tenBias_->getBuf(DATA);
-      tenBiasData_->setDataType(DT_FLOAT);
-      tenBiasData_->setBufferType(DATA);
+  shift_ = top_[0] + "_shift";
+  tenShift_ = new Tensor(shift_);
+  assert(tenShift_ != NULL);
+  tenShift_->setOwner(this);
+  tenShift_->setType(BNORMSHIFT);
+  tenShift_->setShape(&sss);
+  tenShiftData_ = tenShift_->getBuf(DATA);
+  tenShiftData_->setDataType(DT_FLOAT); //TODO: Eventually move to dfp16 beta. Currently it is FP32
+  tenShiftData_->setBufferType(DATA);
 
-      bisize = bis.dims[0];
-      bisize = bisize*sizeof(float); // Biases are always in FP32
-      tenBiasData_->setBufferSize(bisize);
+  tenShiftData_->setBufferSize(tsize);
 
-      bfiller_type_ = p->get_bias_filler_type();
-      value_ = p->get_value();
-    }
-  }
+  mean_ = top_[0] + "_mean";
+  tenMean_ = new Tensor(mean_);
+  assert(tenMean_ != NULL);
+  tenMean_->setOwner(this);
+  tenMean_->setType(BNORMMEAN);
+  tenMean_->setShape(&sss);
+  tenMeanData_ = tenMean_->getBuf(DATA);
+  tenMeanData_->setDataType(DT_FLOAT);
+  tenMeanData_->setBufferType(DATA);
+  tenMeanData_->setBufferSize(tsize);
+
+  rstdev_ = top_[0] + "_rstdev";
+  tenRstdev_ = new Tensor(rstdev_);
+  assert(tenRstdev_ != NULL);
+  tenRstdev_->setOwner(this);
+  tenRstdev_->setType(BNORMRSTDEV);
+  tenRstdev_->setShape(&sss);
+  tenRstdevData_ = tenRstdev_->getBuf(DATA);
+  tenRstdevData_->setDataType(DT_FLOAT);
+  tenRstdevData_->setBufferType(DATA);
+  tenRstdevData_->setBufferSize(tsize);
 
   if(!e->is_inference_only()) {
     if(bp_flag_)
@@ -243,28 +277,35 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
       tenWeightDiff_->setBufferSize(welem*sizeof(float));
       tenWeightInc_->setBufferSize(welem*sizeof(float));
 
-      if(bias_term)
-      {
-        tenBiasDiff_ = tenBias_->addBuf(); // DIFF type and index
-        tenBiasDiff_->setDataType(DT_FLOAT);
-        tenBiasDiff_->setBufferType(DIFF);
+      tenScaleDiff_ = tenScale_->addBuf();
+      tenScaleDiff_->setDataType(DT_FLOAT);
+      tenScaleDiff_->setBufferType(DIFF);
+      tenScaleDiff_->setBufferSize(tsize);
 
-        tenBiasInc_ = tenBias_->addBuf(); // SHARED type and index
-        tenBiasInc_->setDataType(DT_FLOAT);
-        tenBiasInc_->setBufferType(HISTORY);
+      tenScaleInc_ = tenScale_->addBuf();
+      tenScaleInc_->setDataType(DT_FLOAT);
+      tenScaleInc_->setBufferType(HISTORY);
+      tenScaleInc_->setBufferSize(tsize);
 
-        // Set the size of the weight-gradient buffer and the weight-increment buffer
-        tenBiasDiff_->setBufferSize(bisize);
-        tenBiasInc_->setBufferSize(bisize);
-      }
+      tenShiftDiff_ = tenShift_->addBuf();
+      tenShiftDiff_->setDataType(DT_FLOAT);
+      tenShiftDiff_->setBufferType(DIFF);
+      tenShiftDiff_->setBufferSize(tsize);
+
+      tenShiftInc_ = tenShift_->addBuf();
+      tenShiftInc_->setDataType(DT_FLOAT);
+      tenShiftInc_->setBufferType(HISTORY);
+      tenShiftInc_->setBufferSize(tsize);
     }
   }
   else {
     tenBotDiff_ = NULL;
     tenWeightDiff_ = NULL;
     tenWeightInc_ = NULL;
-    tenBiasDiff_ = NULL;
-    tenBiasInc_ = NULL;
+    tenScaleDiff_ = NULL;
+    tenShiftDiff_ = NULL;
+    tenScaleInc_ = NULL;
+    tenShiftInc_ = NULL;
   }
 
   // Register output tensor in tensor map
@@ -277,22 +318,29 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
   if(!inserted)
     printf("Warning: Tensor %s already registered\n",weight_.c_str());
 
-  // Register bias tensor in bias tensor map
-  if(bias_term)
-  {
-    inserted = e->register_tensor(bias_, CONVBIAS, tenBias_);
-    if(!inserted)
-      printf("Warning: Tensor %s already registered\n",bias_.c_str());
-  }
+  inserted = e->register_tensor(scale_, BNORMSCALE, tenScale_);
+  if(!inserted)
+    printf("Warning: Tensor %s already registered\n",scale_.c_str());
 
+  inserted = e->register_tensor(shift_, BNORMSHIFT, tenShift_);
+  if(!inserted)
+    printf("Warning: Tensor %s already registered\n",shift_.c_str());
+
+  inserted = e->register_tensor(mean_, BNORMMEAN, tenMean_);
+  if(!inserted)
+    printf("Warning: Tensor %s already registered\n",mean_.c_str());
+
+  inserted = e->register_tensor(rstdev_, BNORMRSTDEV, tenRstdev_);
+  if(!inserted)
+    printf("Warning: Tensor %s already registered\n",rstdev_.c_str());
 
   // Setup parameter structure for convolution computation in library
   gparams_.bdims = bs->ndims;
   gparams_.tdims = ts_.ndims;
   gparams_.wdims = ws_.ndims;
-  gparams_.bidims = bis.ndims;
 
   gparams_.node_name = nname_;
+  gparams_.node_type = ntype_;
   gparams_.nInput = bs->dims[1];
   gparams_.nOutput = ts_.dims[1];
   gparams_.batch_size = bs->dims[0];
@@ -305,8 +353,6 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
   gparams_.pad_h = vp[0];
   gparams_.pad_w = vp[1];
   gparams_.pad_d = vp[2];
-  gparams_.physical_padding = p->get_physical_padding();
-  gparams_.compute_stats = compute_stats_;
 
   if(gparams_.physical_padding)
   {
@@ -341,9 +387,19 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
   gparams_.kw = ws_.dims[3];
   gparams_.kd = ws_.dims[4];
 
-  gparams_.bias_term = bias_term;
-  gparams_.relu = p->get_fused_relu();
-  gparams_.bwd_relu = p->get_bwd_relu();
+  gparams_.relu_fwd = p->get_relu_fwd();
+  gparams_.relu_bwd = p->get_relu_bwd();
+  gparams_.bn_fwd = p->get_bn_fwd();
+  gparams_.bn_bwd = p->get_bn_bwd();
+  gparams_.bn_relu_fwd = p->get_bn_relu_fwd();
+  gparams_.bstats_fwd = bstats_;
+  gparams_.bstats_bwd = p->get_bstats_bwd();
+  gparams_.bstats_relu_bwd = p->get_bstats_relu_bwd();
+
+  gparams_.mmf = p->get_mmf();
+  gparams_.eps = p->get_eps();
+  gparams_.use_global_stats = p->get_global_stats_flag();
+  gparams_.eltwise = p->get_eltwise();
 
   gparams_.in_data_type = in_dtype;
   gparams_.out_data_type = out_dtype;
@@ -365,12 +421,9 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
   MLSL::Session *s = eptr_->get_session();
   myRegInfo = s->CreateOperationRegInfo(MLSL::OT_CC);
   myRegInfo->SetName(nname_.c_str());
-  myRegInfo->AddInput(gparams_.nInput, gparams_.iWidth*gparams_.iHeight, dt);
-  myRegInfo->AddOutput(gparams_.nOutput, gparams_.oWidth*gparams_.oHeight, dt);
   myRegInfo->AddParameterSet(gparams_.nInput*gparams_.nOutput/gparams_.group, gparams_.kw*gparams_.kh, dt, false);
-
-  if(bias_term)
-    myRegInfo->AddParameterSet(gparams_.nOutput, 1, dt, false);
+  myRegInfo->AddParameterSet(gparams_.nOutput, 1, dt, false);
+  myRegInfo->AddParameterSet(gparams_.nOutput, 1, dt, false);
 
   myRegInfo->Validate();
   size_t opIdx = s->AddOperation(myRegInfo, e->get_distribution());
@@ -381,7 +434,16 @@ ConvNode::ConvNode(ConvParams* p, MLEngine* e): NNNode(p, e)
   configure(p->get_compute_engine());
 }
 
-void ConvNode::fillWeightBuffers(TensorBuf* tBuf, int buftype, long long int size)
+void FusedConvBNNode::configure(int engine)
+{
+  switch(engine)
+  {
+    case XSMM:
+      impl = new FusedConvBNXSMM(&gparams_, engine);
+  }
+}
+
+void FusedConvBNNode::fillWeightBuffers(TensorBuf* tBuf, int buftype, long long int size)
 {
   int dtype = DT_FLOAT;
   void *ptr = tBuf->getBuffer();
@@ -413,24 +475,12 @@ void ConvNode::fillWeightBuffers(TensorBuf* tBuf, int buftype, long long int siz
 
     int in_dtype = tenBotData_->getDataType();
     int out_dtype = tenTopData_->getDataType();
-
-    // Quantization of weights
-    if(in_dtype == DT_DFP16 || out_dtype == DT_DFP16)
-    {
-      if(i16_wt_ptr == NULL)
-        i16_wt_ptr = (short*)libxsmm_aligned_malloc(welem*sizeof(short), 2097152);
-      tBuf->setLPBuffer((void*)i16_wt_ptr);
-
-      unsigned char scf_filter;
-      libxsmm_dnn_quantize_fil((float*)ptr, i16_wt_ptr, oc, ic, kh, kw, 16, 8, 16, 16, 2, 2, &scf_filter, LIBXSMM_DNN_QUANT_FPHW_ROUND);
-      tBuf->setLPSF(scf_filter);
-    }
   }
   else
     memset(ptr, 0, size);
 }
 
-void ConvNode::fillWeightMultipliers(float* lr, float* decay, long long int size)
+void FusedConvBNNode::fillWeightMultipliers(float* lr, float* decay, long long int size)
 {
   for(int i=0; i < size; i++)
   {
@@ -439,32 +489,36 @@ void ConvNode::fillWeightMultipliers(float* lr, float* decay, long long int size
   }
 }
 
-void ConvNode::fillBiasBuffers(TensorBuf* tBuf, int buftype, long long int size)
+void FusedConvBNNode::fillBiasMultipliers(float* lr, float* decay, long long int size)
 {
+  for(int i=0; i < size; i++)
+  {
+    lr[i] = lr_mult_[1];
+    decay[i] = decay_mult_[1];
+  }
+}
+
+void FusedConvBNNode::fillBuffer(TensorBuf* tBuf, int buftype, long long int size)
+{
+  int ttype = tBuf->getTensor()->getType();
   int dtype = DT_FLOAT;
   void *ptr = tBuf->getBuffer();
 
-  if(buftype == DATA)
+  float value;
+  if(ttype==BNORMSCALE && buftype == DATA)
   {
-    initConstantBuffer(ptr, dtype, size, "CONSTANT", value_);
+    if(nname_.find("bn3") == nname_.npos)
+      value = 1;
+    else
+      value = 0.;
   }
   else
-    memset(ptr, 0, size);
+    value = 0.;
+
+  initConstantBuffer(ptr, dtype, size, "CONSTANT", value);
 }
 
-void ConvNode::fillBiasMultipliers(float* lr, float* decay, long long int size)
-{
-  if(gparams_.bias_term)
-  {
-    for(int i=0; i < size; i++)
-    {
-      lr[i] = lr_mult_[1];
-      decay[i] = decay_mult_[1];
-    }
-  }
-}
-
-void ConvNode::Checkpoint(TensorBuf *tBuf, string name, string format)
+void FusedConvBNNode::Checkpoint(TensorBuf *tBuf, string name, string format)
 {
   long long int bytes = tBuf->getBufferSize();
   int dtype = tBuf->getDataType();
@@ -527,16 +581,8 @@ void ConvNode::Checkpoint(TensorBuf *tBuf, string name, string format)
         else
           ptr = tBuf->getBuffer();
 
-        if(dtype == DT_FLOAT)
-        {
-          for(int i=0; i<bytes/sizeof(float); i++)
-            fprintf(f, "%f\n", *((float*)ptr + i));
-        }
-        else if(dtype == DT_INT16)
-        {
-          for(int i=0; i<bytes/sizeof(short int); i++)
-            fprintf(f, "%d\n", *((short int*)ptr + i));
-        }
+        for(int i=0; i<bytes/sizeof(float); i++)
+          fprintf(f, "%f\n", *((float*)ptr + i));
 
         if(name.find("wt") != name.npos)
           _mm_free(ptr);
@@ -552,16 +598,8 @@ void ConvNode::Checkpoint(TensorBuf *tBuf, string name, string format)
   }
 }
 
-void ConvNode::configure(int engine)
-{
-  switch(engine)
-  {
-    case XSMM:
-      impl = new ConvXSMM(&gparams_, engine);
-  }
-}
 
-void ConvNode::forwardPropagate()
+void FusedConvBNNode::forwardPropagate()
 {
   int nImg = gparams_.batch_size;
   int ifm = gparams_.nInput;
@@ -585,7 +623,7 @@ void ConvNode::forwardPropagate()
   printf("Weights: %d x %d x %d x %d\n", ifm, ofm, kh, kw);
   printf("Bias: %d\n", ofm);
 
-  if (gparams_.relu) printf("Fused relu\n");
+  if (gparams_.relu_fwd) printf("Fused relu\n");
 #endif
 
   impl->set_top_compute_engine(top_compute_engine_);
@@ -593,66 +631,51 @@ void ConvNode::forwardPropagate()
   impl->set_node_name(nname_);
   impl->set_scratch_buffer(tenScratchData_);
 
-  long long int size = nImg * ofm * ofhp * ofwp;
-
   if(first_fp)
   {
-    if(tenTopData_->getDataType() == DT_FLOAT)
-    {
-      float* ptr = (float*)tenTopData_->getBuffer();
+    float* ptr = (float*)tenTopData_->getBuffer();
+    int size = tenTopData_->getBufferSize();
 
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for(int i=0; i<size; i++)
-        ptr[i] = 0;
-    }
-    else if(tenTopData_->getDataType() == DT_DFP16)
-    {
-      short* ptr = (short*)tenTopData_->getLPBuffer();
+    for(int i=0; i<size; i++)
+      ptr[i] = 0;
+
+    float *gmean = (float*)tenMeanData_->getBuffer();
+    float *grstd = (float*)tenRstdevData_->getBuffer();
 
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for(int i=0; i<size; i++)
-        ptr[i] = 0;
+    for(int i=0; i<ifm; i++)
+    {
+      gmean[i] = 0;
+      grstd[i] = 0;
     }
 
     first_fp = false;
   }
 
-  if(tenTopData_->getDataType() == DT_FLOAT)
-  {
-    float* ptr = (float*)tenTopData_->getBuffer();
-    float* sptr = ptr + size;
+#if 0
+  float* ptr = (float*)tenTopData_->getBuffer();
+  float* sptr = ptr + size;
 
-    /* @TODO move this into Batch Norm/LIBXSMM */
+  /* @TODO move this into LIBXSMM */
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for(int i=0; i<2*nImg*ofm; i++)
-      sptr[i] = 0;
-  }
-  else if(tenTopData_->getDataType() == DT_DFP16)
-  {
-    short* ptr = (short*)tenTopData_->getLPBuffer();
-    short* sptr = ptr + size;
-
-    /* @TODO move this into Batch Norm/LIBXSMM */
-#ifdef _OPENMP
-#pragma omp parallel for
+  for(int i=0; i<2*nImg*ofm; i++)
+    sptr[i] = 0;
 #endif
-    for(int i=0; i<2*nImg*ofm; i++)
-      sptr[i] = 0;
-  }
 
-  impl->forwardPropagate(tenBotData_, tenWeightData_, tenBiasData_, tenTopData_);
+  impl->forwardPropagate(tenBotData_, tenWeightData_, tenScaleData_, tenShiftData_, tenMeanData_, tenRstdevData_, tenTopData_);
 
 #ifdef CHECK_BLOWUP_FP32
-  float* ptr = (float*)tenTopData_->getBuffer();
+  float *cbptr = (float*)tenTopData_->getBuffer();
   for(int i=0; i<16; i++)
   {
-    if(isnan(ptr[i]) || isinf(ptr[i]))
+    if(isnan(cbptr[i]) || isinf(cbptr[i]))
     {
       printf("Warning! %s layer FP activations are NaN or Inf\n", nname_.c_str());
       exit(-1);
@@ -676,18 +699,19 @@ void ConvNode::forwardPropagate()
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, nImg*ifm*ifhp*ifwp);
 
+      if(gparams_.bn_fwd || gparams_.bn_relu_fwd)
+      {
+        string s = nname_ + "_savedInp";
+        ptr = (float*)tenBotData_->getBuffer();
+        p = ptr + 2*nImg*ifm + 2*ifm + nImg*ifm*ifhp*ifwp;
+        MeanOfLayer((char*)s.c_str(), p, nImg*ifm*ifhp*ifwp);
+      }
+
       s = nname_ + "_Wt";
       ptr = (float*)tenWeightData_->getBuffer();
       pptr = (float*)tenWeightData_->getPrivBuffer();
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, ifm*ofm*kh*kw);
-
-      if(gparams_.bias_term)
-      {
-        s = nname_ + "_Bias";
-        p = (float*)tenBiasData_->getBuffer();
-        MeanOfLayer((char*)s.c_str(), p, ofm);
-      }
 
       s = nname_ + "_Outp";
       ptr = (float*)tenTopData_->getBuffer();
@@ -696,19 +720,46 @@ void ConvNode::forwardPropagate()
       MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
 
       s = nname_ + "_sump";
-      int offset = nImg*ofm*ofhp*ofwp*sizeof(float);
-      void* m = (void*)p + offset;
-      MeanOfLayer((char*)s.c_str(), (float*)m, nImg*ofm);
+      int offset = nImg*ofm*ofhp*ofwp;
+      p = ptr + offset;
+      MeanOfLayer((char*)s.c_str(), p, nImg*ofm);
 
       s = nname_ + "_sum2p";
-      void* m2 = (void*)m + nImg*ofm*sizeof(float);
-      MeanOfLayer((char*)s.c_str(), (float*)m2, nImg*ofm);
+      MeanOfLayer((char*)s.c_str(), p+nImg*ofm, nImg*ofm);
+
+      if(gparams_.bn_fwd || gparams_.bn_relu_fwd)
+      {
+        s = nname_ + "_expect1";
+        ptr = (float*)tenBotData_->getBuffer();
+        p = ptr + nImg*ifm*ifhp*ifwp + 2*nImg*ifm;
+        MeanOfLayer((char*)s.c_str(), p, ifm);
+
+        s = nname_ + "_rstdev1";
+        p = ptr + nImg*ifm*ifhp*ifwp + 2*nImg*ifm + ifm;
+        MeanOfLayer((char*)s.c_str(), p, ifm);
+
+        s = nname_ + "_gexpect1";
+        ptr = (float*)tenMeanData_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), ptr, ifm);
+
+        s = nname_ + "_grstdev1";
+        ptr = (float*)tenRstdevData_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), ptr, ifm);
+
+        s = nname_ + "_gammap";
+        float* gamma = (float*)tenScaleData_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), gamma, ifm);
+
+        s = nname_ + "_betap";
+        float* beta = (float*)tenShiftData_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), beta, ifm);
+      }
     }
   }
 #endif
 }
 
-void ConvNode::backPropagate()
+void FusedConvBNNode::backPropagate()
 {
 
   int nImg = gparams_.batch_size;
@@ -734,39 +785,177 @@ void ConvNode::backPropagate()
 
   tenTopDiff_ = tenTop_->getBuf(DIFF);
 
-#if 1
   if(first_bp)
   {
     long long int size = nImg * ifm * ifhp *ifwp;
 
-    int in_dtype = tenBotData_->getDataType();
-    int out_dtype = tenTopData_->getDataType();
-
-    if((in_dtype == DT_DFP16 && out_dtype == DT_FLOAT)
-        || (in_dtype == DT_FLOAT && out_dtype == DT_FLOAT))
-    {
-      float* ptr = (float*)tenBotDiff_->getBuffer();
+    float* ptr = (float*)tenBotDiff_->getBuffer();
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
       for(int i=0; i<size; i++)
         ptr[i] = 0;
-    }
-    else if(in_dtype == DT_DFP16 && out_dtype == DT_DFP16)
-    {
-      short* ptr = (short*)tenBotDiff_->getBuffer();
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-      for(int i=0; i<size; i++)
-        ptr[i] = 0;
-    }
 
    first_bp = false;
   }
+
+#if 0
+  float *inp_r = (float*)tenBotData_->getBuffer();
+  float *outp = (float*)tenTopData_->getBuffer();
+  float *gammap = (float*)tenScaleData_->getBuffer();
+  float *deloutp = (float*)tenTopDiff_->getBuffer();
+  float *delgammap = (float*)tenScaleDiff_->getBuffer();
+  float *delbetap = (float*)tenShiftDiff_->getBuffer();
+  float *bmeanp = (float*)tenMeanData_->getBuffer();
+  float *brstdp = (float*)tenRstdevData_->getBuffer();
+
+  if(gparams_.bstats_bwd)
+  {
+    int nImg  = gparams_.batch_size;
+    int nFM = gparams_.nOutput;
+    int nBfm = nFM/VLEN;
+    int fh = gparams_.oHeight;
+    int fw = gparams_.oWidth;
+    int ph = gparams_.opad_h;
+    int pw = gparams_.opad_w;
+    int sh = gparams_.stride_h;
+    int sw = gparams_.stride_w;
+    int iph = gparams_.pad_h;
+    int ipw = gparams_.pad_w;
+    int fhs = fh/sh;
+    int fws = fw/sw;
+    int fhp = fhs + 2*ph;
+    int fwp = fws + 2*pw;
+    int fhi = fh + 2*iph;
+    int fwi = fw + 2*ipw;
+
+    const float nhw = nImg * fh * fw;
+    const float recp_nhw = 1.0f/nhw;
+
+
+    float (* __restrict input_r)[nBfm][fhi][fwi][VLEN]     = (float (*)[*][*][*][VLEN])inp_r;
+    float (* __restrict del_output)[nBfm][fhp][fwp][VLEN]  = (float (*)[*][*][*][VLEN])deloutp;
+    float (* __restrict gamma)[VLEN]                       = (float (*)[VLEN])gammap;
+    float (* __restrict del_gamma)[VLEN]                   = (float (*)[VLEN])delgammap;
+    float (* __restrict del_beta)[VLEN]                    = (float (*)[VLEN])delbetap;
+    float (* __restrict bmean)[VLEN]                       = (float (*)[VLEN])bmeanp;
+    float (* __restrict brstd)[VLEN]                       = (float (*)[VLEN])brstdp;
+    float (* __restrict output)[nBfm][fhp][fwp][VLEN]      = (float (*)[*][*][*][VLEN])outp;
+
+    void *ptr = tenTopData_->getBuffer() + (2*nImg*nFM + nImg*nFM*fh*fw)*sizeof(float);
+    float *del_gamma_imgp = (float*)ptr;
+    float *del_beta_imgp = del_gamma_imgp + nImg*nFM;
+
+    float (* __restrict del_gamma_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_gamma_imgp;
+    float (* __restrict del_beta_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_beta_imgp;
+
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+    {
+#pragma omp for
+#pragma vector aligned
+      for(int fm=0; fm < nBfm; fm++) {
+        for(int img=0; img < nImg; img++) {
+#pragma omp simd
+#pragma vector aligned
+          for(int v=0; v < VLEN; v++) {
+            del_gamma[fm][v] += del_gamma_img[fm][img][v];
+            del_beta[fm][v] += del_beta_img[fm][img][v];
+          }
+        }
+      }
+#pragma omp for nowait
+      for(int img=0; img < nImg; img++) {
+        for(int fm=(nBfm-1); fm >= 0; fm--) {
+          for(int h=(fh+iph)-sh, hp=(fhs+ph)-1; h >= iph; h-=sh, hp--) {
+            for(int w=(fw+ipw)-sw, wp=(fws+pw)-1; w >= ipw; w-=sw, wp--) {
+#pragma omp simd
+#pragma vector aligned
+#ifdef USE_NTS_BN
+#pragma vector nontemporal
+#endif
+              for(int v=0; v < VLEN; v++) {
+                del_output[img][fm][hp][wp][v] = gamma[fm][v] * brstd[fm][v] * recp_nhw * (nhw*del_output[img][fm][hp][wp][v] -
+                    (del_beta[fm][v] + (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_gamma[fm][v] * brstd[fm][v]));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 #endif
 
-  impl->backPropagate(tenTopData_, tenWeightData_, tenTopDiff_, tenBotDiff_);
+#if 0
+#ifdef GETSTATS
+  float *ptr, *pptr, *p, *bias;
+#ifdef USE_MLSL
+  unsigned int node_id_ = MLSL::Environment::GetEnv().GetProcessIdx();
+  if(node_id_ == 0)
+#endif
+  {
+    if(eptr_->get_current_batch() % STATFREQ == 0)// && gparams_.ipad_h)
+    {
+      string s = nname_ + "_delOutp";
+
+      ptr = (float*)tenTopDiff_->getBuffer();
+      pptr = (float*)tenTopDiff_->getPrivBuffer();
+      p = (pptr == NULL) ? ptr : pptr;
+      printf("FusedConvBN deloutp %p\n",p);
+      MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
+
+      s = nname_ + "_Wt";
+      ptr = (float*)tenWeightData_->getBuffer();
+      pptr = (float*)tenWeightData_->getPrivBuffer();
+      p = (pptr == NULL) ? ptr : pptr;
+      MeanOfLayer((char*)s.c_str(), p, ifm*ofm*kh*kw);
+
+      if(gparams_.bstats_bwd || gparams_.bstats_relu_bwd)
+      {
+        s = nname_ + "_delgammap";
+        p = (float*)tenScaleDiff_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
+
+        s = nname_ + "_delbetap";
+        p = (float*)tenShiftDiff_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
+      }
+#if 0
+      else
+      {
+        s = nname_ + "_delgammap";
+        MeanOfLayer((char*)s.c_str(), delgammap, gparams_.nOutput);
+
+        s = nname_ + "_delbetap";
+        MeanOfLayer((char*)s.c_str(), delbetap, gparams_.nOutput);
+      }
+#endif
+
+      s = nname_ + "_delInp";
+      ptr = (float*)tenBotDiff_->getBuffer();
+      pptr = (float*)tenBotDiff_->getPrivBuffer();
+      p = (pptr == NULL) ? ptr : pptr;
+      MeanOfLayer((char*)s.c_str(), p, nImg*ifm*ifhp*ifwp);
+
+      s = nname_ + "_expect2";
+      ptr = (float*)tenTopData_->getBuffer();
+      p = ptr + nImg*ofm*ofhp*ofwp + 2*nImg*ofm;
+      MeanOfLayer((char*)s.c_str(), p, ofm);
+
+      s = nname_ + "_rstdev2";
+      p += ofm;
+      MeanOfLayer((char*)s.c_str(), p, ofm);
+
+      s = nname_ + "_savedOutp";
+      p += ofm;
+      MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
+    }
+  }
+#endif
+#endif
+
+  impl->backPropagate(tenTopData_, tenTopDiff_, tenWeightData_, tenScaleDiff_, tenShiftDiff_, tenBotDiff_);
 
 #ifdef CHECK_BLOWUP_FP32
   float* cbptr = (float*)tenTopDiff_->getBuffer();
@@ -794,7 +983,7 @@ void ConvNode::backPropagate()
       ptr = (float*)tenTopDiff_->getBuffer();
       pptr = (float*)tenTopDiff_->getPrivBuffer();
       p = (pptr == NULL) ? ptr : pptr;
-      printf("Conv deloutp %p\n",p);
+      printf("FusedConvBN deloutp %p\n",p);
       MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
 
       s = nname_ + "_Wt";
@@ -803,17 +992,51 @@ void ConvNode::backPropagate()
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, ifm*ofm*kh*kw);
 
+      if(gparams_.bstats_bwd || gparams_.bstats_relu_bwd)
+      {
+        s = nname_ + "_delgammap";
+        p = (float*)tenScaleDiff_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
+
+        s = nname_ + "_delbetap";
+        p = (float*)tenShiftDiff_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
+      }
+#if 0
+      else
+      {
+        s = nname_ + "_delgammap";
+        MeanOfLayer((char*)s.c_str(), delgammap, gparams_.nOutput);
+
+        s = nname_ + "_delbetap";
+        MeanOfLayer((char*)s.c_str(), delbetap, gparams_.nOutput);
+      }
+#endif
+
       s = nname_ + "_delInp";
       ptr = (float*)tenBotDiff_->getBuffer();
       pptr = (float*)tenBotDiff_->getPrivBuffer();
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, nImg*ifm*ifhp*ifwp);
+
+      s = nname_ + "_expect2";
+      ptr = (float*)tenTopData_->getBuffer();
+      p = ptr + nImg*ofm*ofhp*ofwp + 2*nImg*ofm;
+      MeanOfLayer((char*)s.c_str(), p, ofm);
+
+      s = nname_ + "_rstdev2";
+      p += ofm;
+      MeanOfLayer((char*)s.c_str(), p, ofm);
+
+      s = nname_ + "_savedOutp";
+      p += ofm;
+      MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
     }
   }
 #endif
 }
 
-void ConvNode::weightUpdate()
+void FusedConvBNNode::weightUpdate()
 {
   int nImg = gparams_.batch_size;
   int ifm = gparams_.nInput;
@@ -854,20 +1077,13 @@ void ConvNode::weightUpdate()
     pptr = (float*)tenWeightDiff_->getPrivBuffer();
     p = (pptr == NULL) ? ptr : pptr;
     MeanOfLayer((char*)s.c_str(), p, ifm*ofm*kh*kw);
-
-    if(gparams_.bias_term)
-    {
-      s = nname_ + "_delBias_Bef";
-      p = (float*)tenBiasDiff_->getBuffer();
-      MeanOfLayer((char*)s.c_str(), p, ofm);
-    }
   }
 }
 #endif
 
   tenTopDiff_ = tenTop_->getBuf(DIFF);
 
-  impl->weightUpdate(tenBotData_, tenTopDiff_, tenWeightDiff_, tenBiasDiff_);
+  impl->weightUpdate(tenBotData_, tenTopDiff_, tenWeightDiff_);
 
 #ifdef CHECK_BLOWUP_FP32
   float* cbptr = (float*)tenWeightDiff_->getBuffer();
@@ -887,8 +1103,8 @@ void ConvNode::weightUpdate()
   void *mp = (mpptr == NULL) ? mptr : mpptr;
 
   op_->GetParameterSet(0)->StartGradientComm(mp);
-  if(gparams_.bias_term)
-    op_->GetParameterSet(1)->StartGradientComm(tenBiasDiff_->getBuffer());
+  op_->GetParameterSet(1)->StartGradientComm(tenScaleDiff_->getBuffer());
+  op_->GetParameterSet(2)->StartGradientComm(tenShiftDiff_->getBuffer());
 #endif
 
 #ifdef GETSTATS
@@ -919,18 +1135,11 @@ void ConvNode::weightUpdate()
     pptr = (float*)tenWeightDiff_->getPrivBuffer();
     p = (pptr == NULL) ? ptr : pptr;
     MeanOfLayer((char*)s.c_str(), p, ifm*ofm*kh*kw);
-
-    if(gparams_.bias_term)
-    {
-      s = nname_ + "_delBias_Aft";
-      p = (float*)tenBiasDiff_->getBuffer();
-      MeanOfLayer((char*)s.c_str(), p, ofm);
-    }
   }
 #endif
 }
 
-void ConvNode::solverStep()
+void FusedConvBNNode::solverStep()
 {
 #ifdef RETURNALL
   return;
@@ -957,28 +1166,10 @@ void ConvNode::solverStep()
 
   float *iwt = (float*)(tenWeightInc_->getBuffer());
 
-  float *bias_prv_ptr, *bias_ptr, *bias;
-  float *gbias_prv_ptr, *gbias_ptr, *gbias, *ibias;
-
-  if(gparams_.bias_term)
-  {
-    bias_prv_ptr = (float*)tenBiasData_->getPrivBuffer();
-    bias_ptr = (float*)(tenBiasData_->getBuffer());
-    bias = (bias_prv_ptr == NULL) ? bias_ptr : bias_prv_ptr;
-
-    gbias_prv_ptr = (float*)tenBiasDiff_->getPrivBuffer();
-    gbias_ptr = (float*)(tenBiasDiff_->getBuffer());
-    gbias = (gbias_prv_ptr == NULL) ? gbias_ptr : gbias_prv_ptr;
-    ibias = (float*)(tenBiasInc_->getBuffer());
-  }
+  float *gscale = (float*)tenScaleDiff_->getBuffer();
+  float *gshift = (float*)tenShiftDiff_->getBuffer();
 
   int wsize = ifm*ofm*kh*kw;
-
-#ifdef DEBUG
-  printf("Executing Solver: weights %p, grad_weights %p, bias %p, grad_bias %p\n", wt, gwt, bias, gbias);
-  printf("Grad Weights: %d x %d x %d x %d\n", ofm, ifm, kh, kw);
-  printf("Grad Biases: %d\n",ofm);
-#endif
 
 #ifdef GETSTATS
 #ifdef USE_MLSL
@@ -990,11 +1181,6 @@ void ConvNode::solverStep()
   {
     string s = nname_ + "_OldWt";
     MeanOfLayer((char*)s.c_str(), wt, ifm*ofm*kh*kw);
-    if(gparams_.bias_term)
-    {
-      s = nname_ + "_OldBias";
-      MeanOfLayer((char*)s.c_str(), bias, ofm);
-    }
   }
 #endif
 
@@ -1005,12 +1191,14 @@ void ConvNode::solverStep()
   if(mptr != NULL && mptr != gwt)
     memcpy((void*)gwt, mptr, wsize*sizeof(float));
 
-  if(gparams_.bias_term)
-  {
-    mptr = op_->GetParameterSet(1)->WaitGradientComm();
-    if(mptr != NULL && mptr != gbias)
-      memcpy((void*)gbias, mptr, ofm*sizeof(float));
-  }
+  mptr = op_->GetParameterSet(1)->WaitGradientComm();
+  if(mptr != NULL && mptr != gscale)
+      memcpy((void*)gscale, mptr, ofm*sizeof(float));
+
+  mptr = op_->GetParameterSet(2)->WaitGradientComm();
+  if(mptr != NULL && mptr != gshift)
+      memcpy((void*)gshift, mptr, ofm*sizeof(float));
+
   num_nodes = MLSL::Environment::GetEnv().GetProcessCount();
 #endif
 
@@ -1028,109 +1216,4 @@ void ConvNode::solverStep()
 
   if(solver_->getGlobalFlag())
     return;
-
-#ifdef DUMP_WT_DATA
-  float *wtemp = (float*)_mm_malloc(wsize*sizeof(float), 64);
-  string fname;
-  FILE* f;
-  int iter;
-
-  {
-    iter = eptr_->get_current_batch();
-
-    impl->dumpBuffer(tenWeightDiff_, wtemp);
-    fname = gparams_.node_name + "_solver_delwt_" + to_string(iter);
-    f = fopen(fname.c_str(), "w");
-    for(int i=0; i<wsize; i++)
-      fprintf(f, "%g\n", wtemp[i]);
-    fclose(f);
-
-    if(gparams_.bias_term)
-    {
-      fname = gparams_.node_name + "_solver_delbias_" + to_string(iter);
-      f = fopen(fname.c_str(), "w");
-      for(int i=0; i<ofm; i++)
-        fprintf(f, "%g\n", gbias[i]);
-      fclose(f);
-    }
-
-    impl->dumpBuffer(tenWeightData_, wtemp);
-    fname = gparams_.node_name + "_solver_wt_" + to_string(iter);
-    f = fopen(fname.c_str(), "w");
-    for(int i=0; i<wsize; i++)
-      fprintf(f, "%g\n", wtemp[i]);
-    fclose(f);
-
-    if(gparams_.bias_term)
-    {
-      fname = gparams_.node_name + "_solver_bias_" + to_string(iter);
-      f = fopen(fname.c_str(), "w");
-      for(int i=0; i<ofm; i++)
-        fprintf(f, "%g\n", bias[i]);
-      fclose(f);
-    }
-  }
-#endif
-
-  solver_->applyUpdate(wt, iwt, gwt, wsize, lr_mult_[0], decay_mult_[0]);
-#if 1
-  if(gparams_.bias_term)
-    solver_->applyUpdate(bias, ibias, gbias, ofm, lr_mult_[1], decay_mult_[1]);
-#endif
-
-#ifdef DUMP_WT_DATA
-  {
-    impl->dumpBuffer(tenWeightData_, wtemp);
-    fname = gparams_.node_name + "_solver_newwt_" + to_string(iter);
-    f = fopen(fname.c_str(), "w");
-    for(int i=0; i<wsize; i++)
-      fprintf(f, "%g\n", wtemp[i]);
-    fclose(f);
-
-    impl->dumpBuffer(tenWeightInc_, wtemp);
-    fname = gparams_.node_name + "_solver_wtinc_" + to_string(iter);
-    f = fopen(fname.c_str(), "w");
-    for(int i=0; i<wsize; i++)
-      fprintf(f, "%g\n", wtemp[i]);
-    fclose(f);
-
-    if(gparams_.bias_term)
-    {
-      fname = gparams_.node_name + "_solver_newbias_" + to_string(iter);
-      f = fopen(fname.c_str(), "w");
-      for(int i=0; i<ofm; i++)
-        fprintf(f, "%g\n", bias[i]);
-      fclose(f);
-
-      fname = gparams_.node_name + "_solver_biasinc_" + to_string(iter);
-      f = fopen(fname.c_str(), "w");
-      for(int i=0; i<ofm; i++)
-        fprintf(f, "%g\n", ibias[i]);
-      fclose(f);
-    }
-  }
-  _mm_free(wtemp);
-#endif
-
-#ifdef GETSTATS
-#ifdef USE_MLSL
-  if(node_id == 0 && eptr_->get_current_batch() % STATFREQ == 0)
-#else
-  if(eptr_->get_current_batch() % STATFREQ == 0)
-#endif
-  {
-    string s = nname_ + "_WInc";
-    MeanOfLayer((char*)s.c_str(), iwt, ifm*ofm*kh*kw);
-    s = nname_ + "Wt";
-    MeanOfLayer((char*)s.c_str(), wt, ifm*ofm*kh*kw);
-    if(gparams_.bias_term)
-    {
-      s = nname_ + "BiasInc";
-      MeanOfLayer((char*)s.c_str(), ibias, ofm);
-      s = nname_ + "Bias";
-      MeanOfLayer((char*)s.c_str(), bias, ofm);
-    }
-  }
-#endif
-
 }

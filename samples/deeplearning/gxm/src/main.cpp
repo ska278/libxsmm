@@ -48,6 +48,7 @@
 #include "SoftmaxLoss.hpp"
 #include "Split.hpp"
 #include "FusedBNorm.hpp"
+#include "FusedConvBN.hpp"
 #include "Eltwise.hpp"
 #include "TypeList.hpp"
 
@@ -66,6 +67,7 @@ TypeList nodeTypes[] = {
   {"JitterData", parseJitterDataParams, CreateMLNode<JitterDataNode,JitterDataParams>},
   {"LMDBData", parseLMDBDataParams, CreateMLNode<LMDBDataNode,LMDBDataParams>},
   {"Convolution", parseConvParams, CreateMLNode<ConvNode,ConvParams>},
+  {"FusedConvBN", parseFusedConvBNParams, CreateMLNode<FusedConvBNNode,FusedConvBNParams>},
   {"FullyConnected", parseFCParams, CreateMLNode<FCNode,FCParams>},
   {"Pooling", parsePoolingParams, CreateMLNode<PoolingNode,PoolingParams>},
   {"ReLU", parseReLUParams, CreateMLNode<ReLUNode,ReLUParams>},
