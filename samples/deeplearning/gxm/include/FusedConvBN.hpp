@@ -43,8 +43,6 @@
 #include "FusedConvBNImpl.hpp"
 #include "FusedConvBNXSMM.hpp"
 
-#define VLEN 16
-
 using namespace std;
 using namespace gxm;
 
@@ -455,6 +453,8 @@ class FusedConvBNNode : public NNNode
     void fillWeightMultipliers(float* lr_mult, float* decay_mult, long long int bytes);
     void fillBiasMultipliers(float* lr_mult, float* decay_mult, long long int bytes);
     void Checkpoint(TensorBuf* tBuf, string name, string format);
+    TensorBuf* getScaleBuf() { return tenScaleData_; }
+    TensorBuf* getShiftBuf() { return tenShiftData_; }
 
   protected:
     void forwardPropagate();

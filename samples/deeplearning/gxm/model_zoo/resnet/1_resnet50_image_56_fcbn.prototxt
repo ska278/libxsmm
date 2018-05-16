@@ -146,10 +146,10 @@ node {
     engine: XSMM
     num_output: 64
     pad: 0
-    opad: 1
+    opad: 0
     bstats_fwd: true
     bn_bwd: true
-    physical_padding: true
+    physical_padding: false
     kernel_size: 1
     stride: 1
     use_global_stats: false
@@ -177,12 +177,12 @@ node {
     engine: XSMM
     num_output: 64
     pad: 1
-    opad: 1
+    opad: 0
     bstats_fwd: true
     bn_relu_fwd: true
     bn_bwd: true
     bstats_relu_bwd: true
-    physical_padding: true
+    physical_padding: false
     kernel_size: 3
     stride: 1
     use_global_stats: false
@@ -209,8 +209,8 @@ node {
     data_type: FLOAT
     engine: XSMM
     num_output: 256
-    pad: 1
-    physical_padding: true
+    pad: 0
+    physical_padding: false
     bstats_fwd: true
     bn_relu_fwd: true
     bn_bwd: true

@@ -130,7 +130,12 @@ FusedConvBNNode::FusedConvBNNode(FusedConvBNParams* p, MLEngine* e): NNNode(p, e
   tenTop_->setShape(&ts_);
 
   long long int tsize;
-  int telem = ts_.dims[0] * ts_.dims[1] * (ts_.dims[2] + 2*ovp[0]) * (ts_.dims[3] + 2*ovp[1]);
+  int telem;
+  
+  if(gparams_.physical_padding)
+    telem = ts_.dims[0] * ts_.dims[1] * (ts_.dims[2] + 2*ovp[0]) * (ts_.dims[3] + 2*ovp[1]);
+  else
+    telem = ts_.dims[0] * ts_.dims[1] * ts_.dims[2] * ts_.dims[3];
 
   // Buffer space for sum and sum^2
   int tstats;
@@ -194,7 +199,7 @@ FusedConvBNNode::FusedConvBNNode(FusedConvBNParams* p, MLEngine* e): NNNode(p, e
   Shape sss;
   shape_setzero(&sss);
   sss.ndims = 1;
-  sss.dims[0] = bs->dims[1];
+  sss.dims[0] = ts_.dims[1];
 
   scale_ = top_[0] + "_scale";
   tenScale_ = new Tensor(scale_);
@@ -251,7 +256,12 @@ FusedConvBNNode::FusedConvBNNode(FusedConvBNParams* p, MLEngine* e): NNNode(p, e
       tenBotDiff_->setDataType(in_dtype);
       tenBotDiff_->setBufferType(DIFF);
 
-      long long int bsize = bs->dims[0] * bs->dims[1] * (bs->dims[2] + 2*vp[0]) * (bs->dims[3] + 2*vp[1]);
+      long long int bsize;
+      
+      if(gparams_.physical_padding)
+        bsize = bs->dims[0] * bs->dims[1] * (bs->dims[2] + 2*vp[0]) * (bs->dims[3] + 2*vp[1]);
+      else
+        bsize = bs->dims[0] * bs->dims[1] * bs->dims[2] * bs->dims[3];
 
       if((in_dtype == DT_FLOAT && out_dtype == DT_FLOAT) ||
           (in_dtype == DT_DFP16 && out_dtype == DT_FLOAT))
@@ -631,6 +641,11 @@ void FusedConvBNNode::forwardPropagate()
   impl->set_node_name(nname_);
   impl->set_scratch_buffer(tenScratchData_);
 
+  //NNNode *pnn = (NNNode*)tenBot_->getOwner();
+  FusedConvBNNode *pnn = (FusedConvBNNode*)tenBot_->getOwner();
+  TensorBuf *pgammab = pnn->getScaleBuf();
+  TensorBuf *pbetab = pnn->getShiftBuf();
+
   if(first_fp)
   {
     float* ptr = (float*)tenTopData_->getBuffer();
@@ -669,7 +684,7 @@ void FusedConvBNNode::forwardPropagate()
     sptr[i] = 0;
 #endif
 
-  impl->forwardPropagate(tenBotData_, tenWeightData_, tenScaleData_, tenShiftData_, tenMeanData_, tenRstdevData_, tenTopData_);
+  impl->forwardPropagate(tenBotData_, tenWeightData_, pgammab, pbetab, tenScaleData_, tenShiftData_, tenMeanData_, tenRstdevData_, tenTopData_);
 
 #ifdef CHECK_BLOWUP_FP32
   float *cbptr = (float*)tenTopData_->getBuffer();
@@ -729,20 +744,20 @@ void FusedConvBNNode::forwardPropagate()
 
       if(gparams_.bn_fwd || gparams_.bn_relu_fwd)
       {
-        s = nname_ + "_expect1";
+        s = nname_ + "_expect";
         ptr = (float*)tenBotData_->getBuffer();
         p = ptr + nImg*ifm*ifhp*ifwp + 2*nImg*ifm;
         MeanOfLayer((char*)s.c_str(), p, ifm);
 
-        s = nname_ + "_rstdev1";
+        s = nname_ + "_rstdev";
         p = ptr + nImg*ifm*ifhp*ifwp + 2*nImg*ifm + ifm;
         MeanOfLayer((char*)s.c_str(), p, ifm);
 
-        s = nname_ + "_gexpect1";
+        s = nname_ + "_gexpect";
         ptr = (float*)tenMeanData_->getBuffer();
         MeanOfLayer((char*)s.c_str(), ptr, ifm);
 
-        s = nname_ + "_grstdev1";
+        s = nname_ + "_grstdev";
         ptr = (float*)tenRstdevData_->getBuffer();
         MeanOfLayer((char*)s.c_str(), ptr, ifm);
 
@@ -793,169 +808,27 @@ void FusedConvBNNode::backPropagate()
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for(int i=0; i<size; i++)
-        ptr[i] = 0;
+    for(int i=0; i<size; i++)
+      ptr[i] = 0;
 
-   first_bp = false;
-  }
-
-#if 0
-  float *inp_r = (float*)tenBotData_->getBuffer();
-  float *outp = (float*)tenTopData_->getBuffer();
-  float *gammap = (float*)tenScaleData_->getBuffer();
-  float *deloutp = (float*)tenTopDiff_->getBuffer();
-  float *delgammap = (float*)tenScaleDiff_->getBuffer();
-  float *delbetap = (float*)tenShiftDiff_->getBuffer();
-  float *bmeanp = (float*)tenMeanData_->getBuffer();
-  float *brstdp = (float*)tenRstdevData_->getBuffer();
-
-  if(gparams_.bstats_bwd)
-  {
-    int nImg  = gparams_.batch_size;
-    int nFM = gparams_.nOutput;
-    int nBfm = nFM/VLEN;
-    int fh = gparams_.oHeight;
-    int fw = gparams_.oWidth;
-    int ph = gparams_.opad_h;
-    int pw = gparams_.opad_w;
-    int sh = gparams_.stride_h;
-    int sw = gparams_.stride_w;
-    int iph = gparams_.pad_h;
-    int ipw = gparams_.pad_w;
-    int fhs = fh/sh;
-    int fws = fw/sw;
-    int fhp = fhs + 2*ph;
-    int fwp = fws + 2*pw;
-    int fhi = fh + 2*iph;
-    int fwi = fw + 2*ipw;
-
-    const float nhw = nImg * fh * fw;
-    const float recp_nhw = 1.0f/nhw;
-
-
-    float (* __restrict input_r)[nBfm][fhi][fwi][VLEN]     = (float (*)[*][*][*][VLEN])inp_r;
-    float (* __restrict del_output)[nBfm][fhp][fwp][VLEN]  = (float (*)[*][*][*][VLEN])deloutp;
-    float (* __restrict gamma)[VLEN]                       = (float (*)[VLEN])gammap;
-    float (* __restrict del_gamma)[VLEN]                   = (float (*)[VLEN])delgammap;
-    float (* __restrict del_beta)[VLEN]                    = (float (*)[VLEN])delbetap;
-    float (* __restrict bmean)[VLEN]                       = (float (*)[VLEN])bmeanp;
-    float (* __restrict brstd)[VLEN]                       = (float (*)[VLEN])brstdp;
-    float (* __restrict output)[nBfm][fhp][fwp][VLEN]      = (float (*)[*][*][*][VLEN])outp;
-
-    void *ptr = tenTopData_->getBuffer() + (2*nImg*nFM + nImg*nFM*fh*fw)*sizeof(float);
-    float *del_gamma_imgp = (float*)ptr;
-    float *del_beta_imgp = del_gamma_imgp + nImg*nFM;
-
-    float (* __restrict del_gamma_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_gamma_imgp;
-    float (* __restrict del_beta_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_beta_imgp;
-
+    ptr = (float*)tenScaleDiff_->getBuffer();
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel for
 #endif
-    {
-#pragma omp for
-#pragma vector aligned
-      for(int fm=0; fm < nBfm; fm++) {
-        for(int img=0; img < nImg; img++) {
-#pragma omp simd
-#pragma vector aligned
-          for(int v=0; v < VLEN; v++) {
-            del_gamma[fm][v] += del_gamma_img[fm][img][v];
-            del_beta[fm][v] += del_beta_img[fm][img][v];
-          }
-        }
-      }
-#pragma omp for nowait
-      for(int img=0; img < nImg; img++) {
-        for(int fm=(nBfm-1); fm >= 0; fm--) {
-          for(int h=(fh+iph)-sh, hp=(fhs+ph)-1; h >= iph; h-=sh, hp--) {
-            for(int w=(fw+ipw)-sw, wp=(fws+pw)-1; w >= ipw; w-=sw, wp--) {
-#pragma omp simd
-#pragma vector aligned
-#ifdef USE_NTS_BN
-#pragma vector nontemporal
+    for(int i=0; i<ofm; i++)
+      ptr[i] = 0;
+
+    ptr = (float*)tenShiftDiff_->getBuffer();
+#ifdef _OPENMP
+#pragma omp parallel for
 #endif
-              for(int v=0; v < VLEN; v++) {
-                del_output[img][fm][hp][wp][v] = gamma[fm][v] * brstd[fm][v] * recp_nhw * (nhw*del_output[img][fm][hp][wp][v] -
-                    (del_beta[fm][v] + (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_gamma[fm][v] * brstd[fm][v]));
-              }
-            }
-          }
-        }
-      }
-    }
+    for(int i=0; i<ofm; i++)
+      ptr[i] = 0;
+
+    first_bp = false;
   }
-#endif
 
-#if 0
-#ifdef GETSTATS
-  float *ptr, *pptr, *p, *bias;
-#ifdef USE_MLSL
-  unsigned int node_id_ = MLSL::Environment::GetEnv().GetProcessIdx();
-  if(node_id_ == 0)
-#endif
-  {
-    if(eptr_->get_current_batch() % STATFREQ == 0)// && gparams_.ipad_h)
-    {
-      string s = nname_ + "_delOutp";
-
-      ptr = (float*)tenTopDiff_->getBuffer();
-      pptr = (float*)tenTopDiff_->getPrivBuffer();
-      p = (pptr == NULL) ? ptr : pptr;
-      printf("FusedConvBN deloutp %p\n",p);
-      MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
-
-      s = nname_ + "_Wt";
-      ptr = (float*)tenWeightData_->getBuffer();
-      pptr = (float*)tenWeightData_->getPrivBuffer();
-      p = (pptr == NULL) ? ptr : pptr;
-      MeanOfLayer((char*)s.c_str(), p, ifm*ofm*kh*kw);
-
-      if(gparams_.bstats_bwd || gparams_.bstats_relu_bwd)
-      {
-        s = nname_ + "_delgammap";
-        p = (float*)tenScaleDiff_->getBuffer();
-        MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
-
-        s = nname_ + "_delbetap";
-        p = (float*)tenShiftDiff_->getBuffer();
-        MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
-      }
-#if 0
-      else
-      {
-        s = nname_ + "_delgammap";
-        MeanOfLayer((char*)s.c_str(), delgammap, gparams_.nOutput);
-
-        s = nname_ + "_delbetap";
-        MeanOfLayer((char*)s.c_str(), delbetap, gparams_.nOutput);
-      }
-#endif
-
-      s = nname_ + "_delInp";
-      ptr = (float*)tenBotDiff_->getBuffer();
-      pptr = (float*)tenBotDiff_->getPrivBuffer();
-      p = (pptr == NULL) ? ptr : pptr;
-      MeanOfLayer((char*)s.c_str(), p, nImg*ifm*ifhp*ifwp);
-
-      s = nname_ + "_expect2";
-      ptr = (float*)tenTopData_->getBuffer();
-      p = ptr + nImg*ofm*ofhp*ofwp + 2*nImg*ofm;
-      MeanOfLayer((char*)s.c_str(), p, ofm);
-
-      s = nname_ + "_rstdev2";
-      p += ofm;
-      MeanOfLayer((char*)s.c_str(), p, ofm);
-
-      s = nname_ + "_savedOutp";
-      p += ofm;
-      MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
-    }
-  }
-#endif
-#endif
-
-  impl->backPropagate(tenTopData_, tenTopDiff_, tenWeightData_, tenScaleDiff_, tenShiftDiff_, tenBotDiff_);
+  impl->backPropagate(tenTopData_, tenTopDiff_, tenWeightData_, tenScaleData_, tenScaleDiff_, tenShiftDiff_, tenBotDiff_);
 
 #ifdef CHECK_BLOWUP_FP32
   float* cbptr = (float*)tenTopDiff_->getBuffer();
@@ -1001,17 +874,28 @@ void FusedConvBNNode::backPropagate()
         s = nname_ + "_delbetap";
         p = (float*)tenShiftDiff_->getBuffer();
         MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
-      }
-#if 0
-      else
-      {
-        s = nname_ + "_delgammap";
-        MeanOfLayer((char*)s.c_str(), delgammap, gparams_.nOutput);
 
-        s = nname_ + "_delbetap";
-        MeanOfLayer((char*)s.c_str(), delbetap, gparams_.nOutput);
+        s = nname_ + "_bmean2";
+        ptr = (float*)tenBotData_->getBuffer();
+        p = ptr + nImg*ifm*ifhp*ifwp + 2*nImg*ifm;
+        MeanOfLayer((char*)s.c_str(), p, ifm);
+
+        s = nname_ + "_brstd2";
+        p += ifm;
+        MeanOfLayer((char*)s.c_str(), p, ifm);
       }
-#endif
+
+      if(gparams_.bn_bwd)
+      {
+        s = nname_ + "_bmean";
+        ptr = (float*)tenTopData_->getBuffer();
+        p = ptr + nImg*ofm*ofhp*ofwp + 2*nImg*ofm;
+        MeanOfLayer((char*)s.c_str(), p, ofm);
+
+        s = nname_ + "_brstd";
+        p += ofm;
+        MeanOfLayer((char*)s.c_str(), p, ofm);
+      }
 
       s = nname_ + "_delInp";
       ptr = (float*)tenBotDiff_->getBuffer();
@@ -1019,17 +903,10 @@ void FusedConvBNNode::backPropagate()
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, nImg*ifm*ifhp*ifwp);
 
-      s = nname_ + "_expect2";
-      ptr = (float*)tenTopData_->getBuffer();
-      p = ptr + nImg*ofm*ofhp*ofwp + 2*nImg*ofm;
-      MeanOfLayer((char*)s.c_str(), p, ofm);
-
-      s = nname_ + "_rstdev2";
-      p += ofm;
-      MeanOfLayer((char*)s.c_str(), p, ofm);
 
       s = nname_ + "_savedOutp";
-      p += ofm;
+      ptr = (float*)tenTopData_->getBuffer();
+      p = ptr + nImg*ofm*ofhp*ofwp + 2*nImg*ofm + 2*ofm;
       MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
     }
   }

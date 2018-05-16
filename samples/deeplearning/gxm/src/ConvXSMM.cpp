@@ -159,7 +159,7 @@ void ConvXSMM::forwardPropagate(TensorBuf *inp, TensorBuf *weightp, TensorBuf *b
   //Stats of output appended to output buffer
   int offset = conv_desc.N * conv_desc.K * (gp->oHeight + 2*conv_desc.pad_h_out) * (gp->oWidth + 2*conv_desc.pad_w_out);
   void *stats_ptr = out_ptr + offset * sizeof(float);
-
+memset(stats_ptr, 0, conv_desc.N * conv_desc.K * sizeof(float));
   void *scratch = scratchp->getBuffer();
 
   if(libxsmm_input == NULL && libxsmm_filter == NULL && libxsmm_output == NULL)

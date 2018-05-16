@@ -84,28 +84,28 @@ class FusedConvBNImpl
     void set_node_name(string s) { nname = s; }
     void set_scratch_buffer(TensorBuf* sb) { scratchp = sb; }
 
-    virtual void forwardPropagate(TensorBuf *inp, TensorBuf *weightp, TensorBuf *gammap, TensorBuf *betap, TensorBuf *gmeanp, TensorBuf *grstdp, TensorBuf *outp, int tid) = 0;
-    virtual void backPropagate(TensorBuf* outp, TensorBuf* deloutp, TensorBuf* weightp, TensorBuf* delgammap, TensorBuf* delbetap, TensorBuf *delinp, int tid) = 0;
+    virtual void forwardPropagate(TensorBuf *inp, TensorBuf *weightp, TensorBuf *gammap, TensorBuf *betap, TensorBuf* mygammap, TensorBuf* mybetap, TensorBuf *gmeanp, TensorBuf *grstdp, TensorBuf *outp, int tid) = 0;
+    virtual void backPropagate(TensorBuf* outp, TensorBuf* deloutp, TensorBuf* weightp, TensorBuf *gammap, TensorBuf* delgammap, TensorBuf* delbetap, TensorBuf *delinp, int tid) = 0;
 
     virtual void weightUpdate(TensorBuf *inp, TensorBuf *deloutp, TensorBuf *delweightp, int tid) = 0;
     virtual void dumpBuffer(TensorBuf*, void*) {}
 
-    virtual void forwardPropagate(TensorBuf *inp, TensorBuf* weightp, TensorBuf* gammap, TensorBuf* betap, TensorBuf *gmeanp, TensorBuf *grstdp, TensorBuf *outp)
+    virtual void forwardPropagate(TensorBuf *inp, TensorBuf* weightp, TensorBuf* gammap, TensorBuf* betap, TensorBuf* mygammap, TensorBuf* mybetap, TensorBuf *gmeanp, TensorBuf *grstdp, TensorBuf *outp)
     {
       switch(engine)
       {
         case XSMM:
-          forwardPropagate(inp, weightp, gammap, betap, gmeanp, grstdp, outp, 0);
+          forwardPropagate(inp, weightp, gammap, betap, mygammap, mybetap, gmeanp, grstdp, outp, 0);
           break;
       }
     }
 
-    virtual void backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorBuf* weightp, TensorBuf* delgammap, TensorBuf* delbetap, TensorBuf *delinp)
+    virtual void backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorBuf* weightp, TensorBuf *gammap, TensorBuf* delgammap, TensorBuf* delbetap, TensorBuf *delinp)
     {
       switch(engine)
       {
         case XSMM:
-          backPropagate(outp, deloutp, weightp, delgammap, delbetap, delinp, 0);
+          backPropagate(outp, deloutp, weightp, gammap, delgammap, delbetap, delinp, 0);
           break;
       }
     }
