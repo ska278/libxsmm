@@ -43,7 +43,7 @@ void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_t
   }
 }
 
-void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, element_input_type * input1_st, int oi, int oj)
+void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, int oi, int oj)
 {
 //  if(ltid==0) printf("offset_i, R, S, oj, oi, ofh_rb, ofw_rb, %d %d %d %d %d %d %d\n", offset_i, handle->desc.R, handle->desc.S, 
 //                          oj, oi, handle->fwd_ofh_rb, handle->fwd_ofw_rb);
@@ -52,17 +52,24 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
   LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg_stddev->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, beta, (element_input_type*)handle->reg_beta->data, handle->ifmblock);
+  element_input_type * myinput_st;
   int my_h, my_w, my_c, ifm_idx, my_ldw, my_pad_h, my_pad_w, my_ldh;
   if (handle->padding_flag == 1) {
     my_ldw = padded_w;
     my_ldh = padded_h;
     my_pad_h = handle->desc.pad_h;
     my_pad_w = handle->desc.pad_w;
+    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
+        BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
   } else {
     my_ldw = handle->ifwp;
     my_ldh = handle->ifhp;
     my_pad_h = handle->desc.pad_h_in;
     my_pad_w = handle->desc.pad_w_in;
+    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
+        BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
   }
 
   if(handle->desc.R == 1 && handle->desc.S == 1)
@@ -81,7 +88,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
           int _my_w = my_w + my_pad_w;
           int _my_h_st = my_h + handle->desc.pad_h_in;
           int _my_w_st = my_w + handle->desc.pad_w_in;
-          do_BN(_my_h, _my_w, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+          do_BN(_my_h, _my_w, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
         }
       }
     }
@@ -103,7 +110,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
         my_h = 0;
         if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
         {
-          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+          do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
         }
       }
 
@@ -115,7 +122,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
 	{
 	  if(oi + my_w < handle->desc.W)
 	  {
-            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+            do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
 	  }
 	}
       }
@@ -128,7 +135,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
 	{
           if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
           {
-            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+            do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
           }
 	}
       }
@@ -139,7 +146,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
       {
         if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
         {
-          do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+          do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
         }
       }
     }
@@ -159,7 +166,7 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
 	{
           if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
   	  {
-            do_BN(my_h+1, my_w+1, input1_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+            do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
   	  }
 	}
       }
@@ -187,7 +194,7 @@ const int ltid = tid-start_thread;
 int gs = handle->desc.threads; /*atoi(getenv("GSIZE"));*/
 const int tile_id = ltid/gs;
 /* Pointer variables  */
-element_input_type *input_base, *input_ptr, *input_st_base;
+element_input_type *input_base, *input_ptr;
 const element_filter_type *weight_base;
 element_input_type *input_zero;
 element_output_type *output_base;
@@ -210,7 +217,6 @@ const int padded_h = handle->ifhp + 2 * handle->desc.pad_h;
 const int padded_w = handle->ifwp + 2 * handle->desc.pad_w;
 LIBXSMM_VLA_DECL(5, element_input_type, input_buffer, ((element_input_type*)handle->scratch5) + ltid * BLOCKSIFM * padded_h * padded_w * handle->ifmblock * handle->fm_lp_block, padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
 
-LIBXSMM_VLA_DECL(6, element_input_type, input_st_buffer, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
 /* Kernel related variables  */
 libxsmm_xmcopyfunction jitted_matcopy = handle->matcopy_fwd[0].xmatcopy;
 libxsmm_xmcopyfunction jitted_zero_overwrite = handle->matcopy_fwd[1].xmatcopy;
@@ -249,15 +255,11 @@ if (handle->padding_flag == 1) {
       padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
   input_zero = &LIBXSMM_VLA_ACCESS(5, input_buffer, 0, 0, 0, 0, 0,
       padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
-  input_st_base = &LIBXSMM_VLA_ACCESS(6, input_st_buffer, 0, 0, 0, 0, 0, 0,
-      BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
   /* we need to set the scratch to zero */
   /* @TODO: we need to find a better/faster code here */
   memset( input_zero, 0, BLOCKSIFM * padded_h * padded_w * handle->ifmblock * handle->fm_lp_block * sizeof(element_input_type) );
 } else {
   input_base = &LIBXSMM_VLA_ACCESS(6, input, 0, 0, 0, 0, 0, 0,
-      BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-  input_st_base = &LIBXSMM_VLA_ACCESS(6, input_st_buffer, 0, 0, 0, 0, 0, 0,
       BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
 }
 weight_base = &LIBXSMM_VLA_ACCESS(7, weight, 0, 0, 0, 0, 0, 0, 0,
@@ -675,7 +677,7 @@ if (n_segments) {
 	    else
 	    {
 #ifdef FUSED_BN_CONV_WRAPPER
-              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st, oi, oj);
+              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi,  oi, oj);
 #else
               kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 #endif
