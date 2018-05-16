@@ -74,7 +74,7 @@ LIBXSMM_VLA_DECL(5, element_output_type, output_buffer, ((element_output_type*)h
 
 libxsmm_convfunction kernel_bwd = (libxsmm_convfunction)handle->code_bwd[0].xconv.sconv;
 libxsmm_convfunction kernel2_bwd = (libxsmm_convfunction)handle->code_bwd[1].xconv.sconv;
-libxsmm_convfunction kernel_pool[2];
+libxsmm_convfunction kernel_pool[4];
 char *variant = handle->kernel_bwd_variant_ptrs[ltid];
 
 LIBXSMM_ALIGNED(float scale_factor, 64);
@@ -91,6 +91,8 @@ element_input_type* del_in = 0;
 
 kernel_pool[0] = kernel_bwd;
 kernel_pool[1] = kernel2_bwd;
+kernel_pool[2] = kernel_bwd;
+kernel_pool[3] = kernel2_bwd;
 
 /* select pointer based on precision */
 if (handle->datatype_in != handle->datatype_out) {
