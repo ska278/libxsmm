@@ -87,7 +87,7 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
         int _my_h = (my_h/handle->desc.u) + my_pad_h;
         int _my_w = (my_w/handle->desc.v) + my_pad_w;
 	  myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw] = 
-            mygamma[my_c] * mybrstd1[my_c] * 1.0f * (1.0f * (myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw]) ) - mydbeta[my_c] + (( myinput_r[my_c + (my_w + handle->desc.pad_w_out) * handle->ofmblock + (my_h + handle->desc.pad_h_out) * handle->ofmblock * handle->ofwp]  - mybmean1[my_c])) * mydgamma[my_c] * mybrstd1[my_c];
+            mygamma[my_c] * mybrstd1[my_c] * 1.0f * (1.0f * (myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw]) - (mydbeta[my_c] + ((myinput_r[my_c + (my_w + handle->desc.pad_w_out) * handle->ofmblock + (my_h + handle->desc.pad_h_out) * handle->ofmblock * handle->ofwp])  - mybmean1[my_c]) * mydgamma[my_c] * mybrstd1[my_c]));
       }
     }
   }
