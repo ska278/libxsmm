@@ -357,8 +357,8 @@ LIBXSMM_INLINE void naive_conv_bp(naive_conv_t* param, float* input, float* outp
     for (ofm = 0; ofm < nOfm; ++ofm) {
       for (oj = 0; oj < ofh; ++oj) {
         for (oi = 0; oi < ofw; ++oi) {
-	  LIBXSMM_VLA_ACCESS(4, output_t, img, ofm, oj, oi, nOfm, ofhp, ofwp) = gamma[ofm] * brstd1[ofm] * recp_nhw * (nhw*LIBXSMM_VLA_ACCESS(4, output_t, img, ofm, oj, oi, nOfm, ofhp, ofwp)) - 
-	                                                                        dbeta[ofm] + (LIBXSMM_VLA_ACCESS(4, input_r_t, img, ofm, oj, oi, nOfm, ofhp, ofwp) - bmean1[ofm]) * dgamma[ofm] * brstd1[ofm];
+	  LIBXSMM_VLA_ACCESS(4, output_t, img, ofm, oj, oi, nOfm, ofhp, ofwp) = gamma[ofm] * brstd1[ofm] * recp_nhw * (nhw*LIBXSMM_VLA_ACCESS(4, output_t, img, ofm, oj, oi, nOfm, ofhp, ofwp) - 
+	                                                                        (dbeta[ofm] + (LIBXSMM_VLA_ACCESS(4, input_r_t, img, ofm, oj, oi, nOfm, ofhp, ofwp) - bmean1[ofm]) * dgamma[ofm] * brstd1[ofm])); 
 										
         }
       }
