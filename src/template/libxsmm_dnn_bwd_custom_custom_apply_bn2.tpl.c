@@ -76,6 +76,9 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
   element_input_type * mybmean1 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, bmean1, ofm_idx, 0, handle->ofmblock));
   element_input_type * mybrstd1 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, brstd1, ofm_idx, 0, handle->ofmblock));
 
+  element_input_type nhw = handle->desc.N * handle->desc.H * handle->desc.W;
+  element_input_type recp_nhw = 1.0f/nhw; 
+
   for(my_h = 0 ; my_h < handle->desc.H ; my_h+=handle->desc.u)
   {
     for(my_w = 0 ; my_w < handle->desc.W ; my_w+=handle->desc.v)
@@ -87,7 +90,7 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
         int _my_h = (my_h/handle->desc.u) + my_pad_h;
         int _my_w = (my_w/handle->desc.v) + my_pad_w;
 	  myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw] = 
-            mygamma[my_c] * mybrstd1[my_c] * 1.0f * (1.0f * (myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw]) - (mydbeta[my_c] + ((myinput_r[my_c + (my_w + handle->desc.pad_w_out) * handle->ofmblock + (my_h + handle->desc.pad_h_out) * handle->ofmblock * handle->ofwp])  - mybmean1[my_c]) * mydgamma[my_c] * mybrstd1[my_c]));
+            mygamma[my_c] * mybrstd1[my_c] * recp_nhw * (nhw * myoutput[my_c + _my_w * handle->ofmblock + _my_h * handle->ofmblock * my_ldw] - (mydbeta[my_c] + (myinput_r[my_c + (my_w + handle->desc.pad_w_out) * handle->ofmblock + (my_h + handle->desc.pad_h_out) * handle->ofmblock * handle->ofwp]  - mybmean1[my_c]) * mydgamma[my_c] * mybrstd1[my_c]));
       }
     }
   }

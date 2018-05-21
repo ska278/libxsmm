@@ -232,13 +232,17 @@ void SplitNode::forwardPropagate()
     }
 #endif
     string s = nname_ + "_Inp";
-    MeanOfLayer((char*)s.c_str(), bot, tenBotData_->getBufferSize()/sizeof(float));
+    Shape *ss = tenBotData_->getTensor()->getShape();
+    int size = ss->dims[0] * ss->dims[1] * ss->dims[2] * ss->dims[3];
+    MeanOfLayer((char*)s.c_str(), bot, size);
 
     for(int i=0; i<top_.size(); i++)
     {
       float* top = (float*)tenTopData_[i]->getBuffer();
       s = nname_ + "_Outp_" + to_string(i);
-      MeanOfLayer((char*)s.c_str(), top, tenTopData_[i]->getBufferSize()/sizeof(float));
+      Shape *ss = tenTopData_[i]->getTensor()->getShape();
+      int size = ss->dims[0] * ss->dims[1] * ss->dims[2] * ss->dims[3];
+      MeanOfLayer((char*)s.c_str(), top, size);
     }
   }
 #endif

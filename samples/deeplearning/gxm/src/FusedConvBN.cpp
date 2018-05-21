@@ -400,11 +400,14 @@ FusedConvBNNode::FusedConvBNNode(FusedConvBNParams* p, MLEngine* e): NNNode(p, e
   gparams_.relu_fwd = p->get_relu_fwd();
   gparams_.relu_bwd = p->get_relu_bwd();
   gparams_.bn_fwd = p->get_bn_fwd();
+  gparams_.own_bn_fwd = p->get_own_bn_fwd();
   gparams_.bn_bwd = p->get_bn_bwd();
   gparams_.bn_relu_fwd = p->get_bn_relu_fwd();
   gparams_.bstats_fwd = bstats_;
   gparams_.bstats_bwd = p->get_bstats_bwd();
   gparams_.bstats_relu_bwd = p->get_bstats_relu_bwd();
+  gparams_.own_bstats_bwd = p->get_own_bstats_bwd();
+  gparams_.own_bstats_relu_bwd = p->get_own_bstats_relu_bwd();
 
   gparams_.mmf = p->get_mmf();
   gparams_.eps = p->get_eps();
@@ -641,7 +644,6 @@ void FusedConvBNNode::forwardPropagate()
   impl->set_node_name(nname_);
   impl->set_scratch_buffer(tenScratchData_);
 
-  //NNNode *pnn = (NNNode*)tenBot_->getOwner();
   FusedConvBNNode *pnn = (FusedConvBNNode*)tenBot_->getOwner();
   TensorBuf *pgammab = pnn->getScaleBuf();
   TensorBuf *pbetab = pnn->getShiftBuf();
@@ -649,7 +651,7 @@ void FusedConvBNNode::forwardPropagate()
   if(first_fp)
   {
     float* ptr = (float*)tenTopData_->getBuffer();
-    int size = tenTopData_->getBufferSize();
+    int size = tenTopData_->getBufferSize()/sizeof(float);
 
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -762,11 +764,11 @@ void FusedConvBNNode::forwardPropagate()
         MeanOfLayer((char*)s.c_str(), ptr, ifm);
 
         s = nname_ + "_gammap";
-        float* gamma = (float*)tenScaleData_->getBuffer();
+        float* gamma = (float*)pgammab->getBuffer();
         MeanOfLayer((char*)s.c_str(), gamma, ifm);
 
         s = nname_ + "_betap";
-        float* beta = (float*)tenShiftData_->getBuffer();
+        float* beta = (float*)pbetab->getBuffer();
         MeanOfLayer((char*)s.c_str(), beta, ifm);
       }
     }

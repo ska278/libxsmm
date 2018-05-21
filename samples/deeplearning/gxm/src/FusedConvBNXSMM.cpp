@@ -115,8 +115,9 @@ void FusedConvBNXSMM::reduce_batch_stats(void *bstats_ip, float *bmeanp, float *
   int nBfm = nFM/VLEN;
   int fh = gp->iHeight;
   int fw = gp->iWidth;
-  float recp_nhw = 1./(float)(nImg * fh * fw);
-  float nhw_ratio = float(nImg*fh*fw)/float(nImg*fh*fw - 1);
+  const float nhw = nImg*fh*fw;
+  const float recp_nhw = 1.0f/nhw;
+  const float nhw_ratio = nhw/(nhw - 1);
 
   float *gmeanp = (float*)gmeanpb->getBuffer();
   float *grstdp = (float*)grstdpb->getBuffer();
@@ -142,7 +143,7 @@ void FusedConvBNXSMM::reduce_batch_stats(void *bstats_ip, float *bmeanp, float *
   float one          = 1.0;
   __m512  vone       = _mm512_set1_ps(one);
 
-#if 0
+#if 1
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -539,7 +540,7 @@ memset(out_stats_ptr, 0, 2*conv_desc.N * conv_desc.K * sizeof(float));
       CHKERR_LIBXSMM_DNN( libxsmm_dnn_execute_st( libxsmm_handle, LIBXSMM_DNN_COMPUTE_KIND_FWD, 0, tid ) );
     }
 
-    if(gp->node_name == "node_64_1_convbn3")
+    if(gp->own_bn_fwd)
     {
       bmean1 = (float*)(out_stats_ptr + 2 * conv_desc.N * conv_desc.K * sizeof(float));
       brstd1 = bmean1 + conv_desc.K;
@@ -729,6 +730,11 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
   assert(bot_compute_engine != -1);
   assert(top_compute_engine != -1);
 
+  int nImg = conv_desc.N;
+  int nBfm = conv_desc.K/VLEN;
+  int nFM = conv_desc.K;
+  int fh = gp->oHeight;
+  int fw = gp->oWidth;
 
   out_ptr = outp->getBuffer();
 
@@ -749,13 +755,14 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
   {
     int inp_off = conv_desc.N * conv_desc.C * (gp->iHeight + 2*gp->ipad_h) * (gp->iWidth + 2*gp->ipad_w);
     dgamma_dbeta = sin_ptr + inp_off*sizeof(float);
+memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));    
   }
   
   if(gp->bn_bwd)
   {
     // Reduce unreduced delgamma/delbeta (computed by next layer) into nFM sized buffers
     float *dgb_ptr = (float*)(sout_ptr + offset*sizeof(float));
-    if(gp->node_name == "node_64_1_convbn3")
+    if(gp->own_bstats_relu_bwd)
     {
       int nImg = conv_desc.N;
       int nBfm = conv_desc.K/VLEN;
@@ -776,6 +783,7 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
       int fwi = fw + 2*ipw;
 
       void *deloutptr = deloutp->getBuffer();
+      float *dgb_ptr = (float*)(sout_ptr + offset*sizeof(float));
       float *del_gamma_imgp = dgb_ptr;
       float *del_beta_imgp = del_gamma_imgp + conv_desc.N * conv_desc.K;
       float (* __restrict del_gamma_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_gamma_imgp;
@@ -784,14 +792,15 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
       float (* __restrict bmean)[VLEN]                       = (float (*)[VLEN])bmean1;
       float (* __restrict brstd)[VLEN]                       = (float (*)[VLEN])brstd1;
       float (* __restrict input_r)[nBfm][fhi][fwi][VLEN]     = (float (*)[*][*][*][VLEN])sout_ptr;
+      float (* __restrict gamma)[VLEN]                       = (float (*)[VLEN])gamma_ptr;
 
-#if 0
+#if 1
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
 #endif
       {
-#if 0
+#if 1
 #pragma omp for
 #pragma vector aligned
 #endif
@@ -799,7 +808,7 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
           for(int fm=0; fm < nBfm; fm++) {
             float lcl_gamma[VLEN];
             float lcl_beta[VLEN];
-#if 0
+#if 1
 #pragma omp simd
 #pragma vector aligned
 #endif
@@ -809,7 +818,7 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
             }
             for(int h=iph, hp=ph; h < (fh + iph); h+=sh, hp++) {
               for(int w=ipw, wp=pw; w < (fw + ipw); w+=sw, wp++) {
-#if 0
+#if 1
 #pragma omp simd
 #pragma vector aligned
 #endif
@@ -819,7 +828,7 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
                 }
               }
             }
-#if 0
+#if 1
 #pragma omp simd
 #pragma vector aligned
 #ifdef USE_NTS_BN
@@ -834,6 +843,7 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
         }
       }
     }
+
     delgamma_ptr = delgammap->getBuffer();
     delbeta_ptr = delbetap->getBuffer();
 

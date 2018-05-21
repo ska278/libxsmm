@@ -215,6 +215,8 @@ node {
     bn_relu_fwd: true
     bn_bwd: true
     bstats_relu_bwd: true
+    own_bn_fwd: true
+    own_bstats_relu_bwd: true
     kernel_size: 1
     stride: 1
     use_global_stats: false

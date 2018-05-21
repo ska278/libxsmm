@@ -213,7 +213,9 @@ void EltwiseNode::forwardPropagate()
       p = (float*)tenBotData_[i]->getBuffer();
       pp = (float*)tenBotData_[i]->getPrivBuffer();
       ptr = (pp == NULL) ? p : pp;
-      size = tenBotData_[i]->getBufferSize()/sizeof(float);
+      //size = tenBotData_[i]->getBufferSize()/sizeof(float);
+      Shape *ss = tenBotData_[i]->getTensor()->getShape();
+      size = ss->dims[0] * ss->dims[1] * ss->dims[2] * ss->dims[3];
       string s = nname_ + "_inp_" + to_string(i);
       MeanOfLayer((char*)s.c_str(), ptr, size);
     }

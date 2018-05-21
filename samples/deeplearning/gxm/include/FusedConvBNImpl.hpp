@@ -56,7 +56,8 @@ typedef struct {
   bool use_global_stats, eltwise;
   bool relu_fwd, relu_bwd, bn_fwd, bn_bwd;
   bool bn_relu_fwd, bstats_fwd, bstats_bwd;
-  bool bstats_relu_bwd;
+  bool bstats_relu_bwd, own_bn_fwd;
+  bool own_bstats_bwd, own_bstats_relu_bwd;
   bool physical_padding;
   int algType;
   int bdims, tdims, wdims;
