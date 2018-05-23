@@ -32,54 +32,39 @@
 //#define FUSED_BN_CONV_WRAPPER
 
 #ifdef FUSED_BN_CONV_WRAPPER
-void do_BN(int _my_h, int _my_w, element_input_type * input1_st, element_input_type * input1, int ifm_idx, int my_ldh, int my_ldw, element_input_type * myexpect, element_input_type * mystddev, element_input_type * mygamma, element_input_type * mybeta, int ltid, libxsmm_dnn_layer* handle, int my_w,  int my_h)
+void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, element_input_type * myinput_st, int oi, int oj)
 {
-  int my_c;
-  for(my_c = 0 ; my_c < handle->ifmblock ; my_c++)
-  {
-    input1_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + my_c + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw];
-    element_input_type after = (input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] - myexpect[my_c]) * mystddev[my_c] * mygamma[my_c] + mybeta[my_c];
-    input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + my_c + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw] = (after > 0) ? after : 0.;
-  }
-}
-
-void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, int oi, int oj)
-{
-//  if(ltid==0) printf("offset_i, R, S, oj, oi, ofh_rb, ofw_rb, %d %d %d %d %d %d %d\n", offset_i, handle->desc.R, handle->desc.S, 
-//                          oj, oi, handle->fwd_ofh_rb, handle->fwd_ofw_rb);
-
   LIBXSMM_VLA_DECL(2, element_input_type, expect, (element_input_type*)handle->reg_expect->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, stddev, (element_input_type*)handle->reg_stddev->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, gamma, (element_input_type*)handle->reg_gamma->data, handle->ifmblock);
   LIBXSMM_VLA_DECL(2, element_input_type, beta, (element_input_type*)handle->reg_beta->data, handle->ifmblock);
-  element_input_type * myinput_st;
   int my_h, my_w, my_c, ifm_idx, my_ldw, my_pad_h, my_pad_w, my_ldh;
   if (handle->padding_flag == 1) {
     my_ldw = padded_w;
     my_ldh = padded_h;
     my_pad_h = handle->desc.pad_h;
     my_pad_w = handle->desc.pad_w;
-    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-    myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
-        BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
   } else {
     my_ldw = handle->ifwp;
     my_ldh = handle->ifhp;
     my_pad_h = handle->desc.pad_h_in;
     my_pad_w = handle->desc.pad_w_in;
-    LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
-    myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
-        BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
   }
 
-  if(handle->desc.R == 1 && handle->desc.S == 1)
+  for(ifm_idx = 0 ; ifm_idx < handle->blocksifm_blocking ; ifm_idx++ ) 
   {
-    for(ifm_idx = 0 ; ifm_idx < handle->blocksifm_blocking ; ifm_idx++ ) 
+    element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
+    element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
+    element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
+    element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
+
+    __m512 _expect = _mm512_load_ps(myexpect);
+    __m512 _stddev = _mm512_load_ps(mystddev);
+    __m512 _gamma = _mm512_load_ps(mygamma);
+    __m512 _beta = _mm512_load_ps(mybeta);
+
+    if(handle->desc.R == 1 && handle->desc.S == 1)
     {
-      element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
       for(my_h = 0 ; my_h < handle->fwd_ofh_rb * handle->desc.u; my_h++)
       {
         for(my_w = 0 ; my_w < handle->fwd_ofw_rb * handle->desc.v ; my_w++)
@@ -88,91 +73,111 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
           int _my_w = my_w + my_pad_w;
           int _my_h_st = my_h + handle->desc.pad_h_in;
           int _my_w_st = my_w + handle->desc.pad_w_in;
-          do_BN(_my_h, _my_w, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+          __m512 _input = _mm512_load_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
+          _mm512_stream_ps(&myinput_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input) ;
+          _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+          __m512 _zero = _mm512_set1_ps(0.f);
+          __mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
+          _input = _mm512_maskz_add_ps(msk, _zero, _input);
+          _mm512_store_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
         }
       }
     }
-    k( input1, weight1, output1, input2, weight2, output2, sf, mv);
-  }
-  else if(handle->desc.R == 3 && handle->desc.S == 3)
-  {
-    for(ifm_idx = 0 ; ifm_idx < handle->blocksifm_blocking ; ifm_idx++ ) 
+    else if(handle->desc.R == 3 && handle->desc.S == 3)
     {
-      element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
 
       // Do BN of left corner first
-      if((oj == 0) && (oi == 0))
+      for(my_h = oj ; my_h < 1 ; my_h++)
       {
-        my_w = 0;
-        my_h = 0;
-        if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
-        {
-          do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-        }
-      }
-
-      // Do BN of row 0 for this segment, plus extra column to the right if possible
-      if(oj == 0)
-      {
-        my_h = 0;
-        for(my_w = 1 ; my_w < (handle->fwd_ofw_rb + 1) * handle->desc.v ; my_w++)
-	{
-	  if(oi + my_w < handle->desc.W)
-	  {
-            do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-	  }
-	}
-      }
-
-      // Do BN of left corner in row below current
-      if(oi == 0)
-      {
-        my_w = 0;
-	for(my_h = 1 ; my_h < (handle->fwd_ofh_rb + 1) * handle->desc.u ; my_h++)
+        for(my_w = oi ; my_w < 1 ; my_w++)
 	{
           if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
           {
-            do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+	    int _my_h = my_h + 1;
+	    int _my_w = my_w + 1;
+            __m512 _input = _mm512_load_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
+            _mm512_stream_ps(&myinput_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input) ;
+            _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+            __m512 _zero = _mm512_set1_ps(0.f);
+            __mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
+            _input = _mm512_maskz_add_ps(msk, _zero, _input);
+            _mm512_store_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
           }
 	}
       }
 
-      // Do BN of right corner in row below current
-      my_w = (handle->fwd_ofw_rb) * handle->desc.v;
-      for(my_h = 1 ; my_h < (handle->fwd_ofh_rb + 1) * handle->desc.v ; my_h++)
+      // Do BN of row 0 for this segment, plus extra column to the right if possible
+      for(my_h = oj ; my_h < 1 ; my_h++)
       {
-        if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
+        for(my_w = 1 ; (my_w < (handle->fwd_ofw_rb + 1) * handle->desc.v) && (oi + my_w < handle->desc.W) ; my_w++)
+	{
+	    int _my_h = my_h + 1;
+	    int _my_w = my_w + 1;
+            __m512 _input = _mm512_load_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
+            _mm512_stream_ps(&myinput_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input) ;
+            _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+            __m512 _zero = _mm512_set1_ps(0.f);
+            __mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
+            _input = _mm512_maskz_add_ps(msk, _zero, _input);
+            _mm512_store_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
+	}
+      }
+
+      // Do BN of left corner in row below current
+      for(my_w = oi ; (my_w < 1) && (oi + my_w < handle->desc.W) ; my_w++)
+      {
+	for(my_h = 1 ; (my_h < (handle->fwd_ofh_rb + 1) * handle->desc.u) && (oj + my_h < handle->desc.H) ; my_h++)
+	{
+	    int _my_h = my_h + 1;
+	    int _my_w = my_w + 1;
+            __m512 _input = _mm512_load_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
+            _mm512_stream_ps(&myinput_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input) ;
+            _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+            __m512 _zero = _mm512_set1_ps(0.f);
+            __mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
+            _input = _mm512_maskz_add_ps(msk, _zero, _input);
+            _mm512_store_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
+	}
+      }
+
+      // Do BN of right corner in row below current
+      for(my_w = (handle->fwd_ofw_rb) * handle->desc.v ; (my_w < (handle->fwd_ofw_rb) * handle->desc.v + 1) && (oi + my_w < handle->desc.W) ; my_w++)
+      {
+        for(my_h = 1 ; (my_h < (handle->fwd_ofh_rb + 1) * handle->desc.v) && (oj + my_h < handle->desc.H) ; my_h++)
         {
-          do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
+	    int _my_h = my_h + 1;
+	    int _my_w = my_w + 1;
+            __m512 _input = _mm512_load_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
+            _mm512_stream_ps(&myinput_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input) ;
+            _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+            __m512 _zero = _mm512_set1_ps(0.f);
+            __mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
+            _input = _mm512_maskz_add_ps(msk, _zero, _input);
+            _mm512_store_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
         }
       }
-    }
-
-
-    for(ifm_idx = 0 ; ifm_idx < handle->blocksifm_blocking ; ifm_idx++ ) 
-    {
-      element_input_type * myexpect = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, expect, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mystddev = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, stddev, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mygamma = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, gamma, ifm_idx+ifm1, 0, handle->ifmblock));
-      element_input_type * mybeta = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, beta, ifm_idx+ifm1, 0, handle->ifmblock));
 
       // Do BN of inside part 
-      for(my_w = 1 ; my_w < (handle->fwd_ofw_rb) * handle->desc.v ; my_w++)
+      for(my_w = 1 ; (my_w < (handle->fwd_ofw_rb) * handle->desc.v) && (oi + my_w < handle->desc.W) ; my_w++)
       {
-        for(my_h = 1 ; my_h < (handle->fwd_ofh_rb + 1) * handle->desc.v ; my_h++)
+        for(my_h = 1 ; (my_h < (handle->fwd_ofh_rb + 1) * handle->desc.v) && (oj + my_h < handle->desc.H) ; my_h++)
 	{
-          if((oi + my_w < handle->desc.W) && (oj + my_h < handle->desc.H))
-  	  {
-            do_BN(my_h+1, my_w+1, myinput_st, input1, ifm_idx, my_ldh, my_ldw, myexpect, mystddev, mygamma, mybeta, ltid, handle, my_w, my_h);
-  	  }
+	    int _my_h = my_h + 1;
+	    int _my_w = my_w + 1;
+            __m512 _input = _mm512_load_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
+            _mm512_stream_ps(&myinput_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input) ;
+            _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
+            __m512 _zero = _mm512_set1_ps(0.f);
+            __mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
+            _input = _mm512_maskz_add_ps(msk, _zero, _input);
+            _mm512_store_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
 	}
       }
     }
-    k( input1, weight1, output1, input2, weight2, output2, sf, mv);
   }
+
+  // Call kernel
+  k( input1, weight1, output1, input2, weight2, output2, sf, mv);
 }
 
 #endif
@@ -216,6 +221,11 @@ int *bn_stream = handle->bn_indices_ptrs[ltid];
 const int padded_h = handle->ifhp + 2 * handle->desc.pad_h;
 const int padded_w = handle->ifwp + 2 * handle->desc.pad_w;
 LIBXSMM_VLA_DECL(5, element_input_type, input_buffer, ((element_input_type*)handle->scratch5) + ltid * BLOCKSIFM * padded_h * padded_w * handle->ifmblock * handle->fm_lp_block, padded_h, padded_w, handle->ifmblock, handle->fm_lp_block);
+
+#ifdef FUSED_BN_CONV_WRAPPER
+LIBXSMM_VLA_DECL(6, element_input_type, input_st_buffer, (element_input_type*)handle->reg_input_st->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+element_input_type * input_st_base = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st_buffer, 0, 0, 0, 0, 0, 0, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+#endif
 
 /* Kernel related variables  */
 libxsmm_xmcopyfunction jitted_matcopy = handle->matcopy_fwd[0].xmatcopy;
@@ -677,7 +687,7 @@ if (n_segments) {
 	    else
 	    {
 #ifdef FUSED_BN_CONV_WRAPPER
-              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi,  oi, oj);
+              wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st, oi, oj);
 #else
               kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 #endif
