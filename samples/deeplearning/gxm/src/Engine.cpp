@@ -38,6 +38,7 @@
 #include "Conv.hpp"
 #include "FullyConnected.hpp"
 #include "FusedBNorm.hpp"
+#include "FusedConvBN.hpp"
 #include "DummyData.hpp"
 #include "TypeList.hpp"
 
@@ -859,12 +860,24 @@ void* MLEngine::allocate_memory(string tenType, TensorList L, int buftype, vecto
       int tType = t->getType();
       if(tType == CONVWEIGHT)
       {
-        ConvNode* cn = dynamic_cast<ConvNode*>(t->getOwner());
-        assert(bytes > 0);
-        cn->fillWeightBuffers(tBuf, buftype, bytes);
-        if(solver_->getGlobalFlag())
-          if(buftype == DIFF)
-            cn->fillWeightMultipliers(lrptr, decptr, bytes/sizeof(float));
+        if(nntype == "Convolution")
+        {
+          ConvNode* cn = dynamic_cast<ConvNode*>(t->getOwner());
+          assert(bytes > 0);
+          cn->fillWeightBuffers(tBuf, buftype, bytes);
+          if(solver_->getGlobalFlag())
+            if(buftype == DIFF)
+              cn->fillWeightMultipliers(lrptr, decptr, bytes/sizeof(float));
+        }
+        else if(nntype == "FusedConvBN")
+        {
+          FusedConvBNNode* fcbn = dynamic_cast<FusedConvBNNode*>(t->getOwner());
+          assert(bytes > 0);
+          fcbn->fillWeightBuffers(tBuf, buftype, bytes);
+          if(solver_->getGlobalFlag())
+            if(buftype == DIFF)
+              fcbn->fillWeightMultipliers(lrptr, decptr, bytes/sizeof(float));
+        }
       }
       else if(tType == CONVBIAS)
       {
@@ -895,18 +908,39 @@ void* MLEngine::allocate_memory(string tenType, TensorList L, int buftype, vecto
       }
       else if((tType == BNORMSCALE) || (tType == BNORMSHIFT))
       {
-        FusedBNormNode* bn = dynamic_cast<FusedBNormNode*>(t->getOwner());
-        assert(bytes > 0);
-        bn->fillBuffer(tBuf, buftype, bytes);
-        if(solver_->getGlobalFlag())
-          if(buftype == DIFF)
-            bn->fillBiasMultipliers(lrptr, decptr, bytes/sizeof(float));
+        if(nntype == "FusedBatchNorm")
+        {
+          FusedBNormNode* bn = dynamic_cast<FusedBNormNode*>(t->getOwner());
+          assert(bytes > 0);
+          bn->fillBuffer(tBuf, buftype, bytes);
+          if(solver_->getGlobalFlag())
+            if(buftype == DIFF)
+              bn->fillBiasMultipliers(lrptr, decptr, bytes/sizeof(float));
+        }
+        else if(nntype == "FusedConvBN")
+        {
+          FusedConvBNNode* fcbn = dynamic_cast<FusedConvBNNode*>(t->getOwner());
+          assert(bytes > 0);
+          fcbn->fillBuffer(tBuf, buftype, bytes);
+          if(solver_->getGlobalFlag())
+            if(buftype == DIFF)
+              fcbn->fillBiasMultipliers(lrptr, decptr, bytes/sizeof(float));
+        }
       }
       else if((tType == BNORMMEAN) || (tType == BNORMRSTDEV))
       {
-        FusedBNormNode* bn = dynamic_cast<FusedBNormNode*>(t->getOwner());
-        assert(bytes > 0);
-        bn->fillBuffer(tBuf, buftype, bytes);
+        if(nntype == "FusedBatchNorm")
+        {
+          FusedBNormNode* bn = dynamic_cast<FusedBNormNode*>(t->getOwner());
+          assert(bytes > 0);
+          bn->fillBuffer(tBuf, buftype, bytes);
+        }
+        else if(nntype == "FusedConvBN")
+        {
+          FusedConvBNNode* fcbn = dynamic_cast<FusedConvBNNode*>(t->getOwner());
+          assert(bytes > 0);
+          fcbn->fillBuffer(tBuf, buftype, bytes);
+        }
       }
     }
 
