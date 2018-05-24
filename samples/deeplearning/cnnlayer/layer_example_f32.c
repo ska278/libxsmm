@@ -341,8 +341,8 @@ LIBXSMM_INLINE void naive_conv_bp(naive_conv_t* param, float* input, float* outp
   int stride_w  = param->stride_w;
   /* loop counters */
   int img, ofm, ifm, oj, oi, ij, ii, kj, ki;
-  float nhw = 1.0f;
-  float recp_nhw = 1.0f;
+  float nhw = nImg * ifh * ifw;
+  float recp_nhw = 1.0f/nhw; 
 
   LIBXSMM_VLA_DECL(3, float, lcl_gamma_beta_t, lcl_gamma_beta, nImg, nIfm );
   LIBXSMM_VLA_DECL(4, const float, input_r_t, input_r+ (pad_h_out * ofwp + pad_w_out), nOfm, ofhp, ofwp);
