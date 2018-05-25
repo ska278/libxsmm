@@ -548,8 +548,8 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_rwlock {
 # if defined(LIBXSMM_LOCK_SYSTEM_RWLOCK) && defined(LIBXSMM_SYNC_SYSTEM)
   LIBXSMM_LOCK_TYPE(LIBXSMM_LOCK_RWLOCK) impl;
 # else
-  volatile internal_sync_counter requests;
   volatile internal_sync_counter completions;
+  volatile internal_sync_counter requests;
 # endif
 #else
   int dummy;
@@ -561,11 +561,16 @@ LIBXSMM_API libxsmm_rwlock* libxsmm_rwlock_create(void)
 {
   libxsmm_rwlock *const result = (libxsmm_rwlock*)malloc(sizeof(libxsmm_rwlock));
   if (0 != result) {
-#if defined(LIBXSMM_LOCK_SYSTEM_RWLOCK) && defined(LIBXSMM_SYNC_SYSTEM)
+#if !defined(LIBXSMM_NO_SYNC)
+# if defined(LIBXSMM_LOCK_SYSTEM_RWLOCK) && defined(LIBXSMM_SYNC_SYSTEM)
     LIBXSMM_LOCK_ATTR_TYPE(LIBXSMM_LOCK_RWLOCK) attr;
     LIBXSMM_LOCK_ATTR_INIT(LIBXSMM_LOCK_RWLOCK, &attr);
     LIBXSMM_LOCK_INIT(LIBXSMM_LOCK_RWLOCK, &result->impl, &attr);
     LIBXSMM_LOCK_ATTR_DESTROY(LIBXSMM_LOCK_RWLOCK, &attr);
+# else
+    memset((void*)&result->completions, 0, sizeof(internal_sync_counter));
+    memset((void*)&result->requests, 0, sizeof(internal_sync_counter));
+# endif
 #else
     memset(result, 0, sizeof(libxsmm_rwlock));
 #endif

@@ -1,33 +1,33 @@
 /******************************************************************************
- ** Copyright (c) 2016-2018, Intel Corporation                                **
- ** All rights reserved.                                                      **
- **                                                                           **
- ** Redistribution and use in source and binary forms, with or without        **
- ** modification, are permitted provided that the following conditions        **
- ** are met:                                                                  **
- ** 1. Redistributions of source code must retain the above copyright         **
- **    notice, this list of conditions and the following disclaimer.          **
- ** 2. Redistributions in binary form must reproduce the above copyright      **
- **    notice, this list of conditions and the following disclaimer in the    **
- **    documentation and/or other materials provided with the distribution.   **
- ** 3. Neither the name of the copyright holder nor the names of its          **
- **    contributors may be used to endorse or promote products derived        **
- **    from this software without specific prior written permission.          **
- **                                                                           **
- ** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS       **
- ** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT         **
- ** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR     **
- ** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT      **
- ** HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,    **
- ** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED  **
- ** TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR    **
- ** PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF    **
- ** LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING      **
- ** NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS        **
- ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
- ******************************************************************************/
+** Copyright (c) 2016-2018, Intel Corporation                                **
+** All rights reserved.                                                      **
+**                                                                           **
+** Redistribution and use in source and binary forms, with or without        **
+** modification, are permitted provided that the following conditions        **
+** are met:                                                                  **
+** 1. Redistributions of source code must retain the above copyright         **
+**    notice, this list of conditions and the following disclaimer.          **
+** 2. Redistributions in binary form must reproduce the above copyright      **
+**    notice, this list of conditions and the following disclaimer in the    **
+**    documentation and/or other materials provided with the distribution.   **
+** 3. Neither the name of the copyright holder nor the names of its          **
+**    contributors may be used to endorse or promote products derived        **
+**    from this software without specific prior written permission.          **
+**                                                                           **
+** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS       **
+** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT         **
+** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR     **
+** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT      **
+** HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,    **
+** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED  **
+** TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR    **
+** PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF    **
+** LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING      **
+** NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS        **
+** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
+******************************************************************************/
 /* Evangelos Georganas (Intel Corp.)
- ******************************************************************************/
+******************************************************************************/
 #define IMG_LOOP_INIT 0
 #define IFM_LOOP_INIT 1
 #define IFM_LOOP_CLOSE 2
@@ -79,10 +79,10 @@ char *variant = handle->kernel_bwd_variant_ptrs[ltid];
 
 LIBXSMM_ALIGNED(float scale_factor, 64);
 LIBXSMM_ALIGNED(float *max_vals, 64);
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
 __m512 max_abs;
-#else
-/* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+  LIBXSMM_ASSERT(0);
 #endif
 
 /* Input tensor declaration */
@@ -108,11 +108,11 @@ if (handle->use_lp_kernel == 1) {
 if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
   LIBXSMM_VLA_DECL(2, float, maxstats, (float*)handle->maxstats_bwd->data, handle->ifmblock_hp);
   max_vals = (float*) &LIBXSMM_VLA_ACCESS(2, maxstats, ltid, 0, handle->ifmblock_hp);
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
   max_abs = _mm512_setzero_ps();
   _mm512_store_ps(max_vals, max_abs);
-#else
-/* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+  LIBXSMM_ASSERT(0);
 #endif
 }
 
@@ -201,7 +201,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
           }
         }
       } else {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
         int icb, okb, t1;
         const __m512i permute_index = _mm512_set_epi32(15,13,11,9,7,5,3,1,14,12,10,8,6,4,2,0);
         const  __m256i scatter_index = _mm256_set_epi32(7*32, 6*32, 5*32, 4*32,  3*32, 2*32, 1*32, 0*32);
@@ -213,9 +213,9 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
               for (t1 = 0; t1 < 8; t1++) {
                 __m512i cur_cache_line = _mm512_loadu_si512(&LIBXSMM_VLA_ACCESS(7, wt, okb, icb, kj, ki, t1, 0, 0,
                   BLOCKSIFM, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock, handle->fm_lp_block));
-                __m512i permuted_cache_line = LIBXSMM_INTRINSICS_MM512_PERMUTEVAR_EPI32(permute_index, cur_cache_line);
-                __m256i lo_half = LIBXSMM_INTRINSICS_MM512_EXTRACTI64x4_EPI64(permuted_cache_line, 0);
-                __m256i hi_half = LIBXSMM_INTRINSICS_MM512_EXTRACTI64x4_EPI64(permuted_cache_line, 1);
+                __m512i permuted_cache_line = _mm512_permutexvar_epi32(permute_index, cur_cache_line);
+                __m256i lo_half = LIBXSMM_INTRINSICS_MM512_EXTRACTI64X4_EPI64(permuted_cache_line, 0);
+                __m256i hi_half = LIBXSMM_INTRINSICS_MM512_EXTRACTI64X4_EPI64(permuted_cache_line, 1);
                 __m256i lo_zipped = _mm256_unpacklo_epi16(lo_half, hi_half);
                 __m256i hi_zipped = _mm256_unpackhi_epi16(lo_half, hi_half);
                 __m128i part0 = _mm256_extractf128_si256(lo_zipped,0);
@@ -232,8 +232,8 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
             }
           }
         }
-#else
-/* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+  LIBXSMM_ASSERT(0);
 #endif
       }
     }
@@ -298,10 +298,10 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
                     handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 for ( ij = 0; ij < handle->desc.H; ij++ ) {
                   for ( ii = 0; ii < handle->desc.W*handle->ifmblock; ii+=16 ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                     max_abs = _mm512_max_ps(max_abs, LIBXSMM_INTRINSICS_MM512_ABS_PS(LIBXSMM_INTRINSICS_MM512_LOAD_PS(cur_vec+ii)));
-#else
-                    /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+                    LIBXSMM_ASSERT(0);
 #endif
                   }
                   cur_vec += handle->ifwp*handle->ifmblock;
@@ -369,10 +369,10 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
                     handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 for ( ij = 0; ij < handle->desc.H; ij++ ) {
                   for ( ii = 0; ii < handle->desc.W*handle->ifmblock; ii+=16 ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                     max_abs = _mm512_max_ps(max_abs, LIBXSMM_INTRINSICS_MM512_ABS_PS(LIBXSMM_INTRINSICS_MM512_LOAD_PS(cur_vec+ii)));
-#else
-                    /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+                    LIBXSMM_ASSERT(0);
 #endif
                   }
                   cur_vec += handle->ifwp*handle->ifmblock;
@@ -437,7 +437,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
 
             if ( instr == IFM_LOOP_CLOSE ) {
               if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                 LIBXSMM_VLA_DECL(5, element_input_type, input, (element_input_type*) handle->reg_input->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 LIBXSMM_VLA_DECL(5, element_input_type, del_input_2, (element_input_type*) handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 element_input_type *orig_input_ptr;
@@ -456,8 +456,8 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
                   orig_input_ptr += handle->ifwp * 16;
                   del_input_ptr += handle->ifwp *16;
                 }
-#else
-                /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+                LIBXSMM_ASSERT(0);
 #endif
               }
 
@@ -466,10 +466,10 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
                     handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock_hp);
                 for ( ij = 0; ij < handle->desc.H; ij++ ) {
                   for ( ii = 0; ii < handle->desc.W*handle->ifmblock_hp; ii+=16 ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                     max_abs = _mm512_max_ps(max_abs, LIBXSMM_INTRINSICS_MM512_ABS_PS(LIBXSMM_INTRINSICS_MM512_LOAD_PS(cur_vec+ii)));
-#else
-                    /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+                    LIBXSMM_ASSERT(0);
 #endif
                   }
                   cur_vec += handle->ifwp*handle->ifmblock_hp;
@@ -532,7 +532,7 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
 
             if ( instr == IFM_LOOP_CLOSE ) {
               if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                 LIBXSMM_VLA_DECL(5, element_input_type, input, (element_input_type*) handle->reg_input->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 LIBXSMM_VLA_DECL(5, element_input_type, del_input_2, (element_input_type*) handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 element_input_type *orig_input_ptr;
@@ -551,8 +551,8 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
                   orig_input_ptr += handle->ifwp * 16;
                   del_input_ptr += handle->ifwp *16;
                 }
-#else
-                /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+                LIBXSMM_ASSERT(0);
 #endif
               }
 
@@ -561,10 +561,10 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
                     handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock_hp);
                 for ( ij = 0; ij < handle->desc.H; ij++ ) {
                   for ( ii = 0; ii < handle->desc.W*handle->ifmblock_hp; ii+=16 ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                     max_abs = _mm512_max_ps(max_abs, LIBXSMM_INTRINSICS_MM512_ABS_PS(LIBXSMM_INTRINSICS_MM512_LOAD_PS(cur_vec+ii)));
-#else
-                    /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+                    LIBXSMM_ASSERT(0);
 #endif
                   }
                   cur_vec += handle->ifwp*handle->ifmblock_hp;
@@ -720,10 +720,10 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
   }
 
   if ( ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) && (handle->use_lp_kernel == 1) && (handle->compute_max_in_kernel_bwd == 0) ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
     _mm512_store_ps(max_vals, max_abs);
-#else
-    /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+    LIBXSMM_ASSERT(0);
 #endif
   }
   libxsmm_barrier_wait(handle->barrier, ltid);

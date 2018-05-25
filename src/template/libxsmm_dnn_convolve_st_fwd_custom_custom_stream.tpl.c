@@ -1,31 +1,31 @@
 /******************************************************************************
- ** Copyright (c) 2016-2018, Intel Corporation                                **
- ** All rights reserved.                                                      **
- **                                                                           **
- ** Redistribution and use in source and binary forms, with or without        **
- ** modification, are permitted provided that the following conditions        **
- ** are met:                                                                  **
- ** 1. Redistributions of source code must retain the above copyright         **
- **    notice, this list of conditions and the following disclaimer.          **
- ** 2. Redistributions in binary form must reproduce the above copyright      **
- **    notice, this list of conditions and the following disclaimer in the    **
- **    documentation and/or other materials provided with the distribution.   **
- ** 3. Neither the name of the copyright holder nor the names of its          **
- **    contributors may be used to endorse or promote products derived        **
- **    from this software without specific prior written permission.          **
- **                                                                           **
- ** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS       **
- ** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT         **
- ** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR     **
- ** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT      **
- ** HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,    **
- ** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED  **
- ** TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR    **
- ** PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF    **
- ** LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING      **
- ** NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS        **
- ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
- ******************************************************************************/
+** Copyright (c) 2016-2018, Intel Corporation                                **
+** All rights reserved.                                                      **
+**                                                                           **
+** Redistribution and use in source and binary forms, with or without        **
+** modification, are permitted provided that the following conditions        **
+** are met:                                                                  **
+** 1. Redistributions of source code must retain the above copyright         **
+**    notice, this list of conditions and the following disclaimer.          **
+** 2. Redistributions in binary form must reproduce the above copyright      **
+**    notice, this list of conditions and the following disclaimer in the    **
+**    documentation and/or other materials provided with the distribution.   **
+** 3. Neither the name of the copyright holder nor the names of its          **
+**    contributors may be used to endorse or promote products derived        **
+**    from this software without specific prior written permission.          **
+**                                                                           **
+** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS       **
+** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT         **
+** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR     **
+** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT      **
+** HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,    **
+** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED  **
+** TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR    **
+** PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF    **
+** LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING      **
+** NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS        **
+** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
+******************************************************************************/
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
 
@@ -203,6 +203,7 @@ element_input_type *input_base, *input_ptr;
 const element_filter_type *weight_base;
 element_input_type *input_zero;
 element_output_type *output_base;
+
 element_input_type *copy_ptr, *prefetch_ptr;
 element_output_type *out = ((element_output_type*)handle->reg_output->data) + (handle->desc.pad_h_out * handle->ofwp + handle->desc.pad_w_out) * (handle->ofmblock);
 LIBXSMM_VLA_DECL(5, element_output_type, output, out, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
@@ -250,10 +251,11 @@ element_output_type *bn_sum_base2;
 double *bn_sum_base;
 double *bn_sum_base2;
 #endif
-#ifdef __AVX512F__
+float accumulators_scratch[handle->ofmblock * handle->ofw * handle->ofh];
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
 __m512 max_abs;
-#else
-/* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+  LIBXSMM_ASSERT(0);
 #endif
 
 kernel_pool[0] = kernel;
@@ -287,16 +289,27 @@ if (handle->use_lp_kernel == 1) {
 if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
   LIBXSMM_VLA_DECL(2, element_output_type, maxstats, (element_output_type*)handle->maxstats_fwd->data, handle->ofmblock);
   max_vals = (float*) &LIBXSMM_VLA_ACCESS(2, maxstats, ltid, 0, handle->ofmblock);
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
   max_abs = _mm512_setzero_ps();
   _mm512_store_ps(max_vals, max_abs);
-#else
-/* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+  LIBXSMM_ASSERT(0);
 #endif
 }
 
 /* lazy barrier init */
 libxsmm_barrier_init(handle->barrier, ltid);
+
+if (handle->use_accumulation_scratch) {
+  float *scratch_ptr = accumulators_scratch;
+  __m512 zero_reg = _mm512_setzero_ps();
+  for ( oj = 0; oj < handle->ofh; oj++ ) {
+    for ( oi = 0; oi < handle->ofw*handle->ofmblock; oi+=16 ) {
+      _mm512_store_ps(scratch_ptr+oi, zero_reg);
+    }
+    scratch_ptr += handle->ofw*handle->ofmblock;
+  }
+}
 
 i = 0;
 if (n_segments) {
@@ -349,6 +362,25 @@ if (n_segments) {
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
 	  }
 
+          if (instr == OFM_LOOP_CLOSE) {
+            /* Copy accumulators scratch to destination output and zero scratch */
+            if (handle->use_accumulation_scratch) {
+              element_output_type *output_dst = &LIBXSMM_VLA_ACCESS(5, output, img, code_stream[pc].aux_index/*ofm1*/, 0, 0, 0, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
+              float *scratch_ptr = accumulators_scratch;
+              __m512 zero_reg = _mm512_setzero_ps();
+              for ( oj = 0; oj < handle->ofh; oj++ ) {
+                for ( oi = 0; oi < handle->ofw*handle->ofmblock; oi+=16 ) {
+                  __m512 tmp = _mm512_loadu_ps(scratch_ptr+oi);
+                  __m256i vbfp16 =  _mm512_cvtepi32_epi16(_mm512_srai_epi32( _mm512_castps_si512( tmp ), 16));
+                  _mm512_storeu_ps(scratch_ptr+oi, zero_reg);
+                  _mm256_storeu_si256( (__m256i*)(output_dst+oi), vbfp16 );
+                }
+                scratch_ptr += handle->ofw*handle->ofmblock;
+                output_dst += handle->ofwp*handle->ofmblock;
+              }
+            }
+          }
+
           /* Run the stream of convolutions for this segment */
           for (conv_i = 0; conv_i < n_convs; conv_i++) {
             const int vi = variant[pool_index]; /* avoid warning about char used as array index */
@@ -399,6 +431,25 @@ if (n_segments) {
              ifm1 = code_stream[pc].aux_index;
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
 	  }
+          if (instr == OFM_LOOP_CLOSE) {
+            /* Copy accumulators scratch to destination output and zero scratch */
+            if (handle->use_accumulation_scratch) {
+              element_output_type *output_dst = &LIBXSMM_VLA_ACCESS(5, output, img, code_stream[pc].aux_index/*ofm1*/, 0, 0, 0, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
+              float *scratch_ptr = accumulators_scratch;
+              __m512 zero_reg = _mm512_setzero_ps();
+              for ( oj = 0; oj < handle->ofh; oj++ ) {
+                for ( oi = 0; oi < handle->ofw*handle->ofmblock; oi+=16 ) {
+                  __m512 tmp = _mm512_loadu_ps(scratch_ptr+oi);
+                  __m256i vbfp16 =  _mm512_cvtepi32_epi16(_mm512_srai_epi32( _mm512_castps_si512( tmp ), 16));
+                  _mm512_storeu_ps(scratch_ptr+oi, zero_reg);
+                  _mm256_storeu_si256( (__m256i*)(output_dst+oi), vbfp16 );
+                }
+                scratch_ptr += handle->ofw*handle->ofmblock;
+                output_dst += handle->ofwp*handle->ofmblock;
+              }
+            }
+          }
+
           /* Run the stream of convolutions for this segment */
           for (conv_i = 0; conv_i < n_convs; conv_i++) {
             offset_i = stream[i];
@@ -461,13 +512,30 @@ if (n_segments) {
 
 
           if (instr == OFM_LOOP_CLOSE) {
+            /* Copy accumulators scratch to destination output and zero scratch */
+            if (handle->use_accumulation_scratch) {
+              element_output_type *output_dst = &LIBXSMM_VLA_ACCESS(5, output, img, code_stream[pc].aux_index/*ofm1*/, 0, 0, 0, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
+              float *scratch_ptr = accumulators_scratch;
+              __m512 zero_reg = _mm512_setzero_ps();
+              for ( oj = 0; oj < handle->ofh; oj++ ) {
+                for ( oi = 0; oi < handle->ofw*handle->ofmblock; oi+=16 ) {
+                  __m512 tmp = _mm512_loadu_ps(scratch_ptr+oi);
+                  __m256i vbfp16 =  _mm512_cvtepi32_epi16(_mm512_srai_epi32( _mm512_castps_si512( tmp ), 16));
+                  _mm512_storeu_ps(scratch_ptr+oi, zero_reg);
+                  _mm256_storeu_si256( (__m256i*)(output_dst+oi), vbfp16 );
+                }
+                scratch_ptr += handle->ofw*handle->ofmblock;
+                output_dst += handle->ofwp*handle->ofmblock;
+              }
+            }
+
+
             /* Compute batch norm statistics... */
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS) > 0) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
 #ifndef FP64_BN_STATS
-              ofm1 =  code_stream[pc].aux_index;
               LIBXSMM_VLA_DECL(4, element_output_type, stats, (element_output_type*)handle->batch_stats->data,  BLOCKSOFM, handle->desc.N, handle->ofmblock);
-              element_output_type* red = &LIBXSMM_VLA_ACCESS(5, output, img, ofm1, 0, 0, 0,
+              element_output_type* red = &LIBXSMM_VLA_ACCESS(5, output, img, code_stream[pc].aux_index/*ofm1*/, 0, 0, 0,
                   BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
               __m512 bsum  = _mm512_setzero_ps();
               __m512 bsum2 = _mm512_setzero_ps();
@@ -481,9 +549,9 @@ if (n_segments) {
                 red += handle->ofwp*handle->ofmblock;
               }
 
-              _mm512_store_ps( &LIBXSMM_VLA_ACCESS(4, stats, 0, ofm1, img, 0,
+              _mm512_store_ps( &LIBXSMM_VLA_ACCESS(4, stats, 0, code_stream[pc].aux_index/*ofm1*/, img, 0,
                     BLOCKSOFM, handle->desc.N,  handle->ofmblock), bsum );
-              _mm512_store_ps( &LIBXSMM_VLA_ACCESS(4, stats, 1, ofm1, img, 0,
+              _mm512_store_ps( &LIBXSMM_VLA_ACCESS(4, stats, 1, code_stream[pc].aux_index/*ofm1*/, img, 0,
                     BLOCKSOFM, handle->desc.N, handle->ofmblock), bsum2 );
 #else
               ofm1 =  code_stream[pc].aux_index;
@@ -518,8 +586,8 @@ if (n_segments) {
                       BLOCKSOFM, handle->desc.N, handle->ofmblock), bsum2b );
               }
 #endif
-#else
-              /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+              LIBXSMM_ASSERT(0);
 #endif
             }
 
@@ -528,7 +596,7 @@ if (n_segments) {
                   BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
               for ( oj = 0; oj < handle->ofh; oj++ ) {
                 for ( oi = 0; oi < handle->ofw*handle->ofmblock; oi+=16 ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                   max_abs = _mm512_max_ps(max_abs, LIBXSMM_INTRINSICS_MM512_ABS_PS(LIBXSMM_INTRINSICS_MM512_LOAD_PS(cur_vec+oi)));
 #else
                   /* Won't happen as this code only runs on AVX512 systems */
@@ -590,13 +658,29 @@ if (n_segments) {
 #endif
 	  }
           if ( instr == OFM_LOOP_CLOSE ) {
+            /* Copy accumulators scratch to destination output and zero scratch */
+            if (handle->use_accumulation_scratch) {
+              element_output_type *output_dst = &LIBXSMM_VLA_ACCESS(5, output, img, code_stream[pc].aux_index/*ofm1*/, 0, 0, 0, BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
+              float *scratch_ptr = accumulators_scratch;
+              __m512 zero_reg = _mm512_setzero_ps();
+              for ( oj = 0; oj < handle->ofh; oj++ ) {
+                for ( oi = 0; oi < handle->ofw*handle->ofmblock; oi+=16 ) {
+                  __m512 tmp = _mm512_loadu_ps(scratch_ptr+oi);
+                  __m256i vbfp16 =  _mm512_cvtepi32_epi16(_mm512_srai_epi32( _mm512_castps_si512( tmp ), 16));
+                  _mm512_storeu_ps(scratch_ptr+oi, zero_reg);
+                  _mm256_storeu_si256( (__m256i*)(output_dst+oi), vbfp16 );
+                }
+                scratch_ptr += handle->ofw*handle->ofmblock;
+                output_dst += handle->ofwp*handle->ofmblock;
+              }
+            }
+
             /* Compute batch norm statistics... */
             if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS) > 0) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
 #ifndef FP64_BN_STATS
-              ofm1 =  code_stream[pc].aux_index;
               LIBXSMM_VLA_DECL(4, element_output_type, stats, (element_output_type*)handle->batch_stats->data,  BLOCKSOFM, handle->desc.N, handle->ofmblock);
-              element_output_type* red = &LIBXSMM_VLA_ACCESS(5, output, img, ofm1, 0, 0, 0,
+              element_output_type* red = &LIBXSMM_VLA_ACCESS(5, output, img, code_stream[pc].aux_index/*ofm1*/, 0, 0, 0,
                   BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
               __m512 bsum  = _mm512_setzero_ps();
               __m512 bsum2 = _mm512_setzero_ps();
@@ -610,9 +694,9 @@ if (n_segments) {
                 red += handle->ofwp*handle->ofmblock;
               }
 
-              _mm512_store_ps( &LIBXSMM_VLA_ACCESS(4, stats, 0, ofm1, img, 0,
+              _mm512_store_ps( &LIBXSMM_VLA_ACCESS(4, stats, 0, code_stream[pc].aux_index/*ofm1*/, img, 0,
                     BLOCKSOFM, handle->desc.N,  handle->ofmblock), bsum );
-              _mm512_store_ps( &LIBXSMM_VLA_ACCESS(4, stats, 1, ofm1, img, 0,
+              _mm512_store_ps( &LIBXSMM_VLA_ACCESS(4, stats, 1, code_stream[pc].aux_index/*ofm1*/, img, 0,
                     BLOCKSOFM, handle->desc.N, handle->ofmblock), bsum2 );
 #else
               ofm1 =  code_stream[pc].aux_index;
@@ -647,8 +731,8 @@ if (n_segments) {
                       BLOCKSOFM, handle->desc.N, handle->ofmblock), bsum2b );
               }
 #endif
-#else
-              /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+              LIBXSMM_ASSERT(0);
 #endif
             }
 
@@ -657,10 +741,10 @@ if (n_segments) {
                   BLOCKSOFM, handle->ofhp, handle->ofwp, handle->ofmblock);
               for ( oj = 0; oj < handle->ofh; oj++ ) {
                 for ( oi = 0; oi < handle->ofw*handle->ofmblock; oi+=16 ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                   max_abs = _mm512_max_ps(max_abs, LIBXSMM_INTRINSICS_MM512_ABS_PS(LIBXSMM_INTRINSICS_MM512_LOAD_PS(cur_vec+oi)));
-#else
-                  /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+                  LIBXSMM_ASSERT(0);
 #endif
                 }
                 cur_vec += handle->ofwp*handle->ofmblock;
@@ -854,10 +938,10 @@ if (n_segments) {
 }
 
 if ( ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) && (handle->use_lp_kernel == 1) && (handle->compute_max_in_kernel_fwd == 0) ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
   _mm512_store_ps(max_vals, max_abs);
-#else
-  /* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+  LIBXSMM_ASSERT(0);
 #endif
 }
 

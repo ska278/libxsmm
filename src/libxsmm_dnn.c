@@ -27,7 +27,7 @@
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
 ******************************************************************************/
 /* Hans Pabst, Alexander Heinecke, Rajkishore Barik (Intel Corp.)
- ******************************************************************************/
+******************************************************************************/
 #include <libxsmm.h>
 #include <libxsmm_sync.h>
 #include "libxsmm_main.h"
@@ -125,6 +125,8 @@ LIBXSMM_API const char* libxsmm_dnn_get_error(libxsmm_dnn_err_t code)
       return "LIBXSMM DNN Error: Invalid algorithm was specified!";
     case LIBXSMM_DNN_ERR_INVALID_PADDING:
       return "LIBXSMM DNN Error: Invalid padding was specified!";
+    case LIBXSMM_DNN_ERR_TIME_STEPS_TOO_SMALL:
+      return "LIBXSMM DNN Error: time steps should be >= 2 for RNN/LSTM!";
     default:
       return "LIBXSMM DNN Error: Unknown error or warning occurred!";
   }
@@ -200,6 +202,8 @@ LIBXSMM_API libxsmm_dnn_layer* libxsmm_dnn_create_conv_layer(
     handle->datatype_out = conv_desc.datatype_out;
     /* select the intermediate format, only applicable for integer types */
     if ( (conv_desc.datatype_in == LIBXSMM_DNN_DATATYPE_F32) && (conv_desc.datatype_out != LIBXSMM_DNN_DATATYPE_F32) ) {
+      /* error */
+    } else if ( (conv_desc.datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (conv_desc.datatype_out != LIBXSMM_DNN_DATATYPE_BF16) ) {
       /* error */
     } else if ( (conv_desc.datatype_in == LIBXSMM_DNN_DATATYPE_I16) && (conv_desc.datatype_out != LIBXSMM_DNN_DATATYPE_F32) ) {
       /* error */
@@ -579,9 +583,43 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
                 *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
               }
             }
-	  } else if ( ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32)) ||  ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_I8) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32))) {
-            if ( ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_INPUT) || (type == LIBXSMM_DNN_GRADIENT_OUTPUT) ||
-	           (type == LIBXSMM_DNN_REGULAR_INPUT_ST) || (type == LIBXSMM_DNN_REGULAR_INPUT_ST_BWD2) || (type == LIBXSMM_DNN_REGULAR_INPUT_SAVE) )  ) {
+          } else if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_BF16) ) {
+            layout->datatype = LIBXSMM_DNN_DATATYPE_BF16;
+            layout->dim_type = (libxsmm_dnn_tensor_dimtype*) malloc(6*sizeof(libxsmm_dnn_tensor_dimtype));
+            layout->dim_size = (unsigned int*) malloc(6*sizeof(unsigned int));
+            if (0 != layout->dim_type && 0 != layout->dim_size) { /* TODO: handle the error */
+              layout->num_dims = 6;
+              layout->dim_type[0] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
+              layout->dim_type[1] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
+              layout->dim_type[2] = LIBXSMM_DNN_TENSOR_DIMTYPE_W;
+              layout->dim_type[3] = LIBXSMM_DNN_TENSOR_DIMTYPE_H;
+              layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
+              layout->dim_type[5] = LIBXSMM_DNN_TENSOR_DIMTYPE_N;
+              if ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) || (type == LIBXSMM_DNN_INPUT)  ||
+	           (type == LIBXSMM_DNN_REGULAR_INPUT_ST) || (type == LIBXSMM_DNN_REGULAR_INPUT_ST_BWD2) || (type == LIBXSMM_DNN_REGULAR_INPUT_SAVE) ) {
+                layout->dim_size[0] = handle->fm_lp_block;
+                layout->dim_size[1] = handle->ifmblock;
+                layout->dim_size[2] = handle->ifwp;
+                layout->dim_size[3] = handle->ifhp;
+                layout->dim_size[4] = handle->blocksifm;
+                layout->dim_size[5] = handle->desc.N;
+              } else if ( (type == LIBXSMM_DNN_REGULAR_OUTPUT) || (type == LIBXSMM_DNN_GRADIENT_OUTPUT) || (type == LIBXSMM_DNN_OUTPUT) ) {
+                layout->dim_size[0] = handle->fm_lp_block;
+                layout->dim_size[1] = handle->ofmblock_lp;
+                layout->dim_size[2] = handle->ofwp;
+                layout->dim_size[3] = handle->ofhp;
+                layout->dim_size[4] = handle->blocksofm;
+                layout->dim_size[5] = handle->desc.N;
+              } else {
+                free(layout->dim_type);
+                free(layout->dim_size);
+                free(layout);
+                layout = 0; /* make sure a NULL is returned */
+                *status = LIBXSMM_DNN_ERR_UNKNOWN_TENSOR_TYPE;
+              }
+            }
+          } else if ( ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32)) ||  ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_I8) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32))  ) {
+            if ( ( (type == LIBXSMM_DNN_REGULAR_INPUT) || (type == LIBXSMM_DNN_INPUT) || (type == LIBXSMM_DNN_GRADIENT_OUTPUT)  )  ) {
               layout->datatype = handle->datatype_in;
             } else if ( (type == LIBXSMM_DNN_REGULAR_OUTPUT) || (type == LIBXSMM_DNN_OUTPUT) || (type == LIBXSMM_DNN_GRADIENT_INPUT) || 
 	                (type == LIBXSMM_DNN_REGULAR_INPUT_ST_BWD )) {
@@ -719,7 +757,28 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
               layout->dim_size[4] = handle->blocksifm;
               layout->dim_size[5] = handle->blocksofm;
             }
-	   } else if ( ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32)) || ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_I8) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32)) ) {
+          } else if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_BF16) ) {
+            layout->datatype = LIBXSMM_DNN_DATATYPE_BF16;
+            layout->dim_type = (libxsmm_dnn_tensor_dimtype*) malloc(7*sizeof(libxsmm_dnn_tensor_dimtype));
+            layout->dim_size = (unsigned int*) malloc(7*sizeof(unsigned int));
+            if (0 != layout->dim_type && 0 != layout->dim_size) { /* TODO: handle the error */
+              layout->num_dims = 7;
+              layout->dim_type[0] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
+              layout->dim_type[1] = LIBXSMM_DNN_TENSOR_DIMTYPE_K;
+              layout->dim_type[2] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
+              layout->dim_type[3] = LIBXSMM_DNN_TENSOR_DIMTYPE_S;
+              layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_R;
+              layout->dim_type[5] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
+              layout->dim_type[6] = LIBXSMM_DNN_TENSOR_DIMTYPE_K;
+              layout->dim_size[0] = handle->fm_lp_block;
+              layout->dim_size[1] = handle->ofmblock;
+              layout->dim_size[2] = handle->ifmblock;
+              layout->dim_size[3] = handle->desc.S;
+              layout->dim_size[4] = handle->desc.R;
+              layout->dim_size[5] = handle->blocksifm;
+              layout->dim_size[6] = handle->blocksofm;
+            }
+          } else if ( ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32)) || ((handle->datatype_in == LIBXSMM_DNN_DATATYPE_I8) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32)) ) {
             if ( (type == LIBXSMM_DNN_REGULAR_FILTER) || (type == LIBXSMM_DNN_FILTER) ) {
               layout->datatype = handle->datatype_in;
             } else if (type == LIBXSMM_DNN_GRADIENT_FILTER) {
@@ -814,6 +873,27 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
               layout->dim_size[3] = handle->desc.R;
               layout->dim_size[4] = handle->blocksofm;
               layout->dim_size[5] = handle->blocksifm;
+            }
+          } else if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_BF16) ) {
+            layout->datatype = LIBXSMM_DNN_DATATYPE_BF16;
+            layout->dim_type = (libxsmm_dnn_tensor_dimtype*) malloc(7*sizeof(libxsmm_dnn_tensor_dimtype));
+            layout->dim_size = (unsigned int*) malloc(7*sizeof(unsigned int));
+            if (0 != layout->dim_type && 0 != layout->dim_size) { /* TODO: handle the error */
+              layout->num_dims = 7;
+              layout->dim_type[0] = LIBXSMM_DNN_TENSOR_DIMTYPE_K;
+              layout->dim_type[1] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
+              layout->dim_type[2] = LIBXSMM_DNN_TENSOR_DIMTYPE_K;
+              layout->dim_type[3] = LIBXSMM_DNN_TENSOR_DIMTYPE_S;
+              layout->dim_type[4] = LIBXSMM_DNN_TENSOR_DIMTYPE_R;
+              layout->dim_type[5] = LIBXSMM_DNN_TENSOR_DIMTYPE_K;
+              layout->dim_type[6] = LIBXSMM_DNN_TENSOR_DIMTYPE_C;
+              layout->dim_size[0] = handle->fm_lp_block;
+              layout->dim_size[1] = handle->ifmblock*handle->fm_lp_block;
+              layout->dim_size[2] = handle->ofmblock;
+              layout->dim_size[3] = handle->desc.S;
+              layout->dim_size[4] = handle->desc.R;
+              layout->dim_size[5] = handle->blocksofm;
+              layout->dim_size[6] = handle->blocksifm;
             }
           } else if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) ||
               (handle->datatype_in == LIBXSMM_DNN_DATATYPE_I8) ) {
@@ -1029,8 +1109,8 @@ LIBXSMM_API libxsmm_dnn_tensor_datalayout* libxsmm_dnn_create_tensor_datalayout(
 #endif
 
         if ((handle->buffer_format & LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM) > 0) {
-          if ( handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32 ) {
-            layout->datatype = handle->datatype_out;
+          if ( (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32) || (handle->datatype_out == LIBXSMM_DNN_DATATYPE_BF16) ) {
+            layout->datatype = LIBXSMM_DNN_DATATYPE_F32;
             layout->dim_type = (libxsmm_dnn_tensor_dimtype*) malloc(4*sizeof(libxsmm_dnn_tensor_dimtype));
             layout->dim_size = (unsigned int*) malloc(4*sizeof(unsigned int));
 
@@ -1318,6 +1398,12 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_copyin_tensor(const libxsmm_dnn_tensor
                                                                                                                    typedef float element_type;
 #include "template/libxsmm_dnn_tensor_buffer_copy_in_nchw.tpl.c"
                                                                                                                  } break;
+                                                                                  case LIBXSMM_DNN_DATATYPE_BF16: {
+                                                                                                                   typedef libxsmm_bfloat16 element_type;
+#define LIBXSMM_DNN_COPY_LOW_PRECISION
+#include "template/libxsmm_dnn_tensor_buffer_copy_in_nchw.tpl.c"
+#undef LIBXSMM_DNN_COPY_LOW_PRECISION
+                                                                                                                 } break;
                                                                                   case LIBXSMM_DNN_DATATYPE_I32: {
                                                                                                                    typedef int element_type;
 #include "template/libxsmm_dnn_tensor_buffer_copy_in_nchw.tpl.c"
@@ -1357,6 +1443,12 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_copyin_tensor(const libxsmm_dnn_tensor
                                                                               case LIBXSMM_DNN_DATATYPE_F32: {
                                                                                                                typedef float element_type;
 #include "template/libxsmm_dnn_tensor_filter_copy_in_kcrs.tpl.c"
+                                                                                                             } break;
+                                                                              case LIBXSMM_DNN_DATATYPE_BF16: {
+                                                                                                               typedef libxsmm_bfloat16 element_type;
+#define LIBXSMM_DNN_COPY_LOW_PRECISION
+#include "template/libxsmm_dnn_tensor_filter_copy_in_kcrs.tpl.c"
+#undef LIBXSMM_DNN_COPY_LOW_PRECISION
                                                                                                              } break;
                                                                               case LIBXSMM_DNN_DATATYPE_I16: {
                                                                                                                typedef short element_type;
@@ -1405,6 +1497,12 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_copyin_tensor(const libxsmm_dnn_tensor
                                                                             case LIBXSMM_DNN_DATATYPE_F32: {
                                                                                                              typedef float element_type;
 #include "template/libxsmm_dnn_tensor_bias_copy_in_nchw.tpl.c"
+                                                                                                           } break;
+                                                                            case LIBXSMM_DNN_DATATYPE_BF16: {
+                                                                                                             typedef libxsmm_bfloat16 element_type;
+#define LIBXSMM_DNN_COPY_LOW_PRECISION
+#include "template/libxsmm_dnn_tensor_bias_copy_in_nchw.tpl.c"
+#undef LIBXSMM_DNN_COPY_LOW_PRECISION
                                                                                                            } break;
                                                                             case LIBXSMM_DNN_DATATYPE_I16: {
                                                                                                              typedef short element_type;
@@ -1456,6 +1554,10 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_zero_tensor(const libxsmm_dnn_tensor* 
       case LIBXSMM_DNN_DATATYPE_F32: {
                                        float* fp32_data = (float*)tensor->data;
                                        for (i = 0; i < size; ++i) fp32_data[i] = 0.0f;
+                                     } break;
+      case LIBXSMM_DNN_DATATYPE_BF16: {
+                                       libxsmm_bfloat16* bfp16_data = (libxsmm_bfloat16*)tensor->data;
+                                       for (i = 0; i < size; ++i) bfp16_data[i] = 0;
                                      } break;
       case LIBXSMM_DNN_DATATYPE_I32: {
                                        int* int32_data = (int*)tensor->data;
@@ -1509,6 +1611,12 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_copyout_tensor(const libxsmm_dnn_tenso
                                                                                                                    typedef float element_type;
 #include "template/libxsmm_dnn_tensor_buffer_copy_out_nchw.tpl.c"
                                                                                                                  } break;
+                                                                                  case LIBXSMM_DNN_DATATYPE_BF16: {
+                                                                                                                   typedef libxsmm_bfloat16 element_type;
+#define LIBXSMM_DNN_COPY_LOW_PRECISION
+#include "template/libxsmm_dnn_tensor_buffer_copy_out_nchw.tpl.c"
+#undef LIBXSMM_DNN_COPY_LOW_PRECISION
+                                                                                                                 } break;
                                                                                   case LIBXSMM_DNN_DATATYPE_I32: {
                                                                                                                    typedef int element_type;
 #include "template/libxsmm_dnn_tensor_buffer_copy_out_nchw.tpl.c"
@@ -1550,6 +1658,12 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_copyout_tensor(const libxsmm_dnn_tenso
 #include "template/libxsmm_dnn_tensor_filter_copy_out_kcrs.tpl.c"
                                                                                                              } break;
 
+                                                                              case LIBXSMM_DNN_DATATYPE_BF16: {
+                                                                                                               typedef libxsmm_bfloat16 element_type;
+#define LIBXSMM_DNN_COPY_LOW_PRECISION
+#include "template/libxsmm_dnn_tensor_filter_copy_out_kcrs.tpl.c"
+#undef LIBXSMM_DNN_COPY_LOW_PRECISION
+                                                                                                             } break;
                                                                                    case LIBXSMM_DNN_DATATYPE_I32: {
                                                                                                                    typedef int element_type;
 #include "template/libxsmm_dnn_tensor_filter_copy_out_kcrs.tpl.c"
@@ -1600,6 +1714,12 @@ LIBXSMM_API libxsmm_dnn_err_t libxsmm_dnn_copyout_tensor(const libxsmm_dnn_tenso
                                                                             case LIBXSMM_DNN_DATATYPE_F32: {
                                                                                                              typedef float element_type;
 #include "template/libxsmm_dnn_tensor_bias_copy_out_nchw.tpl.c"
+                                                                                                           } break;
+                                                                            case LIBXSMM_DNN_DATATYPE_BF16: {
+                                                                                                             typedef libxsmm_bfloat16 element_type;
+#define LIBXSMM_DNN_COPY_LOW_PRECISION
+#include "template/libxsmm_dnn_tensor_bias_copy_out_nchw.tpl.c"
+#undef LIBXSMM_DNN_COPY_LOW_PRECISION
                                                                                                            } break;
                                                                             case LIBXSMM_DNN_DATATYPE_I16: {
                                                                                                              typedef short element_type;
@@ -2700,13 +2820,13 @@ LIBXSMM_API_INTERN float libxsmm_internal_get_max( float* in_buffer, int length 
 
 
 LIBXSMM_API_INLINE unsigned char libxsmm_internal_get_max_exp( float* in_buffer, int length ) {
-  libxsmm_intfloat exp;
+  libxsmm_intfloat val_exp;
   unsigned char max_exp = 0;
 
   /* bit-wise conversion to int */
-  exp.f = libxsmm_internal_get_max( in_buffer, length );
+  val_exp.f = libxsmm_internal_get_max( in_buffer, length );
   /* shift by mantissa to the right and convert to char */
-  max_exp = (unsigned char)((exp.ui & LIBXSMM_DNN_MASK_ABS_F32) >> LIBXSMM_DNN_MANT_SZ_F32);
+  max_exp = (unsigned char)((val_exp.ui & LIBXSMM_DNN_MASK_ABS_F32) >> LIBXSMM_DNN_MANT_SZ_F32);
 
   return max_exp;
 }
@@ -2995,7 +3115,7 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
                 __m256i compressed_hi = _mm256_unpackhi_epi16(even_ch, odd_ch);
                 __m512i compact =  _mm512_inserti64x4( _mm512_setzero_si512(), compressed_lo, 0);
                 compact = _mm512_inserti64x4(compact, compressed_hi, 1);
-                compact = LIBXSMM_INTRINSICS_MM512_PERMUTEVAR_EPI32(permute_compact_idx, compact);
+                compact = _mm512_permutexvar_epi32(permute_compact_idx, compact);
                 LIBXSMM_INTRINSICS_MM512_STREAM_SI512(
                   (void*)&LIBXSMM_VLA_ACCESS(7, out, i1, i2, i3, i4, i5 / 2, 0, 0, cblk, R, S, cblk_i16, kblk_i16, lp_blk),
                   compact);
@@ -3082,14 +3202,98 @@ LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, 
 
 
 LIBXSMM_API void libxsmm_dnn_dequantize( short* in_buffer, float* out_buffer, int length, unsigned char scf ) {
-  const float exp = libxsmm_sexp2_i8i(-scf);
+  const float val_exp = libxsmm_sexp2_i8i(-scf);
   int i = 0;
 
 #ifdef _OPENMP
 # pragma omp parallel for private(i)
 #endif
   for ( i = 0; i < length; ++i ) {
-    out_buffer[i] = ((float)in_buffer[i])*exp;
+    out_buffer[i] = ((float)in_buffer[i])*val_exp;
+  }
+}
+
+
+LIBXSMM_API void libxsmm_truncate_convert_f32_bf16(const float* in, libxsmm_bfloat16* out, const unsigned int length) {
+  unsigned int i = 0;
+
+  /* truncate buffer to bfp16 */
+  for ( i = 0; i < length; ++i ) {
+    union libxsmm_bfloat16_hp t;
+
+    t.f = in[i];
+    out[i] = t.i[1];
+  }
+}
+
+
+LIBXSMM_API void libxsmm_rnaz_convert_fp32_bfp16(const float* in, libxsmm_bfloat16* out, unsigned int len) {
+  unsigned int i = 0;
+
+  /* truncate buffer to bfp16 */
+  for ( i = 0; i < len; ++i ) {
+    unsigned int int_round = 0;
+    unsigned int do_round = 1;
+
+    int_round = *((unsigned int*)&(in[i]));
+
+    /* we don't round NaN and inf */
+    if ( (int_round & 0x7f800000) == 0x7f800000 ) {
+      do_round = 0;
+    }
+
+    /* perform round nearest tie away from zero */
+    if ( do_round != 0 ) {
+      int_round = int_round + 0x00008000;
+    }
+
+    /* create the bfp16 value by shifting out the lower 16bits */
+    int_round = int_round >> 16;
+
+    out[i] = (libxsmm_bfloat16)int_round;
+  }
+}
+
+
+LIBXSMM_API void rne_convert_fp32_bfp16(const float* in, libxsmm_bfloat16* out, const unsigned int len) {
+  unsigned int i = 0;
+
+  /* truncate buffer to bfp16 */
+  for ( i = 0; i < len; ++i ) {
+    unsigned int int_round = 0;
+    unsigned int do_round = 1;
+
+    int_round = *((unsigned int*)&(in[i]));
+
+    /* we don't round NaN and inf */
+    if ( (int_round & 0x7f800000) == 0x7f800000 ) {
+      do_round = 0;
+    }
+
+    /* perform round nearest tie even */
+    if ( do_round != 0 ) {
+      unsigned int fixup = (int_round >> 16) & 1;
+      int_round = int_round + 0x00007fff + fixup;
+    }
+
+    /* create the bfp16 value by shifting out the lower 16bits */
+    int_round = int_round >> 16;
+
+    out[i] = (unsigned short)int_round;
+  }
+}
+
+
+LIBXSMM_API void libxsmm_convert_bf16_f32(const libxsmm_bfloat16* in, float* out, unsigned int length) {
+  unsigned int i = 0;
+
+  /* up-convert is super simple */
+  for ( i = 0; i < length; ++i ) {
+    union libxsmm_bfloat16_hp t;
+
+    t.i[1] = in[i];
+    t.i[0] = 0;
+    out[i] = t.f;
   }
 }
 

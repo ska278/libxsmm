@@ -80,6 +80,7 @@ typedef unsigned int libxsmm_dnn_err_t;
 #define LIBXSMM_DNN_ERR_UNKNOWN_BIAS_TYPE          100024
 #define LIBXSMM_DNN_ERR_MISMATCH_BIAS              100025
 #define LIBXSMM_DNN_ERR_INVALID_HANDLE_BIAS        100026
+#define LIBXSMM_DNN_ERR_TIME_STEPS_TOO_SMALL       100027
 
 /** Kinds of supported compute flavor operations. */
 typedef enum libxsmm_dnn_compute_kind {
@@ -348,6 +349,13 @@ LIBXSMM_API void libxsmm_dnn_quantize( float* in_buffer, short* out_buffer, int 
 LIBXSMM_API void libxsmm_dnn_quantize_act( float* in_buffer, short* out_buffer, unsigned int N, unsigned int C, unsigned int H, unsigned int W, unsigned int cblk_f32, unsigned int cblk_i16, unsigned int lp_blk, unsigned char add_shift, unsigned char* scf, int round_mode );
 LIBXSMM_API void libxsmm_dnn_quantize_fil( float* in_buffer, short* out_buffer, unsigned int K, unsigned int C, unsigned int R, unsigned int S, unsigned int cblk_f32, unsigned int cblk_i16, unsigned int kblk_f32, unsigned int kblk_i16, unsigned int lp_blk, unsigned char add_shift, unsigned char* scf, int round_mode );
 LIBXSMM_API void libxsmm_dnn_dequantize( short* in_buffer, float* out_buffer, int length, unsigned char scf );
+
+/** some BF16<->FP32 conversion functions
+    @TODO we need to find a final place for those */
+LIBXSMM_API void libxsmm_truncate_convert_f32_bf16(const float* in, libxsmm_bfloat16* out, const unsigned int length);
+LIBXSMM_API void rnaz_convert_fp32_bfp16(const float* in, libxsmm_bfloat16* out, const unsigned int len);
+LIBXSMM_API void rne_convert_fp32_bfp16(const float* in, libxsmm_bfloat16* out, const unsigned int len);
+LIBXSMM_API void libxsmm_convert_bf16_f32(const libxsmm_bfloat16* in, float* out, unsigned int length);
 
 #endif /*LIBXSMM_DNN_H*/
 

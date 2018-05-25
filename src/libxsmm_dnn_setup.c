@@ -225,6 +225,12 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_feature_map_blocks( libxs
     handle->fm_lp_block = 1;
     handle->ifmblock_hp = handle->ifmblock * handle->fm_lp_block;
     handle->ofmblock_lp = handle->ofmblock / handle->fm_lp_block;
+  } else if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_BF16) ) {
+    handle->ifmblock = (handle->desc.C >=16) ? 8 : handle->desc.C/2;
+    handle->ofmblock = (handle->desc.K >=16) ? 16 : handle->desc.K/2;
+    handle->fm_lp_block = 2;
+    handle->ifmblock_hp = handle->ifmblock * handle->fm_lp_block;
+    handle->ofmblock_lp = handle->ofmblock / handle->fm_lp_block;
   } else if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) && ((handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32) || (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32)) ) {
     handle->ifmblock = (handle->desc.C >=16) ? 8 : (handle->desc.C/2);
     handle->ofmblock = (handle->desc.K >=16) ? 16 : (handle->desc.K/2);
@@ -250,10 +256,17 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_feature_map_blocks( libxs
 
   /* Let's calculate how many blocks we need for the feature maps */
   if (handle->use_lp_kernel == 1) {
-    handle->blocksifm = handle->desc.C / handle->ifmblock_hp;
-    handle->blocksofm = handle->desc.K / handle->ofmblock;
-    handle->blocksifm_lp = handle->desc.C / handle->ifmblock_hp;
-    handle->blocksofm_lp = handle->desc.K / handle->ofmblock;
+    if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_BF16) ) {
+      handle->blocksifm = handle->desc.C / handle->ifmblock_hp;
+      handle->blocksofm = handle->desc.K / handle->ofmblock;
+      handle->blocksifm_lp = handle->desc.C / handle->ifmblock_hp;
+      handle->blocksofm_lp = handle->desc.K / handle->ofmblock;
+    } else {
+      handle->blocksifm = handle->desc.C / handle->ifmblock_hp;
+      handle->blocksofm = handle->desc.K / handle->ofmblock;
+      handle->blocksifm_lp = handle->desc.C / handle->ifmblock_hp;
+      handle->blocksofm_lp = handle->desc.K / handle->ofmblock;
+    }
   } else {
     handle->blocksifm = handle->desc.C / handle->ifmblock;
     handle->blocksofm = handle->desc.K / handle->ofmblock;
@@ -344,6 +357,19 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_generic( libxsmm_dnn_laye
   handle->bwd_ofw_rb = handle->ofw;
   handle->fm_lp_block = 1;
   handle->use_thread_private_jit = 0;
+
+  /* here we need to handle BF16 again */
+  if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_BF16) && (handle->desc.C % 2 == 0) && (handle->desc.K % 2 == 0) ) {
+    handle->fm_lp_block = 2;
+    handle->ifmblock = (handle->desc.C >=16) ? 8 : handle->desc.C/2;
+    handle->ofmblock = (handle->desc.K >=16) ? 8 : handle->desc.K/2;
+    handle->ifmblock_hp = handle->ifmblock * handle->fm_lp_block;
+    handle->ofmblock_lp = handle->ofmblock * handle->fm_lp_block;
+    handle->blocksifm = handle->desc.C / (handle->ifmblock * handle->fm_lp_block);
+    handle->blocksofm = handle->desc.K / (handle->ofmblock * handle->fm_lp_block);
+    handle->blocksifm_lp = handle->blocksifm;
+    handle->blocksofm_lp = handle->blocksofm;
+  }
 
   /* Adjust blocking factors if custom_2 format is requested */
   if ((handle->buffer_format == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM) && (handle->custom_format_type == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM_2)) {
@@ -470,7 +496,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_fwd( libxsmm_dnn_layer* h
   }
 
   /* Restrict acc chain for overflow handling only if combo is int16/int32 */
-  if (handle->use_lp_kernel == 1) {
+  if (handle->use_lp_kernel == 1 && (handle->datatype_in != LIBXSMM_DNN_DATATYPE_BF16) ) {
     if ( (handle->datatype_in == LIBXSMM_DNN_DATATYPE_I16) && ((handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32) || (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32)) ) {
       if (handle->blocksifm_blocking * handle->ifmblock * handle->fm_lp_block > 256) {
         handle->blocksifm_blocking = 16;
@@ -482,7 +508,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_fwd( libxsmm_dnn_layer* h
   }
 
   /* When we chose overwrite and we loop over all ifms, then let's use streaming stores */
-  if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) && (handle->desc.C == handle->blocksifm_blocking*handle->ifmblock*handle->fm_lp_block) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32 || handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32) ) {
+  if ( ((handle->options & LIBXSMM_DNN_CONV_OPTION_OVERWRITE) > 0) && (handle->desc.C == handle->blocksifm_blocking*handle->ifmblock*handle->fm_lp_block) && (handle->datatype_out == LIBXSMM_DNN_DATATYPE_BF16 || handle->datatype_out == LIBXSMM_DNN_DATATYPE_F32 || handle->datatype_out == LIBXSMM_DNN_DATATYPE_I32) ) {
     handle->use_nts_fwd = 1;
   } else {
     handle->use_nts_fwd = 0;
@@ -521,8 +547,8 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_fwd( libxsmm_dnn_layer* h
     const size_t fwdbwd_scratch_size_b = handle->desc.threads * handle->desc.K * (handle->ofhp+2*handle->desc.pad_h) * (handle->ofwp+2*handle->desc.pad_w) * libxsmm_dnn_typesize(handle->datatype_in);
     handle->fwdbwd_scratch_size =  LIBXSMM_MAX(fwdbwd_scratch_size_a, fwdbwd_scratch_size_b);
     handle->minibatch_scratch_size = libxsmm_dnn_typesize(handle->datatype_out) * LIBXSMM_MAX(
-      handle->desc.N * handle->blocksifm_lp * handle->ifmblock * handle->fm_lp_block * (handle->ifhp+2*handle->desc.pad_h) * (handle->ifwp+2*handle->desc.pad_w+8),
-      handle->desc.N * handle->blocksofm_lp * handle->ofmblock * handle->fm_lp_block * (handle->ofhp+2*handle->desc.pad_h) * (handle->ofwp+2*handle->desc.pad_w));
+        handle->desc.N * handle->blocksifm_lp * handle->ifmblock * handle->fm_lp_block * (handle->ifhp+2*handle->desc.pad_h) * (handle->ifwp+2*handle->desc.pad_w+8),
+        handle->desc.N * handle->blocksofm_lp * handle->ofmblock * handle->fm_lp_block * (handle->ofhp+2*handle->desc.pad_h) * (handle->ofwp+2*handle->desc.pad_w));
     handle->max_scratch5_size = (handle->minibatch_scratch_size > handle->fwdbwd_scratch_size) ? handle->minibatch_scratch_size : handle->fwdbwd_scratch_size;
     handle->padding_flag = 1;
     handle->scratch5 = 0;
@@ -636,7 +662,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_fwd( libxsmm_dnn_layer* h
       descriptor.prefetch = LIBXSMM_CONVOLUTION_PREFETCH_ALL;
       handle->code_fwd[0].pmm = libxsmm_create_xconv_forward(&descriptor);
       if (handle->padding_flag == 1) {
-        handle->matcopy_fwd[0].xmatcopy = libxsmm_xmcopydispatch(&matcopy_descriptor);
+        handle->matcopy_fwd[0].xmatcopy = libxsmm_dispatch_mcopy(&matcopy_descriptor);
       }
     }
     /* use jit code path */
@@ -684,7 +710,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_fwd( libxsmm_dnn_layer* h
     /* In case of logical padding also add a kernel that copies only one line of the image -- in case we exploit intra-image parallelism we should avoid copying entire image for each thread but only the minimum required number of input pixels... */
     if (handle->padding_flag == 1) {
       matcopy_descriptor.n = 1;
-      handle->matcopy_fwd[2].xmatcopy = libxsmm_xmcopydispatch(&matcopy_descriptor);
+      handle->matcopy_fwd[2].xmatcopy = libxsmm_dispatch_mcopy(&matcopy_descriptor);
     }
 
     /* In case overwrite is requested, generate zero-ing kernel */
@@ -701,7 +727,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_fwd( libxsmm_dnn_layer* h
       matzero_descriptor.unroll_level = 2;
       matzero_descriptor.typesize = (unsigned char)libxsmm_dnn_typesize(handle->datatype_out);
       matzero_descriptor.flags = LIBXSMM_MATCOPY_FLAG_ZERO_SOURCE;
-      handle->matcopy_fwd[1].xmatcopy = libxsmm_xmcopydispatch(&matzero_descriptor);
+      handle->matcopy_fwd[1].xmatcopy = libxsmm_dispatch_mcopy(&matzero_descriptor);
 
       if (handle->buffer_format == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM) {
         matzero_descriptor.m = handle->ofwp*handle->ofmblock;
@@ -710,7 +736,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_fwd( libxsmm_dnn_layer* h
       } else { /* Assumes NHWC format */
         status = LIBXSMM_DNN_ERR_INVALID_FORMAT_GENERAL;
       }
-      handle->matcopy_fwd[3].xmatcopy = libxsmm_xmcopydispatch(&matzero_descriptor);
+      handle->matcopy_fwd[3].xmatcopy = libxsmm_dispatch_mcopy(&matzero_descriptor);
 
     }
 
@@ -926,11 +952,10 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_bwd( libxsmm_dnn_layer* h
       } else {
         if (handle->exploit_duality == 1) {
           if (handle->padding_flag == 1) {
-            handle->matcopy_bwd[0].xmatcopy = libxsmm_xmcopydispatch(&matcopy_descriptor);
+            handle->matcopy_bwd[0].xmatcopy = libxsmm_dispatch_mcopy(&matcopy_descriptor);
             matcopy_descriptor.n = 1;
-            handle->matcopy_bwd[2].xmatcopy = libxsmm_xmcopydispatch(&matcopy_descriptor);
+            handle->matcopy_bwd[2].xmatcopy = libxsmm_dispatch_mcopy(&matcopy_descriptor);
           }
-
           fwd_equivalent_descriptor.n_variants = handle->n_variants;
           fwd_equivalent_descriptor.prefetch = LIBXSMM_CONVOLUTION_PREFETCH_ALL;
           if ( handle->n_variants == 1) {
@@ -1029,7 +1054,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_bwd( libxsmm_dnn_layer* h
       matzero_descriptor_overwrite.unroll_level = 2;
       matzero_descriptor_overwrite.typesize = (unsigned char)libxsmm_dnn_typesize(handle->datatype_out);
       matzero_descriptor_overwrite.flags = LIBXSMM_MATCOPY_FLAG_ZERO_SOURCE;
-      handle->matcopy_bwd[1].xmatcopy = libxsmm_xmcopydispatch(&matzero_descriptor_overwrite);
+      handle->matcopy_bwd[1].xmatcopy = libxsmm_dispatch_mcopy(&matzero_descriptor_overwrite);
 
       if (handle->buffer_format == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM) {
         matzero_descriptor_overwrite.m = handle->ifwp*handle->ifmblock_hp;
@@ -1038,7 +1063,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_bwd( libxsmm_dnn_layer* h
       } else { /* Assumes NHWC format */
         status = LIBXSMM_DNN_ERR_INVALID_FORMAT_GENERAL;
       }
-      handle->matcopy_bwd[3].xmatcopy = libxsmm_xmcopydispatch(&matzero_descriptor_overwrite);
+      handle->matcopy_bwd[3].xmatcopy = libxsmm_dispatch_mcopy(&matzero_descriptor_overwrite);
     }
 
 #if defined(LIBXSMM_DNN_HANDLE_DEBUG)
@@ -1453,8 +1478,8 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_upd( libxsmm_dnn_layer* h
 
         /* NONE */
         if (handle->padding_flag == 1) {
-          handle->matcopy_upd[0].xmatcopy = libxsmm_xmcopydispatch(&matcopy_descriptor);
-          handle->matcopy_upd[1].xmatcopy = libxsmm_xmcopydispatch(&matzero_descriptor);
+          handle->matcopy_upd[0].xmatcopy = libxsmm_dispatch_mcopy(&matcopy_descriptor);
+          handle->matcopy_upd[1].xmatcopy = libxsmm_dispatch_mcopy(&matzero_descriptor);
         }
         descriptor.transpose_ofw_ifm = 0;
         descriptor.prefetch = LIBXSMM_CONVOLUTION_PREFETCH_NONE;
@@ -1533,7 +1558,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_setup_upd( libxsmm_dnn_layer* h
         matzero_descriptor.unroll_level = 6;
         matzero_descriptor.typesize = (unsigned char)libxsmm_dnn_typesize(handle->datatype_out);
         matzero_descriptor.flags = LIBXSMM_MATCOPY_FLAG_ZERO_SOURCE;
-        handle->matcopy_upd[2].xmatcopy = libxsmm_xmcopydispatch(&matzero_descriptor);
+        handle->matcopy_upd[2].xmatcopy = libxsmm_dispatch_mcopy(&matzero_descriptor);
 
         /* Perform the dryrun and generate thread private jit indices to be used for the convolutions */
         tune_upd_blockings(handle);

@@ -1,33 +1,33 @@
 /******************************************************************************
- ** Copyright (c) 2016-2018, Intel Corporation                                **
- ** All rights reserved.                                                      **
- **                                                                           **
- ** Redistribution and use in source and binary forms, with or without        **
- ** modification, are permitted provided that the following conditions        **
- ** are met:                                                                  **
- ** 1. Redistributions of source code must retain the above copyright         **
- **    notice, this list of conditions and the following disclaimer.          **
- ** 2. Redistributions in binary form must reproduce the above copyright      **
- **    notice, this list of conditions and the following disclaimer in the    **
- **    documentation and/or other materials provided with the distribution.   **
- ** 3. Neither the name of the copyright holder nor the names of its          **
- **    contributors may be used to endorse or promote products derived        **
- **    from this software without specific prior written permission.          **
- **                                                                           **
- ** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS       **
- ** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT         **
- ** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR     **
- ** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT      **
- ** HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,    **
- ** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED  **
- ** TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR    **
- ** PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF    **
- ** LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING      **
- ** NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS        **
- ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
- ******************************************************************************/
+** Copyright (c) 2016-2018, Intel Corporation                                **
+** All rights reserved.                                                      **
+**                                                                           **
+** Redistribution and use in source and binary forms, with or without        **
+** modification, are permitted provided that the following conditions        **
+** are met:                                                                  **
+** 1. Redistributions of source code must retain the above copyright         **
+**    notice, this list of conditions and the following disclaimer.          **
+** 2. Redistributions in binary form must reproduce the above copyright      **
+**    notice, this list of conditions and the following disclaimer in the    **
+**    documentation and/or other materials provided with the distribution.   **
+** 3. Neither the name of the copyright holder nor the names of its          **
+**    contributors may be used to endorse or promote products derived        **
+**    from this software without specific prior written permission.          **
+**                                                                           **
+** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS       **
+** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT         **
+** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR     **
+** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT      **
+** HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,    **
+** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED  **
+** TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR    **
+** PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF    **
+** LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING      **
+** NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS        **
+** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.              **
+******************************************************************************/
 /* Evangelos Georganas (Intel Corp.)
- ******************************************************************************/
+******************************************************************************/
 
 /* computing first logical thread */
 const int ltid = tid-start_thread;
@@ -81,10 +81,10 @@ libxsmm_convfunction kernel = (handle->trans_ofw_ifm == 0 ) ? (libxsmm_convfunct
 LIBXSMM_ALIGNED(float scale_factor, 64);
 LIBXSMM_ALIGNED(float vnni_scratch[32], 64);
 LIBXSMM_ALIGNED(float *max_vals, 64);
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
 __m512 max_abs = _mm512_setzero_ps();
-#else
-/* won't happen as this code only runs on AVX512 platforms */
+#else /* won't happen as this code only runs on AVX512 platforms */
+  LIBXSMM_ASSERT(0);
 #endif
 
 /* lazy barrier init */
@@ -276,7 +276,7 @@ libxsmm_barrier_wait(handle->barrier, ltid);
 if (handle->reduce_weights) {
   if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
     for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
       __m512 weight_sum = _mm512_setzero_ps();
       for ( i = 0; i < handle->weight_copies; i++ ) {
         weight_sum = _mm512_add_ps(weight_sum, LIBXSMM_INTRINSICS_MM512_LOAD_PS(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->weight_copies, 16)));
@@ -305,17 +305,17 @@ if (handle->reduce_weights) {
       }
 #endif
     }
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
     _mm512_store_ps(max_vals, max_abs);
 #endif
     libxsmm_barrier_wait(handle->barrier, ltid);
   } else {
     if (pixels_lp == 4) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
       __m512i weight_sumi;
 #endif
       for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
         weight_sumi = _mm512_setzero_epi32();
         for ( i = 0; i < handle->weight_copies; i++ ) {
           weight_sumi = _mm512_add_epi32(weight_sumi, _mm512_load_epi32(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->weight_copies, 16)));
@@ -345,11 +345,11 @@ if (handle->reduce_weights) {
       }
       libxsmm_barrier_wait(handle->barrier, ltid);
     } else {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
       __m512 weight_sum;
 #endif
       for ( j = reduce_thr_begin; j < reduce_thr_end; j++ ) {
-#ifdef __AVX512F__
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
         weight_sum = _mm512_setzero_ps();
         for ( i = 0; i < handle->weight_copies; i++ ) {
           weight_sum = _mm512_add_ps(weight_sum, LIBXSMM_INTRINSICS_MM512_LOAD_PS(&LIBXSMM_VLA_ACCESS(3, reduction_weight, j, i, 0, handle->weight_copies, 16)));

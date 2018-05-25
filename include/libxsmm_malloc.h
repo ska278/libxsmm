@@ -274,8 +274,8 @@ public:
   template<typename context_type>
   explicit libxsmm_tf_allocator(context_type& context)
     : libxsmm_scoped_allocator<kind>(&context,
-      libxsmm_tf_allocator::malloc_ctx<context_type>,
-      libxsmm_tf_allocator::free_ctx<context_type>,
+      libxsmm_tf_allocator::template malloc_ctx<context_type>,
+      libxsmm_tf_allocator::template free_ctx<context_type>,
       libxsmm_tf_allocator::malloc,
       libxsmm_tf_allocator::free)
   {}
@@ -339,7 +339,7 @@ private:
       result = allocator->AllocateRaw(1/*alignment*/, size);
     }
     else {
-      LIBXSMM_ASSERT(0 == *"LIBXSMM ERROR: memory allocator is missing!");
+      LIBXSMM_ASSERT_MSG(0, "LIBXSMM ERROR: memory allocator is missing!");
       result = 0;
     }
     return result;
@@ -347,7 +347,7 @@ private:
 
   template<typename allocator_ptr> /* break interface dependency with TF */
   static void deallocate(allocator_ptr allocator, void* buffer) {
-    LIBXSMM_ASSERT(0 != allocator && *"LIBXSMM ERROR: memory allocator is missing!");
+    LIBXSMM_ASSERT_MSG(0 != allocator, "LIBXSMM ERROR: memory allocator is missing!");
     if (0 != allocator) allocator->DeallocateRaw(buffer);
   }
 };

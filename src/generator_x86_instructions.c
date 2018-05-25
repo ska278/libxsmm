@@ -1574,14 +1574,16 @@ void libxsmm_x86_instruction_vec_compute_reg( libxsmm_generated_code* io_generat
 
 LIBXSMM_API_INTERN
 void libxsmm_x86_instruction_vec_compute_reg_mask( libxsmm_generated_code* io_generated_code,
-                                              const unsigned int      i_instruction_set,
-                                              const unsigned int      i_vec_instr,
-                                              const char              i_vector_name,
-                                              const unsigned int      i_vec_reg_number_0,
-                                              const unsigned int      i_vec_reg_number_1,
-                                              const unsigned int      i_vec_reg_number_2,
-                                              const unsigned int      i_mask_reg_number )
+                                                   const unsigned int      i_instruction_set,
+                                                   const unsigned int      i_vec_instr,
+                                                   const char              i_vector_name,
+                                                   const unsigned int      i_vec_reg_number_0,
+                                                   const unsigned int      i_vec_reg_number_1,
+                                                   const unsigned int      i_vec_reg_number_2,
+                                                   const unsigned int      i_immediate,
+                                                   const unsigned int      i_mask_reg_number )
 {
+  LIBXSMM_UNUSED(i_immediate/*TODO*/);
   /* @TODO add checks in debug mode */
   if ( io_generated_code->code_type > 1 ) {
     unsigned char *buf = (unsigned char *) io_generated_code->generated_code;
@@ -1743,6 +1745,11 @@ void libxsmm_x86_instruction_vec_compute_mem( libxsmm_generated_code* io_generat
           break;
        case LIBXSMM_X86_INSTR_VADDPD:
           l_fpadj = -1;
+          break;
+       case LIBXSMM_X86_INSTR_VPANDD:
+          l_fpadj = 0x82;
+          l_fpadj2 = 0x80;
+          if ( l_broadcast != 0 ) l_sizereg = 4;
           break;
        case LIBXSMM_X86_INSTR_VSUBPD:
           l_fpadj = 3;
@@ -2501,18 +2508,18 @@ void libxsmm_x86_instruction_vec_compute_mem( libxsmm_generated_code* io_generat
 
 LIBXSMM_API_INTERN
 void libxsmm_x86_instruction_vec_compute_mem_mask ( libxsmm_generated_code* io_generated_code,
-                                              const unsigned int      i_instruction_set,
-                                              const unsigned int      i_vec_instr,
-                                              const unsigned int      i_use_broadcast,
-                                              const unsigned int      i_gp_reg_base,
-                                              const unsigned int      i_gp_reg_idx,
-                                              const unsigned int      i_scale,
-                                              const int               i_displacement,
-                                              const char              i_vector_name,
-                                              const unsigned int      i_vec_reg_number_0,
-                                              const unsigned int      i_vec_reg_number_1,
-                                              const unsigned int      i_shuffle_operand,
-                                              const unsigned int      i_mask_reg_number )
+                                                    const unsigned int      i_instruction_set,
+                                                    const unsigned int      i_vec_instr,
+                                                    const unsigned int      i_use_broadcast,
+                                                    const unsigned int      i_gp_reg_base,
+                                                    const unsigned int      i_gp_reg_idx,
+                                                    const unsigned int      i_scale,
+                                                    const int               i_displacement,
+                                                    const char              i_vector_name,
+                                                    const unsigned int      i_vec_reg_number_0,
+                                                    const unsigned int      i_vec_reg_number_1,
+                                                    const unsigned int      i_immediate,
+                                                    const unsigned int      i_mask_reg_number )
 {
   /* @TODO add checks in debug mode */
   if ( (i_instruction_set != LIBXSMM_X86_IMCI)        &&
@@ -2634,7 +2641,7 @@ void libxsmm_x86_instruction_vec_compute_mem_mask ( libxsmm_generated_code* io_g
         l_forced_offset = 1;
     }
     i += internal_x86_instructions_add_offset( l_place, i, i_displacement, l_forced_offset, l_sizereg, buf );
-    buf[i++] = (unsigned char)(i_shuffle_operand);
+    buf[i++] = (unsigned char)(i_immediate);
 
     io_generated_code->code_size = i;
     /* *loc = i; */
@@ -2977,6 +2984,20 @@ void libxsmm_x86_instruction_vec_shuffle_reg( libxsmm_generated_code* io_generat
           buf[i++] = (unsigned char)(0x48 - l_2or3grp1 * 0x08);
           buf[i++] = (unsigned char)(0x72);
           buf[i++] = (unsigned char)(0xe0 + l_vecval0);
+          break;
+       case LIBXSMM_X86_INSTR_VPSLLD:
+          if ( i_vec_reg_number_2 != LIBXSMM_X86_VEC_REG_UNDEF ) {
+             fprintf(stderr,"libxsmm_x86_instruction_vec_shuffle_reg: shouldn't use vec reg 2 for VPSLLD\n");
+             exit(-1);
+          }
+          l_2or3grp0 = (l_vecgrp0>=2);
+          l_2or3grp1 = (l_vecgrp1>=2);
+          buf[i++] = (unsigned char)(0x62);
+          buf[i++] = (unsigned char)(0xf1 - l_oddgrp0 * 0x20 - l_2or3grp0 * 0x40);
+          buf[i++] = (unsigned char)(0x7d - l_oddgrp1 * 0x40 - l_vecval1*8);
+          buf[i++] = (unsigned char)(0x48 - l_2or3grp1 * 0x08);
+          buf[i++] = (unsigned char)(0x72);
+          buf[i++] = (unsigned char)(0xf0 + l_vecval0);
           break;
        case LIBXSMM_X86_INSTR_VSHUFF64X2:
           l_2or3grp0 = (l_vecgrp0>=2);

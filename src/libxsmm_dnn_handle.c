@@ -28,7 +28,7 @@
 ******************************************************************************/
 /* Alexander Heinecke, Rajkishore Barik,
  ** Ankush Mandal, Evangelos Georganas (Intel Corp.)
- ******************************************************************************/
+******************************************************************************/
 #include "libxsmm_dnn_handle.h"
 #include "libxsmm_main.h"
 #include <libxsmm.h>
@@ -88,38 +88,28 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
   handle->use_bwd_generic = 1;
   handle->use_upd_generic = 1;
 
-  /* @FIXME, we should find a better knob */
-#ifdef __AVX512F__
-  handle->use_thread_private_jit = 1;
-#else
   handle->use_thread_private_jit = 0;
+  /* If we have AVX512 arch consider kernel streams  */
+#if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
+  if (/* If we use any options/fuse ops, keep kernel streams disabled */
+    0 >= (handle->desc.fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS)
+    /* If we do not run on custom/custom format, keep kernel streams disabled */
+    && handle->buffer_format == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM
+    && handle->filter_format == LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM)
+  {
+# if (LIBXSMM_X86_AVX512 > LIBXSMM_STATIC_TARGET_ARCH)
+    if (LIBXSMM_X86_AVX512 <= libxsmm_target_archid)
+# endif
+    {
+      handle->use_thread_private_jit = 1;
+    }
+  }
 #endif
 
-  /* If we do not have AVX512 arch disable kernel streams  */
-  if (libxsmm_target_archid != LIBXSMM_X86_AVX512_MIC  &&
-      libxsmm_target_archid != LIBXSMM_X86_AVX512_CORE &&
-      libxsmm_target_archid != LIBXSMM_X86_AVX512_KNM  &&
-      libxsmm_target_archid != LIBXSMM_X86_AVX512_ICL     ) {
-    handle->use_thread_private_jit = 0;
-  }
-
-  /* If we use any options/fuse ops, disable kernel streams */
-  if ( ((handle->desc.fuse_ops & LIBXSMM_DNN_CONV_FUSE_BIAS) > 0) ) {
-    handle->use_thread_private_jit = 0;
-  }
-
-  /* If we do not run on custom/custom format, disable kernel streams */
-  if (handle->buffer_format != LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM || handle->filter_format != LIBXSMM_DNN_TENSOR_FORMAT_LIBXSMM ) {
-    handle->use_thread_private_jit = 0;
-  }
-
   /* If we have AVX512 and kernel streams is enabled, then we generate specialized code */
-  if ( (libxsmm_target_archid == LIBXSMM_X86_AVX512_MIC  ||
-        libxsmm_target_archid == LIBXSMM_X86_AVX512_CORE ||
-        libxsmm_target_archid == LIBXSMM_X86_AVX512_KNM  ||
-        libxsmm_target_archid == LIBXSMM_X86_AVX512_ICL    ) &&
-      handle->use_thread_private_jit == 1 )
-  {
+  if (handle->use_thread_private_jit != 0) {
+    LIBXSMM_ASSERT(LIBXSMM_X86_AVX512 <= libxsmm_target_archid);
+
     /* This is basically a decision pertaining for all three passes: FWD, BWD and UPD */
     /* Initialize fields that control layer fusion */
     noarch = 0;
@@ -193,12 +183,12 @@ LIBXSMM_API_INLINE void internal_dnn_handle_factors(
   unsigned int primes[] = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29};
   int i;
   unsigned int total_primes = 10;
-  unsigned int index = 0;
+  unsigned int idx = 0;
 
   for ( i = total_primes-1; i >= 0; i-- ) {
     while((num % primes[i]) == 0) {
-      num_factors[index] = primes[i];
-      index++;
+      num_factors[idx] = primes[i];
+      idx++;
       num = num/primes[i];
     }
   }

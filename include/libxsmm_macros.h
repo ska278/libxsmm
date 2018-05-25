@@ -485,12 +485,11 @@
 # define LIBXSMM_ATTRIBUTE_WEAK_IMPORT
 #endif
 
-#if !defined(LIBXSMM_NO_CTOR) && defined(__GNUC__)
+#if !defined(LIBXSMM_NO_CTOR) && defined(__GNUC__) \
+ && !defined(LIBXSMM_CTOR) && defined(LIBXSMM_BUILD) && !defined(__STATIC)
 # define LIBXSMM_ATTRIBUTE_CTOR LIBXSMM_ATTRIBUTE(constructor)
 # define LIBXSMM_ATTRIBUTE_DTOR LIBXSMM_ATTRIBUTE(destructor)
-# if !defined(LIBXSMM_CTOR) && defined(LIBXSMM_BUILD) && !defined(__STATIC)
-#   define LIBXSMM_CTOR
-# endif
+# define LIBXSMM_CTOR
 #else
 # define LIBXSMM_ATTRIBUTE_CTOR
 # define LIBXSMM_ATTRIBUTE_DTOR
@@ -602,7 +601,14 @@
 #endif
 #if !defined(LIBXSMM_ASSERT)
 # include <assert.h>
-# define LIBXSMM_ASSERT(EXPR) assert(EXPR)
+# if defined(NDEBUG)
+#   define LIBXSMM_ASSERT(EXPR) LIBXSMM_ASSUME(EXPR)
+# else
+#   define LIBXSMM_ASSERT(EXPR) assert(EXPR)
+# endif
+#endif
+#if !defined(LIBXSMM_ASSERT_MSG)
+# define LIBXSMM_ASSERT_MSG(EXPR, MSG) LIBXSMM_ASSERT((EXPR) && (0 != *(MSG)))
 #endif
 #if !defined(LIBXSMM_EXPECT)
 # if defined(NDEBUG)

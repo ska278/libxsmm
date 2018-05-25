@@ -183,6 +183,16 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_trans_descriptor { /* 13 By
   unsigned char typesize;
 };
 
+/** Structure storing arguments of packed TRSM. */
+LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_trsm_descriptor { /* 30 Byte */
+  union { double d; float s; } alpha;
+  unsigned int m, n, lda, ldb;
+  unsigned char typesize;
+  unsigned char layout;
+  char diag, side, uplo;
+  char transa;
+};
+
 LIBXSMM_EXTERN_C typedef struct LIBXSMM_RETARGETABLE LIBXSMM_MAY_ALIAS libxsmm_csr_soa_descriptor {
   const libxsmm_gemm_descriptor* gemm;
   const unsigned int* row_ptr;
@@ -216,6 +226,10 @@ LIBXSMM_EXTERN_C typedef struct LIBXSMM_RETARGETABLE LIBXSMM_MAY_ALIAS libxsmm_c
 LIBXSMM_EXTERN_C typedef LIBXSMM_RETARGETABLE void (*libxsmm_sconvfunction)(
   const float* input1, const float* input2, float* output,
   const float* ipf1, const float* ipf2, const float* opf, ...);
+
+LIBXSMM_EXTERN_C typedef LIBXSMM_RETARGETABLE void (*libxsmm_bf16convfunction)(
+  const libxsmm_bfloat16* input1, const libxsmm_bfloat16* input2, libxsmm_bfloat16* output,
+  const libxsmm_bfloat16* ipf1, const libxsmm_bfloat16* ipf2, const libxsmm_bfloat16* opf, ...);
 
 LIBXSMM_EXTERN_C typedef LIBXSMM_RETARGETABLE void (*libxsmm_wconvfunction)(
   const short* input1, const short* input2, int* output,
@@ -256,6 +270,7 @@ LIBXSMM_EXTERN_C typedef LIBXSMM_RETARGETABLE void (*libxsmm_budconvfunction_bwd
 /** Function type which is either libxsmm_sconvfunction or libxsmm_wconvfunction (weak-typed). */
 LIBXSMM_EXTERN_C typedef union LIBXSMM_RETARGETABLE libxsmm_xconvfunction {
   libxsmm_sconvfunction sconv;
+  libxsmm_bf16convfunction bf16conv;
   libxsmm_wsconvfunction wsconv;
   libxsmm_uwsconvfunction uwsconv;
   libxsmm_wconvfunction wconv;
@@ -277,6 +292,7 @@ LIBXSMM_EXTERN_C typedef union LIBXSMM_RETARGETABLE libxsmm_code_pointer {
   libxsmm_xmcopyfunction xmatcopy;
   libxsmm_xtransfunction xtrans;
   libxsmm_xconvfunction xconv;
+  libxsmm_xtrsmfunction xtrsm;
 } libxsmm_code_pointer;
 
 /** Structure which describes all tensors in LIBXSMM's DNN module */
@@ -339,6 +355,7 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_dnn_layer {
   int blocksifm_blocking;
   int blocksofm_blocking;
   int blocksimg_blocking;
+  int use_accumulation_scratch;
   int use_nts_fwd;
   int use_nts_bwd;
   int use_nts_upd;
@@ -514,19 +531,20 @@ struct LIBXSMM_RETARGETABLE libxsmm_sfsspmdm {
 };
 
 typedef enum libxsmm_build_kind {
-  LIBXSMM_BUILD_KIND_GEMM,
+  LIBXSMM_BUILD_KIND_GEMM     = LIBXSMM_KERNEL_KIND_MATMUL,
+  LIBXSMM_BUILD_KIND_MCOPY    = LIBXSMM_KERNEL_KIND_MCOPY,
+  LIBXSMM_BUILD_KIND_TRANS    = LIBXSMM_KERNEL_KIND_TRANS,
+  LIBXSMM_BUILD_KIND_TRSM     = LIBXSMM_KERNEL_KIND_TRSM,
+  LIBXSMM_BUILD_KIND_RMACSOA  = LIBXSMM_KERNEL_KIND_INVALID,
+  LIBXSMM_BUILD_KIND_RMBCSOA,
   LIBXSMM_BUILD_KIND_SRSOA,
   LIBXSMM_BUILD_KIND_SCSOA,
-  LIBXSMM_BUILD_KIND_RMACSOA,
-  LIBXSMM_BUILD_KIND_RMBCSOA,
   LIBXSMM_BUILD_KIND_SREG,
   LIBXSMM_BUILD_KIND_CFWD,
   LIBXSMM_BUILD_KIND_CUPD,
   LIBXSMM_BUILD_KIND_CWFWD,
   LIBXSMM_BUILD_KIND_CWBWD,
-  LIBXSMM_BUILD_KIND_CWUPD,
-  LIBXSMM_BUILD_KIND_MCOPY,
-  LIBXSMM_BUILD_KIND_TRANS
+  LIBXSMM_BUILD_KIND_CWUPD
 } libxsmm_build_kind;
 
 LIBXSMM_EXTERN_C typedef union LIBXSMM_RETARGETABLE libxsmm_build_descriptor {
@@ -541,6 +559,7 @@ LIBXSMM_EXTERN_C typedef union LIBXSMM_RETARGETABLE libxsmm_build_descriptor {
   const libxsmm_convolution_winograd_descriptor* cwino;
   const libxsmm_mcopy_descriptor* matcopy;
   const libxsmm_trans_descriptor* trans;
+  const libxsmm_trsm_descriptor* trsm;
 } libxsmm_build_descriptor;
 
 LIBXSMM_EXTERN_C typedef struct LIBXSMM_RETARGETABLE libxsmm_build_request {
@@ -608,6 +627,7 @@ LIBXSMM_EXTERN_C typedef union LIBXSMM_RETARGETABLE libxsmm_kernel_info {
   libxsmm_gemm_descriptor xgemm;
   libxsmm_mcopy_descriptor mcopy;
   libxsmm_trans_descriptor trans;
+  libxsmm_trsm_descriptor trsm;
 } libxsmm_kernel_info;
 
 /** Attempts to receive information about JIT-generated code. */
