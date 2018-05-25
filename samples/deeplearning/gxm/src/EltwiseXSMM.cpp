@@ -95,7 +95,17 @@ void EltwiseXSMM::backPropagate(TensorBuf *deloutpb, vector<TensorBuf*>& delinpb
     case ELSUM:
     {
       for(int i=0; i<delinpb.size(); i++)
-        delinpb[i]->setBuffer(deloutp);
+      {
+        float *delinp = (float*)delinpb[i]->getBuffer();
+        Shape *ss = delinpb[i]->getTensor()->getShape();
+        int size = ss->dims[0] * ss->dims[1] * ss->dims[2] * ss->dims[3];
+
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+        for(int j=0; j < size; j++)
+          delinp[j] = deloutp[j];
+      }
     }
     break;
 

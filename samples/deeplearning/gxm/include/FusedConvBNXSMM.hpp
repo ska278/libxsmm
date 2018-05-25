@@ -117,6 +117,6 @@ class FusedConvBNXSMM : public FusedConvBNImpl
     void backPropagate(TensorBuf* outp, TensorBuf *deloutp, TensorBuf* weightp, TensorBuf *gammap, TensorBuf* delgammap, TensorBuf* delbetap, TensorBuf *delinp, int tid);
     void weightUpdate(TensorBuf *inp, TensorBuf *deloutp, TensorBuf *delweightp, int tid);
     void dumpBuffer(TensorBuf *wt, void* temp);
-    void reduce_batch_stats(void *bstats_ip, float *bmeanp, float *brstdp, TensorBuf *gmeanpb, TensorBuf *grstdpb, int nFM);
+    void reduce_batch_stats(void *bstats_ip, float *bmeanp, float *brstdp, TensorBuf *gmeanpb, TensorBuf *grstdpb, int nFM, int fh, int fw);
     void reduce_delgamma_delbeta(float *dgbp, float *dgp, float *dbp, int nFM);
 };

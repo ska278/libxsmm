@@ -655,7 +655,7 @@ void FusedBNormNode::backPropagate()
 #if 1
     ptr = (float*)tenTopDiff_->getBuffer();
     pptr = (float*)tenTopDiff_->getPrivBuffer();
-    int size = gparams_.batch_size * gparams_.nOutput * (gparams_.oHeight/gparams_.stride_h + 2*gparams_.pad_h) * (gparams_.oWidth/gparams_.stride_w + 2*gparams_.pad_w);
+    int size = tenTopDiff_->getBufferSize()/sizeof(float);
     p = (pptr == NULL) ? ptr : pptr;
     s = nname_ + "_delOutp";
     MeanOfLayer((char*)s.c_str(), p, size);
@@ -669,10 +669,13 @@ void FusedBNormNode::backPropagate()
     float* delbeta = (float*)tenShiftDiff_->getBuffer();
     MeanOfLayer((char*)s.c_str(), delbeta, gparams_.nOutput);
 
-    ptr = (float*)tenBotDiff_[0]->getBuffer();
-    s = nname_ + "_delInp";
-    MeanOfLayer((char*)s.c_str(), ptr, gparams_.batch_size*gparams_.nInput[0]* (gparams_.iHeight + 2*gparams_.ipad_h) * (gparams_.iWidth + 2*gparams_.ipad_w));
-
+    for(int i=0; i<tenBotDiff_.size(); i++)
+    {
+      ptr = (float*)tenBotDiff_[i]->getBuffer();
+      s = nname_ + "_delInp" + to_string(i);
+      size = tenBotDiff_[i]->getBufferSize()/sizeof(float);
+      MeanOfLayer((char*)s.c_str(), ptr, size);
+    }
   }
 #endif
 }
