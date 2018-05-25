@@ -76,7 +76,7 @@ for(ofm_idx = ofm1 ; ofm_idx < ofm1 + handle->blocksofm_blocking ; ofm_idx++ )
   element_input_type * mybmean1 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, bmean1, ofm_idx, 0, handle->ofmblock));
   element_input_type * mybrstd1 = (element_input_type*) &(LIBXSMM_VLA_ACCESS(  2, brstd1, ofm_idx, 0, handle->ofmblock));
 
-  element_input_type nhw = handle->desc.N * handle->desc.H * handle->desc.W;
+  element_input_type nhw = handle->desc.N * handle->ofw * handle->ofh;
   element_input_type recp_nhw = 1.0f/nhw; 
 
   for(my_h = 0 ; my_h < handle->ofh ; my_h+=1)
