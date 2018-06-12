@@ -887,6 +887,17 @@ void FusedConvBNNode::backPropagate()
         MeanOfLayer((char*)s.c_str(), p, ifm);
       }
 
+      if(gparams_.own_bstats_bwd || gparams_.own_bstats_relu_bwd)
+      {
+        s = nname_ + "_delgammap";
+        p = (float*)tenScaleDiff_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
+
+        s = nname_ + "_delbetap";
+        p = (float*)tenShiftDiff_->getBuffer();
+        MeanOfLayer((char*)s.c_str(), p, gparams_.nOutput);
+      }
+
       if(gparams_.bn_bwd)
       {
         s = nname_ + "_bmean";

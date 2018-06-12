@@ -253,7 +253,8 @@ void EltwiseNode::backPropagate()
     p = (float*)tenTopDiff_->getBuffer();
     pp = (float*)tenTopDiff_->getPrivBuffer();
     ptr = (pp == NULL) ? p : pp;
-    int size = tenTopData_->getBufferSize()/sizeof(float);
+    Shape *ss = tenTopData_->getTensor()->getShape();
+    int size = ss->dims[0] * ss->dims[1] * ss->dims[2] * ss->dims[3];
     string s = nname_ + "_deloutp";
     MeanOfLayer((char*)s.c_str(), ptr, size);
 
@@ -262,7 +263,8 @@ void EltwiseNode::backPropagate()
       p = (float*)tenBotDiff_[i]->getBuffer();
       pp = (float*)tenBotDiff_[i]->getPrivBuffer();
       ptr = (pp == NULL) ? p : pp;
-      size = tenBotData_[i]->getBufferSize()/sizeof(float);
+      ss = tenBotDiff_[i]->getTensor()->getShape();
+      size = ss->dims[0] * ss->dims[1] * ss->dims[2] * ss->dims[3];
       string s = nname_ + "_delinp_" + to_string(i);
       MeanOfLayer((char*)s.c_str(), ptr, size);
     }

@@ -109,12 +109,10 @@ FusedConvBNXSMM::FusedConvBNXSMM(FusedConvBNImplParams* gp, int engine) : FusedC
   gbot_layout = libxsmm_handle;
 }
 
-void FusedConvBNXSMM::reduce_batch_stats(void *bstats_ip, float *bmeanp, float *brstdp, TensorBuf *gmeanpb, TensorBuf *grstdpb, int nFM)
+void FusedConvBNXSMM::reduce_batch_stats(void *bstats_ip, float *bmeanp, float *brstdp, TensorBuf *gmeanpb, TensorBuf *grstdpb, int nFM, int fh, int fw)
 {
   int nImg = gp->batch_size;
   int nBfm = nFM/VLEN;
-  int fh = gp->iHeight;
-  int fw = gp->iWidth;
   const float nhw = nImg*fh*fw;
   const float recp_nhw = 1.0f/nhw;
   const float nhw_ratio = nhw/(nhw - 1);
@@ -250,7 +248,7 @@ memset(out_stats_ptr, 0, 2*conv_desc.N * conv_desc.K * sizeof(float));
     rstdev = expect + conv_desc.C;
 
     // Compute reduced batch stats to use in FWD BN operation along with global mean/rstdev (if required)
-    reduce_batch_stats(in_stats_ptr, expect, rstdev, gmeanp, grstdp, conv_desc.C);
+    reduce_batch_stats(in_stats_ptr, expect, rstdev, gmeanp, grstdp, conv_desc.C, conv_desc.H, conv_desc.W);
 
   // Saved input for BWD
     sin_ptr = (void*)(rstdev + conv_desc.C); 
@@ -542,10 +540,6 @@ memset(out_stats_ptr, 0, 2*conv_desc.N * conv_desc.K * sizeof(float));
 
     if(gp->own_bn_fwd)
     {
-      bmean1 = (float*)(out_stats_ptr + 2 * conv_desc.N * conv_desc.K * sizeof(float));
-      brstd1 = bmean1 + conv_desc.K;
-      reduce_batch_stats(out_stats_ptr, bmean1, brstd1, gmeanp, grstdp, conv_desc.K);
-
       int nImg = conv_desc.N;
       int nBfm = conv_desc.K/VLEN;
       int nFM = conv_desc.K;
@@ -557,40 +551,58 @@ memset(out_stats_ptr, 0, 2*conv_desc.N * conv_desc.K * sizeof(float));
       int sw = gp->stride_w;
       int iph = gp->ipad_h;
       int ipw = gp->ipad_w;
-      int fhs = fh/sh;
-      int fws = fw/sw;
-      int fhp = fhs + 2*ph;
-      int fwp = fws + 2*pw;
-      int fhi = fh + 2*iph;
-      int fwi = fw + 2*ipw;
 
-      void *my_gamma_ptr = my_gammap->getBuffer();
-      void *my_beta_ptr = my_betap->getBuffer();
+      bmean1 = (float*)(out_stats_ptr + 2 * conv_desc.N * conv_desc.K * sizeof(float));
+      brstd1 = bmean1 + conv_desc.K;
+      reduce_batch_stats(out_stats_ptr, bmean1, brstd1, gmeanp, grstdp, conv_desc.K, fh, fw);
 
-      float (* __restrict output)[nBfm][fhp][fwp][VLEN]  = (float (*)[*][*][*][VLEN])out_ptr;
+      float *my_gamma_ptr = (float*)my_gammap->getBuffer();
+      float *my_beta_ptr = (float*)my_betap->getBuffer();
+      float (* __restrict output)[nBfm][fh][fw][VLEN]  = (float (*)[*][*][*][VLEN])out_ptr;
       float (* __restrict bmean)[VLEN]                   = (float (*)[VLEN])bmean1;
       float (* __restrict brstd)[VLEN]                   = (float (*)[VLEN])brstd1;
       float (* __restrict gamma)[VLEN]                   = (float (*)[VLEN])my_gamma_ptr;
       float (* __restrict beta)[VLEN]                   = (float (*)[VLEN])my_beta_ptr;
 
       sout_ptr = (void*)(brstd1 + conv_desc.K);
-      memcpy(sout_ptr, out_ptr, nImg*nFM*fhp*fwp*sizeof(float));
+      float (* __restrict input_r)[nBfm][fh][fw][VLEN]  = (float (*)[*][*][*][VLEN])sout_ptr;
 
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
       for(int img=0; img < nImg; img++) {
-        for(int fm=(nBfm-1); fm >= 0; fm--) {
-          for(int h=(fh+iph)-sh, hp=(fhs+ph)-1; h >= iph; h-=sh, hp--) {
-            for(int w=(fw+ipw)-sw, wp=(fws+pw)-1; w >= ipw; w-=sw, wp--) {
+        for(int fm=0; fm < nBfm; fm++) {
+          for(int h=0; h < fh; h++) {
+            for(int w=0; w < fw; w++) {
 #pragma omp simd
 #pragma vector aligned
 #ifdef USE_NTS_BN
 #pragma vector nontemporal
 #endif
-              for(int v=0; v<VLEN; v++) {
+              for(int v=0; v<16; v++) {
+                input_r[img][fm][h][w][v] = output[img][fm][h][w][v];
+              }
+            }
+          }
+        }
+      }
+      //memcpy(sout_ptr, out_ptr, nImg*nFM*fh*fw*sizeof(float));
+
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+      for(int img=0; img < nImg; img++) {
+        for(int fm=0; fm < nBfm; fm++) {
+          for(int h=0; h < fh; h++) {
+            for(int w=0; w < fw; w++) {
+#pragma omp simd
+#pragma vector aligned
+#ifdef USE_NTS_BN
+#pragma vector nontemporal
+#endif
+              for(int v=0; v<16; v++) {
                 // BN + scale (gamma, beta)
-                output[img][fm][hp][wp][v] = gamma[fm][v]*(output[img][fm][hp][wp][v] - bmean[fm][v]) * brstd[fm][v] + beta[fm][v];
+                output[img][fm][h][w][v] = gamma[fm][v]*(input_r[img][fm][h][w][v] - bmean[fm][v]) * brstd[fm][v] + beta[fm][v];
               }
             }
           }
@@ -758,41 +770,34 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
 memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));    
   }
   
-  if(gp->bn_bwd)
+//  if(gp->bn_bwd)
   {
-    // Reduce unreduced delgamma/delbeta (computed by next layer) into nFM sized buffers
+    int nImg = conv_desc.N;
+    int nBfm = conv_desc.K/VLEN;
+    int nFM = conv_desc.K;
+    int fh = gp->oHeight;
+    int fw = gp->oWidth;
+    int ph = gp->pad_h;
+    int pw = gp->pad_w;
+    int sh = gp->stride_h;
+    int sw = gp->stride_w;
+    int iph = gp->ipad_h;
+    int ipw = gp->ipad_w;
+
+    void *deloutptr = deloutp->getBuffer();
     float *dgb_ptr = (float*)(sout_ptr + offset*sizeof(float));
+    float *del_gamma_imgp = dgb_ptr;
+    float *del_beta_imgp = del_gamma_imgp + conv_desc.N * conv_desc.K;
+    float (* __restrict del_gamma_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_gamma_imgp;
+    float (* __restrict del_beta_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_beta_imgp;
+    float (* __restrict del_output)[nBfm][fh][fw][VLEN]  = (float (*)[*][*][*][VLEN])deloutptr;
+    float (* __restrict bmean)[VLEN]                       = (float (*)[VLEN])bmean1;
+    float (* __restrict brstd)[VLEN]                       = (float (*)[VLEN])brstd1;
+    float (* __restrict input_r)[nBfm][fh][fw][VLEN]     = (float (*)[*][*][*][VLEN])sout_ptr;
+    float (* __restrict gamma)[VLEN]                       = (float (*)[VLEN])gamma_ptr;
+
     if(gp->own_bstats_relu_bwd)
     {
-      int nImg = conv_desc.N;
-      int nBfm = conv_desc.K/VLEN;
-      int nFM = conv_desc.K;
-      int fh = gp->oHeight;
-      int fw = gp->oWidth;
-      int ph = gp->pad_h;
-      int pw = gp->pad_w;
-      int sh = gp->stride_h;
-      int sw = gp->stride_w;
-      int iph = gp->ipad_h;
-      int ipw = gp->ipad_w;
-      int fhs = fh/sh;
-      int fws = fw/sw;
-      int fhp = fhs + 2*ph;
-      int fwp = fws + 2*pw;
-      int fhi = fh + 2*iph;
-      int fwi = fw + 2*ipw;
-
-      void *deloutptr = deloutp->getBuffer();
-      float *dgb_ptr = (float*)(sout_ptr + offset*sizeof(float));
-      float *del_gamma_imgp = dgb_ptr;
-      float *del_beta_imgp = del_gamma_imgp + conv_desc.N * conv_desc.K;
-      float (* __restrict del_gamma_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_gamma_imgp;
-      float (* __restrict del_beta_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_beta_imgp;
-      float (* __restrict del_output)[nBfm][fhp][fwp][VLEN]  = (float (*)[*][*][*][VLEN])deloutptr;
-      float (* __restrict bmean)[VLEN]                       = (float (*)[VLEN])bmean1;
-      float (* __restrict brstd)[VLEN]                       = (float (*)[VLEN])brstd1;
-      float (* __restrict input_r)[nBfm][fhi][fwi][VLEN]     = (float (*)[*][*][*][VLEN])sout_ptr;
-      float (* __restrict gamma)[VLEN]                       = (float (*)[VLEN])gamma_ptr;
 
 #if 1
 #ifdef _OPENMP
@@ -816,15 +821,68 @@ memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));
               lcl_gamma[v] = 0.0f;
               lcl_beta[v] = 0.0f;
             }
-            for(int h=iph, hp=ph; h < (fh + iph); h+=sh, hp++) {
-              for(int w=ipw, wp=pw; w < (fw + ipw); w+=sw, wp++) {
+            for(int h=0; h < fh; h++) {
+              for(int w=0; w < fw; w++) {
 #if 1
 #pragma omp simd
 #pragma vector aligned
 #endif
                 for(int v=0; v < VLEN; v++) {
-                  lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][hp][wp][v] * brstd[fm][v];
-                  lcl_beta[v] += del_output[img][fm][hp][wp][v];
+                  del_output[img][fm][h][w][v] = input_r[img][fm][h][w][v] > 0.f ? del_output[img][fm][h][w][v] : 0.f;
+                  lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][h][w][v] * brstd[fm][v];
+                  lcl_beta[v] += del_output[img][fm][h][w][v];
+                }
+              }
+            }
+#if 1
+#pragma omp simd
+#pragma vector aligned
+#ifdef USE_NTS_BN
+#pragma vector nontemporal
+#endif
+#endif
+            for(int v=0; v < VLEN; v++) {
+              del_gamma_img[fm][img][v] = lcl_gamma[v];
+              del_beta_img[fm][img][v]  = lcl_beta[v];
+            }
+          }
+        }
+      }
+      //printf("done\n");
+    }
+    else if(gp->own_bstats_bwd)
+    {
+#if 1
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+#endif
+      {
+#if 1
+#pragma omp for
+#pragma vector aligned
+#endif
+        for(int img=0; img < nImg; img++) {
+          for(int fm=0; fm < nBfm; fm++) {
+            float lcl_gamma[VLEN];
+            float lcl_beta[VLEN];
+#if 1
+#pragma omp simd
+#pragma vector aligned
+#endif
+            for(int v=0; v < VLEN; v++) {
+              lcl_gamma[v] = 0.0f;
+              lcl_beta[v] = 0.0f;
+            }
+            for(int h=0; h < fh; h++) {
+              for(int w=0; w < fw; w++) {
+#if 1
+#pragma omp simd
+#pragma vector aligned
+#endif
+                for(int v=0; v < VLEN; v++) {
+                  lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][h][w][v] * brstd[fm][v];
+                  lcl_beta[v] += del_output[img][fm][h][w][v];
                 }
               }
             }
