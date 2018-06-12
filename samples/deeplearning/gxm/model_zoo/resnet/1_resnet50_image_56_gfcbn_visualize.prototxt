@@ -1,4 +1,4 @@
-node {
+layer {
   name: "data"
   type: "JitterData"
   top: "data"
@@ -11,10 +11,10 @@ node {
     test_source: "/scratch/savancha/jpegs_256resized"
     test_list: "/scratch/savancha/jpegs_256resized/val_images_labels.list"
     batch_size: 56
-    num_train_files: 56 #1281167
-    num_test_files: 56 #50000
+    num_train_files: 56
+    num_test_files: 56
     numsplits: 1
-    lookahead: 2
+    lookahead: 1
     shuffle: true
     engine: XSMM
 
@@ -33,7 +33,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "conv1"
   type: "Convolution"
   bottom: "data"
@@ -57,7 +57,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "bn1"
   type: "FusedBatchNorm"
   bottom: "conv1"
@@ -71,7 +71,7 @@ node {
     engine: XSMM
   }
 }
-node {
+layer {
   name: "conv1_pool"
   type: "Pooling"
   bottom: "bn1"
@@ -84,7 +84,7 @@ node {
     stride: 2
   }
 }
-node {
+layer {
   name: "node_64_1_convbn4"
   type: "FusedConvBN"
   bottom: "conv1_pool"
@@ -114,7 +114,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_1_convbn1"
   type: "FusedConvBN"
   bottom: "conv1_pool"
@@ -145,7 +145,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_1_convbn2"
   type: "FusedConvBN"
   bottom: "node_64_1_convbn1"
@@ -178,7 +178,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_1_convbn3"
   type: "FusedConvBN"
   bottom: "node_64_1_convbn2"
@@ -212,20 +212,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_1_eltwise"
   type: "Eltwise"
   bottom: "node_64_1_convbn3"
   bottom: "node_64_1_convbn4"
   top: "node_64_1_eltwise"
 }
-node {
+layer {
   name: "node_64_1_relu"
   type: "ReLU"
   bottom: "node_64_1_eltwise"
   top: "node_64_1_relu"
 }
-node {
+layer {
   name: "node_64_2_convbn1"
   type: "FusedConvBN"
   bottom: "node_64_1_relu"
@@ -253,7 +253,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_2_convbn2"
   type: "FusedConvBN"
   bottom: "node_64_2_convbn1"
@@ -285,7 +285,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_2_convbn3"
   type: "FusedConvBN"
   bottom: "node_64_2_convbn2"
@@ -317,20 +317,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_2_eltwise"
   type: "Eltwise"
   bottom: "node_64_2_convbn3"
   bottom: "node_64_1_relu"
   top: "node_64_2_eltwise"
 }
-node {
+layer {
   name: "node_64_2_relu"
   type: "ReLU"
   bottom: "node_64_2_eltwise"
   top: "node_64_2_relu"
 }
-node {
+layer {
   name: "node_64_3_convbn1"
   type: "FusedConvBN"
   bottom: "node_64_2_relu"
@@ -358,7 +358,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_3_convbn2"
   type: "FusedConvBN"
   bottom: "node_64_3_convbn1"
@@ -390,7 +390,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_3_convbn3"
   type: "FusedConvBN"
   bottom: "node_64_3_convbn2"
@@ -422,20 +422,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_3_eltwise"
   type: "Eltwise"
   bottom: "node_64_3_convbn3"
   bottom: "node_64_2_relu"
   top: "node_64_3_eltwise"
 }
-node {
+layer {
   name: "node_64_3_relu"
   type: "ReLU"
   bottom: "node_64_3_eltwise"
   top: "node_64_3_relu"
 }
-node {
+layer {
   name: "node_128_1_convbn4"
   type: "FusedConvBN"
   bottom: "node_64_3_relu"
@@ -465,7 +465,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_1_convbn1"
   type: "FusedConvBN"
   bottom: "node_64_3_relu"
@@ -493,7 +493,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_1_convbn2"
   type: "FusedConvBN"
   bottom: "node_128_1_convbn1"
@@ -525,7 +525,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_1_convbn3"
   type: "FusedConvBN"
   bottom: "node_128_1_convbn2"
@@ -557,20 +557,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_1_eltwise"
   type: "Eltwise"
   bottom: "node_128_1_convbn3"
   bottom: "node_128_1_convbn4"
   top: "node_128_1_eltwise"
 }
-node {
+layer {
   name: "node_128_1_relu"
   type: "ReLU"
   bottom: "node_128_1_eltwise"
   top: "node_128_1_relu"
 }
-node {
+layer {
   name: "node_128_2_convbn1"
   type: "FusedConvBN"
   bottom: "node_128_1_relu"
@@ -598,7 +598,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_2_convbn2"
   type: "FusedConvBN"
   bottom: "node_128_2_convbn1"
@@ -630,7 +630,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_2_convbn3"
   type: "FusedConvBN"
   bottom: "node_128_2_convbn2"
@@ -662,20 +662,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_2_eltwise"
   type: "Eltwise"
   bottom: "node_128_2_convbn3"
   bottom: "node_128_1_relu"
   top: "node_128_2_eltwise"
 }
-node {
+layer {
   name: "node_128_2_relu"
   type: "ReLU"
   bottom: "node_128_2_eltwise"
   top: "node_128_2_relu"
 }
-node {
+layer {
   name: "node_128_3_convbn1"
   type: "FusedConvBN"
   bottom: "node_128_2_relu"
@@ -703,7 +703,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_3_convbn2"
   type: "FusedConvBN"
   bottom: "node_128_3_convbn1"
@@ -735,7 +735,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_3_convbn3"
   type: "FusedConvBN"
   bottom: "node_128_3_convbn2"
@@ -767,20 +767,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_3_eltwise"
   type: "Eltwise"
   bottom: "node_128_3_convbn3"
   bottom: "node_128_2_relu"
   top: "node_128_3_eltwise"
 }
-node {
+layer {
   name: "node_128_3_relu"
   type: "ReLU"
   bottom: "node_128_3_eltwise"
   top: "node_128_3_relu"
 }
-node {
+layer {
   name: "node_128_4_convbn1"
   type: "FusedConvBN"
   bottom: "node_128_3_relu"
@@ -808,7 +808,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_4_convbn2"
   type: "FusedConvBN"
   bottom: "node_128_4_convbn1"
@@ -840,7 +840,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_4_convbn3"
   type: "FusedConvBN"
   bottom: "node_128_4_convbn2"
@@ -872,20 +872,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_4_eltwise"
   type: "Eltwise"
   bottom: "node_128_4_convbn3"
   bottom: "node_128_3_relu"
   top: "node_128_4_eltwise"
 }
-node {
+layer {
   name: "node_128_4_relu"
   type: "ReLU"
   bottom: "node_128_4_eltwise"
   top: "node_128_4_relu"
 }
-node {
+layer {
   name: "node_256_1_convbn4"
   type: "FusedConvBN"
   bottom: "node_128_4_relu"
@@ -915,7 +915,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_1_convbn1"
   type: "FusedConvBN"
   bottom: "node_128_4_relu"
@@ -943,7 +943,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_1_convbn2"
   type: "FusedConvBN"
   bottom: "node_256_1_convbn1"
@@ -975,7 +975,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_1_convbn3"
   type: "FusedConvBN"
   bottom: "node_256_1_convbn2"
@@ -1007,20 +1007,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_1_eltwise"
   type: "Eltwise"
   bottom: "node_256_1_convbn3"
   bottom: "node_256_1_convbn4"
   top: "node_256_1_eltwise"
 }
-node {
+layer {
   name: "node_256_1_relu"
   type: "ReLU"
   bottom: "node_256_1_eltwise"
   top: "node_256_1_relu"
 }
-node {
+layer {
   name: "node_256_2_convbn1"
   type: "FusedConvBN"
   bottom: "node_256_1_relu"
@@ -1048,7 +1048,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_2_convbn2"
   type: "FusedConvBN"
   bottom: "node_256_2_convbn1"
@@ -1080,7 +1080,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_2_convbn3"
   type: "FusedConvBN"
   bottom: "node_256_2_convbn2"
@@ -1112,20 +1112,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_2_eltwise"
   type: "Eltwise"
   bottom: "node_256_2_convbn3"
   bottom: "node_256_1_relu"
   top: "node_256_2_eltwise"
 }
-node {
+layer {
   name: "node_256_2_relu"
   type: "ReLU"
   bottom: "node_256_2_eltwise"
   top: "node_256_2_relu"
 }
-node {
+layer {
   name: "node_256_3_convbn1"
   type: "FusedConvBN"
   bottom: "node_256_2_relu"
@@ -1153,7 +1153,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_3_convbn2"
   type: "FusedConvBN"
   bottom: "node_256_3_convbn1"
@@ -1185,7 +1185,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_3_convbn3"
   type: "FusedConvBN"
   bottom: "node_256_3_convbn2"
@@ -1217,20 +1217,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_3_eltwise"
   type: "Eltwise"
   bottom: "node_256_3_convbn3"
   bottom: "node_256_2_relu"
   top: "node_256_3_eltwise"
 }
-node {
+layer {
   name: "node_256_3_relu"
   type: "ReLU"
   bottom: "node_256_3_eltwise"
   top: "node_256_3_relu"
 }
-node {
+layer {
   name: "node_256_4_convbn1"
   type: "FusedConvBN"
   bottom: "node_256_3_relu"
@@ -1258,7 +1258,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_4_convbn2"
   type: "FusedConvBN"
   bottom: "node_256_4_convbn1"
@@ -1290,7 +1290,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_4_convbn3"
   type: "FusedConvBN"
   bottom: "node_256_4_convbn2"
@@ -1322,20 +1322,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_4_eltwise"
   type: "Eltwise"
   bottom: "node_256_4_convbn3"
   bottom: "node_256_3_relu"
   top: "node_256_4_eltwise"
 }
-node {
+layer {
   name: "node_256_4_relu"
   type: "ReLU"
   bottom: "node_256_4_eltwise"
   top: "node_256_4_relu"
 }
-node {
+layer {
   name: "node_256_5_convbn1"
   type: "FusedConvBN"
   bottom: "node_256_4_relu"
@@ -1363,7 +1363,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_5_convbn2"
   type: "FusedConvBN"
   bottom: "node_256_5_convbn1"
@@ -1395,7 +1395,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_5_convbn3"
   type: "FusedConvBN"
   bottom: "node_256_5_convbn2"
@@ -1426,20 +1426,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_5_eltwise"
   type: "Eltwise"
   bottom: "node_256_5_convbn3"
   bottom: "node_256_4_relu"
   top: "node_256_5_eltwise"
 }
-node {
+layer {
   name: "node_256_5_relu"
   type: "ReLU"
   bottom: "node_256_5_eltwise"
   top: "node_256_5_relu"
 }
-node {
+layer {
   name: "node_256_6_convbn1"
   type: "FusedConvBN"
   bottom: "node_256_5_relu"
@@ -1467,7 +1467,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_6_convbn2"
   type: "FusedConvBN"
   bottom: "node_256_6_convbn1"
@@ -1499,7 +1499,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_6_convbn3"
   type: "FusedConvBN"
   bottom: "node_256_6_convbn2"
@@ -1531,20 +1531,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_6_eltwise"
   type: "Eltwise"
   bottom: "node_256_6_convbn3"
   bottom: "node_256_5_relu"
   top: "node_256_6_eltwise"
 }
-node {
+layer {
   name: "node_256_6_relu"
   type: "ReLU"
   bottom: "node_256_6_eltwise"
   top: "node_256_6_relu"
 }
-node {
+layer {
   name: "node_512_1_convbn4"
   type: "FusedConvBN"
   bottom: "node_256_6_relu"
@@ -1574,7 +1574,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_1_convbn1"
   type: "FusedConvBN"
   bottom: "node_256_6_relu"
@@ -1602,7 +1602,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_1_convbn2"
   type: "FusedConvBN"
   bottom: "node_512_1_convbn1"
@@ -1634,7 +1634,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_1_convbn3"
   type: "FusedConvBN"
   bottom: "node_512_1_convbn2"
@@ -1666,20 +1666,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_1_eltwise"
   type: "Eltwise"
   bottom: "node_512_1_convbn3"
   bottom: "node_512_1_convbn4"
   top: "node_512_1_eltwise"
 }
-node {
+layer {
   name: "node_512_1_relu"
   type: "ReLU"
   bottom: "node_512_1_eltwise"
   top: "node_512_1_relu"
 }
-node {
+layer {
   name: "node_512_2_convbn1"
   type: "FusedConvBN"
   bottom: "node_512_1_relu"
@@ -1707,7 +1707,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_2_convbn2"
   type: "FusedConvBN"
   bottom: "node_512_2_convbn1"
@@ -1739,7 +1739,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_2_convbn3"
   type: "FusedConvBN"
   bottom: "node_512_2_convbn2"
@@ -1771,20 +1771,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_2_eltwise"
   type: "Eltwise"
   bottom: "node_512_2_convbn3"
   bottom: "node_512_1_relu"
   top: "node_512_2_eltwise"
 }
-node {
+layer {
   name: "node_512_2_relu"
   type: "ReLU"
   bottom: "node_512_2_eltwise"
   top: "node_512_2_relu"
 }
-node {
+layer {
   name: "node_512_3_convbn1"
   type: "FusedConvBN"
   bottom: "node_512_2_relu"
@@ -1812,7 +1812,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_3_convbn2"
   type: "FusedConvBN"
   bottom: "node_512_3_convbn1"
@@ -1844,7 +1844,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_3_convbn3"
   type: "FusedConvBN"
   bottom: "node_512_3_convbn2"
@@ -1876,20 +1876,20 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_3_eltwise"
   type: "Eltwise"
   bottom: "node_512_3_convbn3"
   bottom: "node_512_2_relu"
   top: "node_512_3_eltwise"
 }
-node {
+layer {
   name: "node_512_3_relu"
   type: "ReLU"
   bottom: "node_512_3_eltwise"
   top: "node_512_3_relu"
 }
-node {
+layer {
   name: "pool5"
   type: "Pooling"
   bottom: "node_512_3_relu"
@@ -1902,7 +1902,7 @@ node {
     stride: 1
   }
 }
-node {
+layer {
   name: "fc1000"
   type: "FullyConnected"
   bottom: "pool5"
@@ -1922,7 +1922,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "prob"
   type: "SoftmaxWithLoss"
   bottom: "fc1000"
@@ -1930,7 +1930,7 @@ node {
   top: "prob"
   loss_weight: 1
 }
-node {
+layer {
   name: "accuracy1"
   type: "Accuracy"
   bottom: "fc1000"
@@ -1941,7 +1941,7 @@ node {
      top_k: 1
   }
 }
-node {
+layer {
   name: "accuracy5"
   type: "Accuracy"
   bottom: "fc1000"

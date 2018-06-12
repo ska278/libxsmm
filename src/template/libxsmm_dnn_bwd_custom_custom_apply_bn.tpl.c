@@ -29,7 +29,7 @@
 /* Evangelos Georganas (Intel Corp.) Michael Anderson (Intel Corp.)
  ******************************************************************************/
 
-if((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD) || (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_RELU_BWD))
+if((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_BWD) || (handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_RELU_BWD) == LIBXSMM_DNN_CONV_FUSE_BATCH_STATS_RELU_BWD)
 {
 LIBXSMM_VLA_DECL(4, element_input_type, lcl_gamma_beta, (element_input_type*)handle->reg_lcl_gamma_beta->data, BLOCKSIFM, handle->desc.N, handle->ifmblock);
 LIBXSMM_VLA_DECL(2, element_input_type, bmean2, (element_input_type*)handle->reg_bmean2->data, handle->ifmblock);
