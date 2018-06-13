@@ -11,8 +11,8 @@ node {
     test_source: "/scratch/savancha/jpegs_256resized"
     test_list: "/scratch/savancha/jpegs_256resized/val_images_labels.list"
     batch_size: 56
-    num_train_files: 56 #1281167
-    num_test_files: 56 #50000
+    num_train_files: 1281167
+    num_test_files: 50000
     numsplits: 1
     lookahead: 1 
     shuffle: true
@@ -105,7 +105,7 @@ node {
     bstats_fwd: true
     bn_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -202,7 +202,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     use_global_stats: false
@@ -308,7 +308,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -413,7 +413,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -456,7 +456,7 @@ node {
     bstats_fwd: true
     bn_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 2
     weight_filler {
@@ -548,7 +548,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -653,7 +653,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -758,7 +758,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -863,7 +863,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -906,7 +906,7 @@ node {
     bstats_fwd: true
     bn_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 2
     weight_filler {
@@ -998,7 +998,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -1103,7 +1103,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -1208,7 +1208,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -1313,7 +1313,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -1418,7 +1418,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     weight_filler {
       type: "msra"
@@ -1522,7 +1522,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -1565,7 +1565,7 @@ node {
     bstats_fwd: true
     bn_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 2
     weight_filler {
@@ -1657,7 +1657,7 @@ node {
     bn_relu_fwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -1762,7 +1762,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -1867,7 +1867,7 @@ node {
     bn_bwd: true
     bstats_relu_bwd: true
     own_bn_fwd: true
-    own_bstats_relu_bwd: true
+    own_bstats_bwd: true
     kernel_size: 1
     stride: 1
     weight_filler {
