@@ -1,4 +1,4 @@
-node {
+layer {
   name: "data"
   type: "JitterData"
   top: "data"
@@ -33,7 +33,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "conv1"
   type: "Convolution"
   bottom: "data"
@@ -62,7 +62,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -76,7 +76,7 @@ node {
   bottom: "conv1"
   top: "bn1"
 }
-node {
+layer {
   name: "conv1_pool"
   type: "Pooling"
   bottom: "bn1"
@@ -89,7 +89,7 @@ node {
     stride: 2
   }
 }
-node {
+layer {
   name: "node_64_1_conv4"
   type: "Convolution"
   bottom: "conv1_pool"
@@ -113,7 +113,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_1_bn4"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -128,7 +128,7 @@ node {
   bottom: "node_64_1_conv4"
   top: "node_64_1_bn4"
 }
-node {
+layer {
   name: "node_64_1_conv1"
   type: "Convolution"
   bottom: "conv1_pool"
@@ -152,7 +152,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_1_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -166,7 +166,7 @@ node {
   bottom: "node_64_1_conv1"
   top: "node_64_1_bn1"
 }
-node {
+layer {
   name: "node_64_1_conv2"
   type: "Convolution"
   bottom: "node_64_1_bn1"
@@ -192,7 +192,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_1_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -207,7 +207,7 @@ node {
   bottom: "node_64_1_conv2"
   top: "node_64_1_bn2"
 }
-node {
+layer {
   name: "node_64_1_conv3"
   type: "Convolution"
   bottom: "node_64_1_bn2"
@@ -231,7 +231,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_1_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -247,7 +247,7 @@ node {
   bottom: "node_64_1_bn4"
   top: "node_64_1_bn3"
 }
-node {
+layer {
   name: "node_64_2_conv1"
   type: "Convolution"
   bottom: "node_64_1_bn3"
@@ -271,7 +271,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_2_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -285,7 +285,7 @@ node {
   bottom: "node_64_2_conv1"
   top: "node_64_2_bn1"
 }
-node {
+layer {
   name: "node_64_2_conv2"
   type: "Convolution"
   bottom: "node_64_2_bn1"
@@ -311,7 +311,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_2_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -326,7 +326,7 @@ node {
   bottom: "node_64_2_conv2"
   top: "node_64_2_bn2"
 }
-node {
+layer {
   name: "node_64_2_conv3"
   type: "Convolution"
   bottom: "node_64_2_bn2"
@@ -350,7 +350,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_2_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -366,7 +366,7 @@ node {
   bottom: "node_64_1_bn3"
   top: "node_64_2_bn3"
 }
-node {
+layer {
   name: "node_64_3_conv1"
   type: "Convolution"
   bottom: "node_64_2_bn3"
@@ -390,7 +390,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_3_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -404,7 +404,7 @@ node {
   bottom: "node_64_3_conv1"
   top: "node_64_3_bn1"
 }
-node {
+layer {
   name: "node_64_3_conv2"
   type: "Convolution"
   bottom: "node_64_3_bn1"
@@ -430,7 +430,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_3_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -445,7 +445,7 @@ node {
   bottom: "node_64_3_conv2"
   top: "node_64_3_bn2"
 }
-node {
+layer {
   name: "node_64_3_conv3"
   type: "Convolution"
   bottom: "node_64_3_bn2"
@@ -469,7 +469,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_64_3_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -485,7 +485,7 @@ node {
   bottom: "node_64_2_bn3"
   top: "node_64_3_bn3"
 }
-node {
+layer {
   name: "node_128_1_conv4"
   type: "Convolution"
   bottom: "node_64_3_bn3"
@@ -509,7 +509,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_1_bn4"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -524,7 +524,7 @@ node {
   bottom: "node_128_1_conv4"
   top: "node_128_1_bn4"
 }
-node {
+layer {
   name: "node_128_1_conv1"
   type: "Convolution"
   bottom: "node_64_3_bn3"
@@ -548,7 +548,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_1_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -562,7 +562,7 @@ node {
   bottom: "node_128_1_conv1"
   top: "node_128_1_bn1"
 }
-node {
+layer {
   name: "node_128_1_conv2"
   type: "Convolution"
   bottom: "node_128_1_bn1"
@@ -588,7 +588,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_1_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -603,7 +603,7 @@ node {
   bottom: "node_128_1_conv2"
   top: "node_128_1_bn2"
 }
-node {
+layer {
   name: "node_128_1_conv3"
   type: "Convolution"
   bottom: "node_128_1_bn2"
@@ -627,7 +627,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_1_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -643,7 +643,7 @@ node {
   bottom: "node_128_1_bn4"
   top: "node_128_1_bn3"
 }
-node {
+layer {
   name: "node_128_2_conv1"
   type: "Convolution"
   bottom: "node_128_1_bn3"
@@ -667,7 +667,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_2_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -681,7 +681,7 @@ node {
   bottom: "node_128_2_conv1"
   top: "node_128_2_bn1"
 }
-node {
+layer {
   name: "node_128_2_conv2"
   type: "Convolution"
   bottom: "node_128_2_bn1"
@@ -707,7 +707,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_2_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -722,7 +722,7 @@ node {
   bottom: "node_128_2_conv2"
   top: "node_128_2_bn2"
 }
-node {
+layer {
   name: "node_128_2_conv3"
   type: "Convolution"
   bottom: "node_128_2_bn2"
@@ -746,7 +746,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_2_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -762,7 +762,7 @@ node {
   bottom: "node_128_1_bn3"
   top: "node_128_2_bn3"
 }
-node {
+layer {
   name: "node_128_3_conv1"
   type: "Convolution"
   bottom: "node_128_2_bn3"
@@ -786,7 +786,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_3_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -800,7 +800,7 @@ node {
   bottom: "node_128_3_conv1"
   top: "node_128_3_bn1"
 }
-node {
+layer {
   name: "node_128_3_conv2"
   type: "Convolution"
   bottom: "node_128_3_bn1"
@@ -826,7 +826,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_3_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -841,7 +841,7 @@ node {
   bottom: "node_128_3_conv2"
   top: "node_128_3_bn2"
 }
-node {
+layer {
   name: "node_128_3_conv3"
   type: "Convolution"
   bottom: "node_128_3_bn2"
@@ -865,7 +865,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_3_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -881,7 +881,7 @@ node {
   bottom: "node_128_2_bn3"
   top: "node_128_3_bn3"
 }
-node {
+layer {
   name: "node_128_4_conv1"
   type: "Convolution"
   bottom: "node_128_3_bn3"
@@ -905,7 +905,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_4_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -919,7 +919,7 @@ node {
   bottom: "node_128_4_conv1"
   top: "node_128_4_bn1"
 }
-node {
+layer {
   name: "node_128_4_conv2"
   type: "Convolution"
   bottom: "node_128_4_bn1"
@@ -945,7 +945,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_4_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -960,7 +960,7 @@ node {
   bottom: "node_128_4_conv2"
   top: "node_128_4_bn2"
 }
-node {
+layer {
   name: "node_128_4_conv3"
   type: "Convolution"
   bottom: "node_128_4_bn2"
@@ -984,7 +984,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_128_4_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1000,7 +1000,7 @@ node {
   bottom: "node_128_3_bn3"
   top: "node_128_4_bn3"
 }
-node {
+layer {
   name: "node_256_1_conv4"
   type: "Convolution"
   bottom: "node_128_4_bn3"
@@ -1024,7 +1024,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_1_bn4"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1039,7 +1039,7 @@ node {
   bottom: "node_256_1_conv4"
   top: "node_256_1_bn4"
 }
-node {
+layer {
   name: "node_256_1_conv1"
   type: "Convolution"
   bottom: "node_128_4_bn3"
@@ -1063,7 +1063,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_1_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1077,7 +1077,7 @@ node {
   bottom: "node_256_1_conv1"
   top: "node_256_1_bn1"
 }
-node {
+layer {
   name: "node_256_1_conv2"
   type: "Convolution"
   bottom: "node_256_1_bn1"
@@ -1103,7 +1103,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_1_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1118,7 +1118,7 @@ node {
   bottom: "node_256_1_conv2"
   top: "node_256_1_bn2"
 }
-node {
+layer {
   name: "node_256_1_conv3"
   type: "Convolution"
   bottom: "node_256_1_bn2"
@@ -1142,7 +1142,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_1_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1158,7 +1158,7 @@ node {
   bottom: "node_256_1_bn4"
   top: "node_256_1_bn3"
 }
-node {
+layer {
   name: "node_256_2_conv1"
   type: "Convolution"
   bottom: "node_256_1_bn3"
@@ -1182,7 +1182,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_2_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1196,7 +1196,7 @@ node {
   bottom: "node_256_2_conv1"
   top: "node_256_2_bn1"
 }
-node {
+layer {
   name: "node_256_2_conv2"
   type: "Convolution"
   bottom: "node_256_2_bn1"
@@ -1222,7 +1222,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_2_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1237,7 +1237,7 @@ node {
   bottom: "node_256_2_conv2"
   top: "node_256_2_bn2"
 }
-node {
+layer {
   name: "node_256_2_conv3"
   type: "Convolution"
   bottom: "node_256_2_bn2"
@@ -1261,7 +1261,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_2_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1277,7 +1277,7 @@ node {
   bottom: "node_256_1_bn3"
   top: "node_256_2_bn3"
 }
-node {
+layer {
   name: "node_256_3_conv1"
   type: "Convolution"
   bottom: "node_256_2_bn3"
@@ -1301,7 +1301,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_3_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1315,7 +1315,7 @@ node {
   bottom: "node_256_3_conv1"
   top: "node_256_3_bn1"
 }
-node {
+layer {
   name: "node_256_3_conv2"
   type: "Convolution"
   bottom: "node_256_3_bn1"
@@ -1341,7 +1341,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_3_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1356,7 +1356,7 @@ node {
   bottom: "node_256_3_conv2"
   top: "node_256_3_bn2"
 }
-node {
+layer {
   name: "node_256_3_conv3"
   type: "Convolution"
   bottom: "node_256_3_bn2"
@@ -1380,7 +1380,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_3_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1396,7 +1396,7 @@ node {
   bottom: "node_256_2_bn3"
   top: "node_256_3_bn3"
 }
-node {
+layer {
   name: "node_256_4_conv1"
   type: "Convolution"
   bottom: "node_256_3_bn3"
@@ -1420,7 +1420,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_4_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1434,7 +1434,7 @@ node {
   bottom: "node_256_4_conv1"
   top: "node_256_4_bn1"
 }
-node {
+layer {
   name: "node_256_4_conv2"
   type: "Convolution"
   bottom: "node_256_4_bn1"
@@ -1460,7 +1460,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_4_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1475,7 +1475,7 @@ node {
   bottom: "node_256_4_conv2"
   top: "node_256_4_bn2"
 }
-node {
+layer {
   name: "node_256_4_conv3"
   type: "Convolution"
   bottom: "node_256_4_bn2"
@@ -1499,7 +1499,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_4_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1515,7 +1515,7 @@ node {
   bottom: "node_256_3_bn3"
   top: "node_256_4_bn3"
 }
-node {
+layer {
   name: "node_256_5_conv1"
   type: "Convolution"
   bottom: "node_256_4_bn3"
@@ -1539,7 +1539,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_5_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1553,7 +1553,7 @@ node {
   bottom: "node_256_5_conv1"
   top: "node_256_5_bn1"
 }
-node {
+layer {
   name: "node_256_5_conv2"
   type: "Convolution"
   bottom: "node_256_5_bn1"
@@ -1579,7 +1579,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_5_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1594,7 +1594,7 @@ node {
   bottom: "node_256_5_conv2"
   top: "node_256_5_bn2"
 }
-node {
+layer {
   name: "node_256_5_conv3"
   type: "Convolution"
   bottom: "node_256_5_bn2"
@@ -1618,7 +1618,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_5_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1634,7 +1634,7 @@ node {
   bottom: "node_256_4_bn3"
   top: "node_256_5_bn3"
 }
-node {
+layer {
   name: "node_256_6_conv1"
   type: "Convolution"
   bottom: "node_256_5_bn3"
@@ -1658,7 +1658,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_6_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1672,7 +1672,7 @@ node {
   bottom: "node_256_6_conv1"
   top: "node_256_6_bn1"
 }
-node {
+layer {
   name: "node_256_6_conv2"
   type: "Convolution"
   bottom: "node_256_6_bn1"
@@ -1698,7 +1698,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_6_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1713,7 +1713,7 @@ node {
   bottom: "node_256_6_conv2"
   top: "node_256_6_bn2"
 }
-node {
+layer {
   name: "node_256_6_conv3"
   type: "Convolution"
   bottom: "node_256_6_bn2"
@@ -1737,7 +1737,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_256_6_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1753,7 +1753,7 @@ node {
   bottom: "node_256_5_bn3"
   top: "node_256_6_bn3"
 }
-node {
+layer {
   name: "node_512_1_conv4"
   type: "Convolution"
   bottom: "node_256_6_bn3"
@@ -1777,7 +1777,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_1_bn4"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1792,7 +1792,7 @@ node {
   bottom: "node_512_1_conv4"
   top: "node_512_1_bn4"
 }
-node {
+layer {
   name: "node_512_1_conv1"
   type: "Convolution"
   bottom: "node_256_6_bn3"
@@ -1816,7 +1816,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_1_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1830,7 +1830,7 @@ node {
   bottom: "node_512_1_conv1"
   top: "node_512_1_bn1"
 }
-node {
+layer {
   name: "node_512_1_conv2"
   type: "Convolution"
   bottom: "node_512_1_bn1"
@@ -1856,7 +1856,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_1_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1871,7 +1871,7 @@ node {
   bottom: "node_512_1_conv2"
   top: "node_512_1_bn2"
 }
-node {
+layer {
   name: "node_512_1_conv3"
   type: "Convolution"
   bottom: "node_512_1_bn2"
@@ -1895,7 +1895,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_1_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1911,7 +1911,7 @@ node {
   bottom: "node_512_1_bn4"
   top: "node_512_1_bn3"
 }
-node {
+layer {
   name: "node_512_2_conv1"
   type: "Convolution"
   bottom: "node_512_1_bn3"
@@ -1935,7 +1935,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_2_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1949,7 +1949,7 @@ node {
   bottom: "node_512_2_conv1"
   top: "node_512_2_bn1"
 }
-node {
+layer {
   name: "node_512_2_conv2"
   type: "Convolution"
   bottom: "node_512_2_bn1"
@@ -1975,7 +1975,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_2_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -1990,7 +1990,7 @@ node {
   bottom: "node_512_2_conv2"
   top: "node_512_2_bn2"
 }
-node {
+layer {
   name: "node_512_2_conv3"
   type: "Convolution"
   bottom: "node_512_2_bn2"
@@ -2014,7 +2014,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_2_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -2030,7 +2030,7 @@ node {
   bottom: "node_512_1_bn3"
   top: "node_512_2_bn3"
 }
-node {
+layer {
   name: "node_512_3_conv1"
   type: "Convolution"
   bottom: "node_512_2_bn3"
@@ -2054,7 +2054,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_3_bn1"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -2068,7 +2068,7 @@ node {
   bottom: "node_512_3_conv1"
   top: "node_512_3_bn1"
 }
-node {
+layer {
   name: "node_512_3_conv2"
   type: "Convolution"
   bottom: "node_512_3_bn1"
@@ -2094,7 +2094,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_3_bn2"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -2109,7 +2109,7 @@ node {
   bottom: "node_512_3_conv2"
   top: "node_512_3_bn2"
 }
-node {
+layer {
   name: "node_512_3_conv3"
   type: "Convolution"
   bottom: "node_512_3_bn2"
@@ -2133,7 +2133,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "node_512_3_bn3"
   type: "FusedBatchNorm"
   fused_bnorm_param {
@@ -2149,7 +2149,7 @@ node {
   bottom: "node_512_2_bn3"
   top: "node_512_3_bn3"
 }
-node {
+layer {
   name: "pool5"
   type: "Pooling"
   bottom: "node_512_3_bn3"
@@ -2162,7 +2162,7 @@ node {
     stride: 1
   }
 }
-node {
+layer {
   name: "fc1000"
   type: "FullyConnected"
   bottom: "pool5"
@@ -2182,7 +2182,7 @@ node {
     }
   }
 }
-node {
+layer {
   name: "prob"
   type: "SoftmaxWithLoss"
   bottom: "fc1000"
@@ -2190,7 +2190,7 @@ node {
   top: "prob"
   loss_weight: 1
 }
-node {
+layer {
   name: "accuracy1"
   type: "Accuracy"
   bottom: "fc1000"
@@ -2201,7 +2201,7 @@ node {
      top_k: 1
   }
 }
-node {
+layer {
   name: "accuracy5"
   type: "Accuracy"
   bottom: "fc1000"
