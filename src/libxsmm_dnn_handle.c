@@ -108,6 +108,7 @@ LIBXSMM_API_INTERN libxsmm_dnn_err_t libxsmm_dnn_internal_create_conv_handle_dir
 
   /* If we have AVX512 and kernel streams is enabled, then we generate specialized code */
   if (handle->use_thread_private_jit != 0) {
+    printf("target id: 0x%08x\t%d\n", libxsmm_target_archid, libxsmm_target_archid);
     LIBXSMM_ASSERT(LIBXSMM_X86_AVX512 <= libxsmm_target_archid);
 
     /* This is basically a decision pertaining for all three passes: FWD, BWD and UPD */

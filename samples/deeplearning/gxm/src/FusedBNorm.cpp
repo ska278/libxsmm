@@ -329,7 +329,7 @@ void FusedBNormNode::fillBuffer(TensorBuf *tBuf, int buftype, long long int byte
     if(nname_.find("bn3") == nname_.npos)
       value = 1;
     else
-      value = 0.;
+      value = 1.;
   }
   else
     value = 0;
@@ -515,9 +515,10 @@ void FusedBNormNode::forwardPropagate()
     float* beta = (float*)tenShiftData_->getBuffer();
     MeanOfLayer((char*)s.c_str(), beta, gparams_.nInput[0]);
 
-#ifdef BNTEST
+//#ifdef BNTEST
+#if 1
     s = nname_ + "_meanp";
-    int offset = gparams_.batch_size*gparams_.nInput[0]* (gparams_.iHeight + 2*gparams_.ipad_h) * (gparams_.iWidth + 2*gparams_.ipad_2);
+    int offset = gparams_.batch_size*gparams_.nInput[0]* (gparams_.iHeight + 2*gparams_.ipad_h) * (gparams_.iWidth + 2*gparams_.ipad_w);
     float* m = ptr + offset;
     MeanOfLayer((char*)s.c_str(), m, gparams_.nInput[0]);
 

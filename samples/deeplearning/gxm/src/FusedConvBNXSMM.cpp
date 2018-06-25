@@ -831,8 +831,16 @@ memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));
                   del_output[img][fm][h][w][v] = input_r[img][fm][h][w][v] > 0.f ? del_output[img][fm][h][w][v] : 0.f;
                   lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][h][w][v] * brstd[fm][v];
                   lcl_beta[v] += del_output[img][fm][h][w][v];
+		if(img == 0 && fm == 0 && v == 0)
+		{
+		  printf("%0.16f,", del_output[img][fm][h][w][v]);
+		}
                 }
               }
+	    if(img == 0 && fm == 0)
+	    {
+	      printf("\n");
+	    }
             }
 #if 1
 #pragma omp simd
@@ -883,8 +891,18 @@ memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));
                 for(int v=0; v < VLEN; v++) {
                   lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][h][w][v] * brstd[fm][v];
                   lcl_beta[v] += del_output[img][fm][h][w][v];
+
+		if(img == 0 && fm == 0 && v == 0)
+		{
+		  printf("%0.16f,", del_output[img][fm][h][w][v]);
+		}
                 }
               }
+
+	    if(img == 0 && fm == 0)
+	    {
+	      printf("%d %d \n", fh, fw);
+	    }
             }
 #if 1
 #pragma omp simd

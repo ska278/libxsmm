@@ -156,11 +156,7 @@ void FusedBNormXSMM::forwardPropagate(vector<TensorBuf *> inpb, TensorBuf *gamma
 #ifdef __AVX512ER__
       __m512 vtbrstd_A  = _mm512_rsqrt28_ps( _mm512_add_ps( _mm512_sub_ps( vtbmean_2A, vtbmean2A ), veps) );
 #else
-#ifdef NO_APPX_RCP
-      __m512 vtbrstd_A  = _mm512_div_ps(vone, _mm512_sqrt_ps(_mm512_add_ps( _mm512_sub_ps( vtbmean_2A, vtbmean2A ), veps)));
-#else
       __m512 vtbrstd_A  = _mm512_rsqrt14_ps( _mm512_add_ps( _mm512_sub_ps( vtbmean_2A, vtbmean2A ), veps) );
-#endif
 #endif
       _mm512_store_ps( &(bmean[b][0]), vtbmeanA );
       _mm512_store_ps( &(brstd[b][0]), vtbrstd_A );
@@ -667,8 +663,17 @@ void FusedBNormXSMM::backPropagate(vector<TensorBuf*> inpb, TensorBuf* outpb, Te
                 del_output[img][fm][hp][wp][v] = (output[img][fm][hp][wp][v] == 0.0) ? 0.0 : del_output[img][fm][hp][wp][v];
                 lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][hp][wp][v] * brstd[fm][v];
                 lcl_beta[v] += del_output[img][fm][hp][wp][v];
+
+		if(img == 0 && fm == 0 && v == 0)
+		{
+		  printf("%0.16f,", del_output[img][fm][hp][wp][v]);
+		}
               }
             }
+	    if(img == 0 && fm == 0)
+	    {
+	      printf("\n");
+	    }
           }
 #pragma omp simd
 #pragma vector aligned
@@ -771,8 +776,16 @@ void FusedBNormXSMM::backPropagate(vector<TensorBuf*> inpb, TensorBuf* outpb, Te
               for(int v=0; v < VLEN; v++) {
                 lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][hp][wp][v] * brstd[fm][v];
                 lcl_beta[v] += del_output[img][fm][hp][wp][v];
+		if(img == 0 && fm == 0 && v == 0)
+		{
+		  printf("%0.16f,", del_output[img][fm][hp][wp][v]);
+		}
               }
             }
+	    if(img == 0 && fm == 0)
+	    {
+	      printf("\n");
+	    }
           }
 #pragma omp simd
 #pragma vector aligned

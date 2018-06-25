@@ -814,12 +814,7 @@ int main(int argc, char* argv[])
   zero_buf(naive_input_st,     nImg*nIfm*ifhp*ifwp);
   zero_buf(naive_lcl_gamma_beta,     2*nImg*nIfm);
 
-  float *naive_output_tmp          = (float*)libxsmm_aligned_malloc( nImg*nOfm*ofhp*ofwp*sizeof(float), 2097152);
-  if (padding_mode == 0 ) {
-    init_buf(naive_output,       nImg*nOfm*ofhp*ofwp, 0, 0);
-  } else {
-    init_buf(naive_output_tmp,       nImg*nOfm*ofh*ofw, 0, 0);
-  }
+  init_buf(naive_output,       nImg*nOfm*ofhp*ofwp, 0, 0);
   set_zeropad_nchw(naive_output, nImg, nOfm, ofhp, ofwp, pad_h_out, pad_w_out);
   copy_buf(naive_output, naive_output_save, nImg*nOfm*ofhp*ofwp);
   zero_buf(naive_libxsmm_output, nImg*nOfm*ofhp*ofwp);
@@ -1146,7 +1141,7 @@ int main(int argc, char* argv[])
 
 #if defined(USE_FUSED_BATCH_NORM_FWD) || defined(USE_FUSED_BATCH_NORM_RELU_FWD)
       printf("Input streaming store\n");
-      libxsmm_matdiff(LIBXSMM_DATATYPE_F32, nImg*nIfm*ifhp*ifwp, 1, naive_input_st, naive_libxsmm_input_st, 0, 0, &norms_fwd);
+      //libxsmm_matdiff(LIBXSMM_DATATYPE_F32, nImg*nIfm*ifhp*ifwp, 1, naive_input_st, naive_libxsmm_input_st, 0, 0, &norms_fwd);
       printf("Input store:\n");
       printf("L1 reference  : %.25g\n", norms_fwd.l1_ref);
       printf("L1 test       : %.25g\n", norms_fwd.l1_tst);
@@ -1155,7 +1150,7 @@ int main(int argc, char* argv[])
       printf("Linf abs.error: %.24f\n", norms_fwd.linf_abs);
       printf("Linf rel.error: %.24f\n", norms_fwd.linf_rel);
       printf("Check-norm    : %.24f\n", norms_fwd.normf_rel);
-      libxsmm_matdiff_reduce(&diff, &norms_fwd);
+      //libxsmm_matdiff_reduce(&diff, &norms_fwd);
 
       libxsmm_matdiff(LIBXSMM_DATATYPE_F32, nImg*nIfm*ifhp*ifwp, 1, naive_input, naive_libxsmm_input, 0, 0, &norms_fwd);
       printf("Input overwritten by BN\n");

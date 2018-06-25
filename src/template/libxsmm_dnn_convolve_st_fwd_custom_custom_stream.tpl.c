@@ -140,25 +140,8 @@ void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const e
 	}
       }
 
-      // Do BN of right corner in row below current
-      for(my_w = (handle->fwd_ofw_rb) * handle->desc.v ; (my_w < (handle->fwd_ofw_rb) * handle->desc.v + 1) && (oi + my_w < handle->desc.W) ; my_w++)
-      {
-        for(my_h = 1 ; (my_h < (handle->fwd_ofh_rb + 1) * handle->desc.v) && (oj + my_h < handle->desc.H) ; my_h++)
-        {
-	    int _my_h = my_h + 1;
-	    int _my_w = my_w + 1;
-            __m512 _input = _mm512_load_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw]);
-            _mm512_stream_ps(&myinput_st[ifm_idx * handle->ifhp * handle->ifwp * handle->ifmblock + (my_w + handle->desc.pad_w_in) * handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp], _input) ;
-            _input = _mm512_add_ps( _mm512_mul_ps( _mm512_mul_ps( _mm512_sub_ps(_input, _expect) , _stddev), _gamma), _beta);
-            __m512 _zero = _mm512_set1_ps(0.f);
-            __mmask16 msk = _mm512_cmp_ps_mask(_zero, _input, 1);
-            _input = _mm512_maskz_add_ps(msk, _zero, _input);
-            _mm512_store_ps(&input1[ifm_idx * my_ldh * my_ldw * handle->ifmblock + _my_w * handle->ifmblock + _my_h * handle->ifmblock * my_ldw], _input);
-        }
-      }
-
       // Do BN of inside part 
-      for(my_w = 1 ; (my_w < (handle->fwd_ofw_rb) * handle->desc.v) && (oi + my_w < handle->desc.W) ; my_w++)
+      for(my_w = 1 ; (my_w < ((handle->fwd_ofw_rb) * handle->desc.v+1)) && (oi + my_w < handle->desc.W) ; my_w++)
       {
         for(my_h = 1 ; (my_h < (handle->fwd_ofh_rb + 1) * handle->desc.v) && (oj + my_h < handle->desc.H) ; my_h++)
 	{
@@ -655,6 +638,10 @@ if (n_segments) {
              ifm1 = code_stream[pc].aux_index;
 #ifndef FUSED_BN_CONV_WRAPPER
 #include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+#else
+          if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) <= 0)) {
+#include "libxsmm_dnn_fwd_custom_custom_apply_bn.tpl.c"
+          }
 #endif
 	  }
           if ( instr == OFM_LOOP_CLOSE ) {
@@ -771,7 +758,11 @@ if (n_segments) {
 	    else
 	    {
 #ifdef FUSED_BN_CONV_WRAPPER
+            if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
               wrapper_kernel(kernel, input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals, handle, ifm1, padded_w, padded_h, img, BLOCKSIFM, ltid, offset_i, pi, input_st_base + offset_i_st, oi, oj);
+	    } else {
+              kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+             }
 #else
               kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
 #endif

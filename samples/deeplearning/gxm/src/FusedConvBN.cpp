@@ -523,7 +523,7 @@ void FusedConvBNNode::fillBuffer(TensorBuf* tBuf, int buftype, long long int siz
     if(nname_.find("bn3") == nname_.npos)
       value = 1;
     else
-      value = 0.;
+      value = 1.;
   }
   else
     value = 0.;

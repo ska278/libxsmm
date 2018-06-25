@@ -11,10 +11,10 @@ node {
     test_source: "/scratch/savancha/jpegs_256resized"
     test_list: "/scratch/savancha/jpegs_256resized/val_images_labels.list"
     batch_size: 56
-    num_train_files: 1281167
-    num_test_files: 50000
+    num_train_files: 56 #1281167
+    num_test_files: 56 # 50000
     numsplits: 1
-    lookahead: 2
+    lookahead: 1 # 2
     shuffle: true
     engine: XSMM
 
@@ -93,10 +93,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -122,10 +118,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -153,10 +145,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -186,10 +174,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -234,10 +218,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -261,10 +241,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -293,10 +269,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -339,10 +311,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -366,10 +334,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -398,10 +362,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -444,10 +404,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -474,10 +430,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -501,10 +453,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -533,10 +481,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -579,10 +523,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -606,10 +546,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -638,10 +574,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -684,10 +616,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -711,10 +639,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -743,10 +667,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -789,10 +709,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -816,10 +732,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -848,10 +760,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -894,10 +802,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -924,10 +828,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -951,10 +851,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -983,10 +879,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1029,10 +921,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1056,10 +944,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1088,10 +972,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1134,10 +1014,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1161,10 +1037,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1193,10 +1065,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1239,10 +1107,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1266,10 +1130,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1298,10 +1158,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1344,10 +1200,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1371,10 +1223,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1403,10 +1251,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1448,10 +1292,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1475,10 +1315,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1507,10 +1343,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1553,10 +1385,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1583,10 +1411,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1610,10 +1434,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1642,10 +1462,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1688,10 +1504,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1715,10 +1527,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1747,10 +1555,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1793,10 +1597,6 @@ node {
     lr_mult: 1.0
     decay_mult: 1.0
   }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
-  }
   fused_conv_bn_param {
     data_type: FLOAT
     engine: XSMM
@@ -1820,10 +1620,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
@@ -1852,10 +1648,6 @@ node {
   param {
     lr_mult: 1.0
     decay_mult: 1.0
-  }
-  param {
-    lr_mult: 1.0
-    decay_mult: 0.0
   }
   fused_conv_bn_param {
     data_type: FLOAT
