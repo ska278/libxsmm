@@ -218,7 +218,7 @@ void libxsmm_generator_spgemm_csr_asparse_reg( libxsmm_generated_code*         i
 
   /* n loop */
 #if 0
-  libxsmm_x86_instruction_register_jump_label( io_generated_code, &l_loop_label_tracker );
+  libxsmm_x86_instruction_register_jump_back_label( io_generated_code, &l_loop_label_tracker );
   libxsmm_x86_instruction_alu_imm( io_generated_code, l_micro_kernel_config.alu_add_instruction, l_gp_reg_mapping.gp_reg_nloop, l_n_blocking );
 #endif
 
@@ -227,7 +227,7 @@ void libxsmm_generator_spgemm_csr_asparse_reg( libxsmm_generated_code*         i
     if (l_row_elements > 0) {
       for ( l_n = 0; l_n < l_n_blocking; l_n++ ) {
         /* load C or reset to 0 depending on beta */
-        if ( i_xgemm_desc->beta != 0 ) {
+        if (0 == (LIBXSMM_GEMM_FLAG_BETA_0 & i_xgemm_desc->flags)) { /* Beta=1 */
           libxsmm_x86_instruction_vec_move( io_generated_code,
                                             l_micro_kernel_config.instruction_set,
                                             l_micro_kernel_config.c_vmove_instruction,

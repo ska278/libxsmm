@@ -411,8 +411,8 @@
  * VLA-support is signaled by LIBXSMM_VLA.
  */
 #if !defined(LIBXSMM_VLA) && !defined(LIBXSMM_NO_VLA) && !defined(__PGI) && ((defined(__STDC_VERSION__) && (199901L/*C99*/ == __STDC_VERSION__ || \
-   (!defined(__STDC_NO_VLA__)&& 199901L/*C99*/ < __STDC_VERSION__))) || (defined(__INTEL_COMPILER) && !defined(_WIN32)) || \
-    (defined(__GNUC__) && !defined(__STRICT_ANSI__) && !defined(__cplusplus))/*depends on above C99-check*/)
+   (!defined(__STDC_NO_VLA__) && 199901L/*C99*/ < __STDC_VERSION__))) || (defined(__INTEL_COMPILER) && !defined(_WIN32)) || \
+    (defined(__GNUC__) && !defined(__STRICT_ANSI__) && !defined(__cplusplus))/*depends on prior C99-check*/)
 # define LIBXSMM_VLA
 #endif
 
@@ -485,11 +485,12 @@
 # define LIBXSMM_ATTRIBUTE_WEAK_IMPORT
 #endif
 
-#if !defined(LIBXSMM_NO_CTOR) && defined(__GNUC__) \
- && !defined(LIBXSMM_CTOR) && defined(LIBXSMM_BUILD) && !defined(__STATIC)
+#if !defined(LIBXSMM_NO_CTOR) && defined(__GNUC__) && !defined(LIBXSMM_CTOR)
 # define LIBXSMM_ATTRIBUTE_CTOR LIBXSMM_ATTRIBUTE(constructor)
 # define LIBXSMM_ATTRIBUTE_DTOR LIBXSMM_ATTRIBUTE(destructor)
-# define LIBXSMM_CTOR
+# if defined(LIBXSMM_BUILD) && !defined(__STATIC)
+#   define LIBXSMM_CTOR
+# endif
 #else
 # define LIBXSMM_ATTRIBUTE_CTOR
 # define LIBXSMM_ATTRIBUTE_DTOR
@@ -529,6 +530,10 @@
 #   define LIBXSMM_FUNLOCK(FILE)
 # endif
 #endif
+
+/** Synchronize console output */
+#define LIBXSMM_STDIO_ACQUIRE() LIBXSMM_FLOCK(stdout); LIBXSMM_FLOCK(stderr)
+#define LIBXSMM_STDIO_RELEASE() LIBXSMM_FLOCK(stderr); LIBXSMM_FLOCK(stdout)
 
 /** Determines whether constant-folding is available or not. */
 #if !defined(LIBXSMM_STRING_POOLING)
@@ -608,7 +613,7 @@
 # endif
 #endif
 #if !defined(LIBXSMM_ASSERT_MSG)
-# define LIBXSMM_ASSERT_MSG(EXPR, MSG) LIBXSMM_ASSERT((EXPR) && (0 != *(MSG)))
+# define LIBXSMM_ASSERT_MSG(EXPR, MSG) assert((EXPR) && (0 != *(MSG)))
 #endif
 #if !defined(LIBXSMM_EXPECT)
 # if defined(NDEBUG)

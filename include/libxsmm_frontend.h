@@ -145,6 +145,14 @@
 # define LIBXSMM_EXT_GEMM_WEAK
 #endif
 
+#if !defined(LIBXSMM_NO_BLAS)
+# if !defined(__BLAS) || (0 != __BLAS)
+#   define LIBXSMM_NO_BLAS 0
+# else
+#   define LIBXSMM_NO_BLAS 1
+# endif
+#endif
+
 #if defined(LIBXSMM_BUILD)
 # if defined(LIBXSMM_BUILD_EXT) && !defined(__STATIC)
 #   define LIBXSMM_GEMM_SYMBOL_VISIBILITY LIBXSMM_APIEXT
@@ -390,6 +398,8 @@ LIBXSMM_API void libxsmm_gemm_dprint2(void* ostream,
   double dalpha, const void* a, libxsmm_blasint lda,
   const void* b, libxsmm_blasint ldb,
   double dbeta, void* c, libxsmm_blasint ldc);
+LIBXSMM_API void libxsmm_gemm_xprint(void* ostream,
+  libxsmm_xmmfunction kernel, const void* a, const void* b, void* c);
 
 /** GEMM: fall-back prototype functions served by any compliant LAPACK/BLAS. */
 LIBXSMM_EXTERN_C typedef LIBXSMM_RETARGETABLE void (*libxsmm_sgemm_function)(

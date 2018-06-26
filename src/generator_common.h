@@ -187,30 +187,34 @@
 #define LIBXSMM_X86_INSTR_VPMADDUBSW     20051
 #define LIBXSMM_X86_INSTR_VPADDSW        20052
 #define LIBXSMM_X86_INSTR_VPADDSB        20053
+#define LIBXSMM_X86_INSTR_VPSUBD         20054
 /* Additional vector manipulations */
-#define LIBXSMM_X86_INSTR_VUNPCKLPD      20054
-#define LIBXSMM_X86_INSTR_VUNPCKLPS      20055
-#define LIBXSMM_X86_INSTR_VUNPCKHPD      20056
-#define LIBXSMM_X86_INSTR_VUNPCKHPS      20057
-#define LIBXSMM_X86_INSTR_VPSRAVD        20058
-#define LIBXSMM_X86_INSTR_VCVTDQ2PS      20059
-#define LIBXSMM_X86_INSTR_VDIVPS         20060
-#define LIBXSMM_X86_INSTR_VDIVPD         20061
-#define LIBXSMM_X86_INSTR_VFMADD213PS    20062
-#define LIBXSMM_X86_INSTR_VCVTPS2PD      20063
-#define LIBXSMM_X86_INSTR_VBLENDMPS      20064
-#define LIBXSMM_X86_INSTR_VCMPPS         20065
-#define LIBXSMM_X86_INSTR_VPANDD         20066
-#define LIBXSMM_X86_INSTR_VPANDQ         20067
-#define LIBXSMM_X86_INSTR_VMAXPD         20068
-#define LIBXSMM_X86_INSTR_VMAXPS         20069
-#define LIBXSMM_X86_INSTR_VCVTPS2PH      20070
-#define LIBXSMM_X86_INSTR_VCVTPH2PS      20071
-#define LIBXSMM_X86_INSTR_VPERMD         20072
-#define LIBXSMM_X86_INSTR_VPMOVDW        20073
-#define LIBXSMM_X86_INSTR_VPSRAD         20074
-#define LIBXSMM_X86_INSTR_VPSLLD         20075
-#define LIBXSMM_X86_INSTR_VPCMPD         20076
+#define LIBXSMM_X86_INSTR_VUNPCKLPD      20055
+#define LIBXSMM_X86_INSTR_VUNPCKLPS      20056
+#define LIBXSMM_X86_INSTR_VUNPCKHPD      20057
+#define LIBXSMM_X86_INSTR_VUNPCKHPS      20058
+#define LIBXSMM_X86_INSTR_VPSRAVD        20059
+#define LIBXSMM_X86_INSTR_VCVTDQ2PS      20060
+#define LIBXSMM_X86_INSTR_VDIVPS         20061
+#define LIBXSMM_X86_INSTR_VDIVPD         20062
+#define LIBXSMM_X86_INSTR_VFMADD213PS    20063
+#define LIBXSMM_X86_INSTR_VCVTPS2PD      20064
+#define LIBXSMM_X86_INSTR_VBLENDMPS      20065
+#define LIBXSMM_X86_INSTR_VCMPPS         20066
+#define LIBXSMM_X86_INSTR_VPANDD         20067
+#define LIBXSMM_X86_INSTR_VPANDQ         20068
+#define LIBXSMM_X86_INSTR_VMAXPD         20069
+#define LIBXSMM_X86_INSTR_VMAXPS         20070
+#define LIBXSMM_X86_INSTR_VCVTPS2PH      20071
+#define LIBXSMM_X86_INSTR_VCVTPH2PS      20072
+#define LIBXSMM_X86_INSTR_VPERMD         20073
+#define LIBXSMM_X86_INSTR_VPMOVDW        20074
+#define LIBXSMM_X86_INSTR_VPSRAD         20075
+#define LIBXSMM_X86_INSTR_VPSLLD         20076
+#define LIBXSMM_X86_INSTR_VPCMPD         20077
+#define LIBXSMM_X86_INSTR_VPORD          20078
+#define LIBXSMM_X86_INSTR_VPSRLD         20079
+#define LIBXSMM_X86_INSTR_VPERMT2W       20080
 
 /* AVX512, QUAD MADD, QUAD VNNI and VNNI */
 #define LIBXSMM_X86_INSTR_V4FMADDPS      26000
@@ -242,6 +246,14 @@
 #define LIBXSMM_X86_INSTR_IMUL           30014
 #define LIBXSMM_X86_INSTR_CMOVZ          30015
 #define LIBXSMM_X86_INSTR_CMOVNZ         30016
+#define LIBXSMM_X86_INSTR_JE             30017
+#define LIBXSMM_X86_INSTR_JZ             30018
+#define LIBXSMM_X86_INSTR_JG             30019
+#define LIBXSMM_X86_INSTR_JNE            30020
+#define LIBXSMM_X86_INSTR_JNZ            30021
+#define LIBXSMM_X86_INSTR_JGE            30022
+#define LIBXSMM_X86_INSTR_JLE            30023
+#define LIBXSMM_X86_INSTR_JMP            30024
 
 /* Mask move instructions */
 #define LIBXSMM_X86_INSTR_KMOV           40000
@@ -308,6 +320,7 @@
 #define LIBXSMM_ERR_INVALID_GEMM_CONFIG  90051
 #define LIBXSMM_ERR_UNIQUE_VAL           90052
 #define LIBXSMM_ERR_VEC_REG_MUST_BE_UNDEF 90053
+#define LIBXSMM_ERR_JMPLBL_USED           90054
 
 #define LIBXSMM_HANDLE_ERROR(GENERATED_CODE, ERROR_CODE) libxsmm_handle_error( \
   GENERATED_CODE, ERROR_CODE, LIBXSMM_CALLER, libxsmm_verbosity)
@@ -486,8 +499,24 @@ LIBXSMM_EXTERN_C typedef struct libxsmm_loop_label_tracker_struct {
   unsigned int label_count;
 } libxsmm_loop_label_tracker;
 
+/* structure to save jump properties to the same destination */
+LIBXSMM_EXTERN_C typedef struct libxsmm_jump_source_struct {
+  unsigned int instr_type[32];
+  unsigned int instr_addr[32];
+  unsigned int ref_count;
+} libxsmm_jump_source;
+
+/* structure for tracking arbitrary jump labels in assembly code */
+LIBXSMM_EXTERN_C typedef struct libxsmm_jump_label_tracker_struct {
+  unsigned int        label_address[32];
+  libxsmm_jump_source label_source[32];
+} libxsmm_jump_label_tracker;
+
 LIBXSMM_API_INTERN
 void libxsmm_reset_loop_label_tracker( libxsmm_loop_label_tracker* io_loop_label_tracker );
+
+LIBXSMM_API_INTERN
+void libxsmm_reset_jump_label_tracker( libxsmm_jump_label_tracker* io_jump_lable_tracker );
 
 LIBXSMM_API_INTERN
 void libxsmm_get_x86_gp_reg_name( const unsigned int i_gp_reg_number,

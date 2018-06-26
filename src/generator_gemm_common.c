@@ -600,7 +600,7 @@ void libxsmm_generator_gemm_header_kloop( libxsmm_generated_code*             io
                                            const unsigned int                 i_k_blocking ) {
   LIBXSMM_UNUSED(i_m_blocking);
   libxsmm_x86_instruction_alu_imm( io_generated_code, i_micro_kernel_config->alu_mov_instruction, i_gp_reg_mapping->gp_reg_kloop, 0);
-  libxsmm_x86_instruction_register_jump_label( io_generated_code, io_loop_label_tracker );
+  libxsmm_x86_instruction_register_jump_back_label( io_generated_code, io_loop_label_tracker );
   libxsmm_x86_instruction_alu_imm( io_generated_code, i_micro_kernel_config->alu_add_instruction, i_gp_reg_mapping->gp_reg_kloop, i_k_blocking);
 }
 
@@ -628,7 +628,7 @@ void libxsmm_generator_gemm_header_nloop( libxsmm_generated_code*             io
                                            const libxsmm_gp_reg_mapping*      i_gp_reg_mapping,
                                            const libxsmm_micro_kernel_config* i_micro_kernel_config,
                                            const unsigned int                 i_n_blocking) {
-  libxsmm_x86_instruction_register_jump_label( io_generated_code, io_loop_label_tracker );
+  libxsmm_x86_instruction_register_jump_back_label( io_generated_code, io_loop_label_tracker );
   libxsmm_x86_instruction_alu_imm( io_generated_code, i_micro_kernel_config->alu_add_instruction, i_gp_reg_mapping->gp_reg_nloop, i_n_blocking );
   libxsmm_x86_instruction_alu_imm( io_generated_code, i_micro_kernel_config->alu_mov_instruction, i_gp_reg_mapping->gp_reg_mloop, 0 );
 }
@@ -665,7 +665,7 @@ void libxsmm_generator_gemm_header_mloop( libxsmm_generated_code*             io
                                            const libxsmm_gp_reg_mapping*      i_gp_reg_mapping,
                                            const libxsmm_micro_kernel_config* i_micro_kernel_config,
                                            const unsigned int                 i_m_blocking ) {
-  libxsmm_x86_instruction_register_jump_label( io_generated_code, io_loop_label_tracker );
+  libxsmm_x86_instruction_register_jump_back_label( io_generated_code, io_loop_label_tracker );
   libxsmm_x86_instruction_alu_imm( io_generated_code, i_micro_kernel_config->alu_add_instruction, i_gp_reg_mapping->gp_reg_mloop, i_m_blocking );
 }
 
@@ -779,7 +779,7 @@ void libxsmm_generator_gemm_load_C( libxsmm_generated_code*             io_gener
 #endif /*NDEBUG*/
 
   /* load C accumulator */
-  if (i_xgemm_desc->beta == 1) {
+  if (0 == (LIBXSMM_GEMM_FLAG_BETA_0 & i_xgemm_desc->flags)) { /* Beta=1 */
     /* let convert the int32 accumulator into a FP32 values */
     if ( ( (i_micro_kernel_config->instruction_set == LIBXSMM_X86_AVX512_CORE) || (i_micro_kernel_config->instruction_set == LIBXSMM_X86_AVX512_KNM) ||
          (i_micro_kernel_config->instruction_set == LIBXSMM_X86_AVX512_ICL) ) &&
@@ -930,7 +930,7 @@ void libxsmm_generator_gemm_store_C( libxsmm_generated_code*             io_gene
                                                  l_vec_reg_acc_start + l_m + (l_m_blocking * l_n),
                                                  LIBXSMM_X86_VEC_REG_UNDEF );
         /* scale it */
-        if (i_xgemm_desc->beta == 1) {
+        if (0 == (LIBXSMM_GEMM_FLAG_BETA_0 & i_xgemm_desc->flags)) { /* Beta=1 */
           libxsmm_x86_instruction_vec_compute_mem( io_generated_code,
                                                    i_micro_kernel_config->instruction_set,
                                                    LIBXSMM_X86_INSTR_VFMADD213PS,
