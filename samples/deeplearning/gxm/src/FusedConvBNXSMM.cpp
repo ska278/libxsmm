@@ -769,8 +769,17 @@ void FusedConvBNXSMM::backPropagate(TensorBuf *outp, TensorBuf *deloutp, TensorB
     dgamma_dbeta = sin_ptr + inp_off*sizeof(float);
 memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));    
   }
+
+  delgamma_ptr = delgammap->getBuffer();
+  delbeta_ptr = delbetap->getBuffer();
   
-//  if(gp->bn_bwd)
+  if(gp->bn_bwd)
+  {
+    float *dgb_ptr = (float*)(sout_ptr + offset*sizeof(float));
+    reduce_delgamma_delbeta(dgb_ptr, (float*)delgamma_ptr, (float*)delbeta_ptr, conv_desc.K);
+  }
+
+  if(gp->own_bstats_relu_bwd)
   {
     int nImg = conv_desc.N;
     int nBfm = conv_desc.K/VLEN;
@@ -795,45 +804,41 @@ memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));
     float (* __restrict brstd)[VLEN]                       = (float (*)[VLEN])brstd1;
     float (* __restrict input_r)[nBfm][fh][fw][VLEN]     = (float (*)[*][*][*][VLEN])sout_ptr;
     float (* __restrict gamma)[VLEN]                       = (float (*)[VLEN])gamma_ptr;
-
-    if(gp->own_bstats_relu_bwd)
-    {
-
 #if 1
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
 #endif
-      {
+    {
 #if 1
 #pragma omp for
 #pragma vector aligned
 #endif
-        for(int img=0; img < nImg; img++) {
-          for(int fm=0; fm < nBfm; fm++) {
-            float lcl_gamma[VLEN];
-            float lcl_beta[VLEN];
+      for(int img=0; img < nImg; img++) {
+        for(int fm=0; fm < nBfm; fm++) {
+          float lcl_gamma[VLEN];
+          float lcl_beta[VLEN];
 #if 1
 #pragma omp simd
 #pragma vector aligned
 #endif
-            for(int v=0; v < VLEN; v++) {
-              lcl_gamma[v] = 0.0f;
-              lcl_beta[v] = 0.0f;
-            }
-            for(int h=0; h < fh; h++) {
-              for(int w=0; w < fw; w++) {
+          for(int v=0; v < VLEN; v++) {
+            lcl_gamma[v] = 0.0f;
+            lcl_beta[v] = 0.0f;
+          }
+          for(int h=0; h < fh; h++) {
+            for(int w=0; w < fw; w++) {
 #if 1
 #pragma omp simd
 #pragma vector aligned
 #endif
-                for(int v=0; v < VLEN; v++) {
-                  del_output[img][fm][h][w][v] = input_r[img][fm][h][w][v] > 0.f ? del_output[img][fm][h][w][v] : 0.f;
-                  lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][h][w][v] * brstd[fm][v];
-                  lcl_beta[v] += del_output[img][fm][h][w][v];
-                }
+              for(int v=0; v < VLEN; v++) {
+                del_output[img][fm][h][w][v] = input_r[img][fm][h][w][v] > 0.f ? del_output[img][fm][h][w][v] : 0.f;
+                lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][h][w][v] * brstd[fm][v];
+                lcl_beta[v] += del_output[img][fm][h][w][v];
               }
             }
+          }
 #if 1
 #pragma omp simd
 #pragma vector aligned
@@ -841,51 +846,74 @@ memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));
 #pragma vector nontemporal
 #endif
 #endif
-            for(int v=0; v < VLEN; v++) {
-              del_gamma_img[fm][img][v] = lcl_gamma[v];
-              del_beta_img[fm][img][v]  = lcl_beta[v];
-            }
+          for(int v=0; v < VLEN; v++) {
+            del_gamma_img[fm][img][v] = lcl_gamma[v];
+            del_beta_img[fm][img][v]  = lcl_beta[v];
           }
         }
       }
-      //printf("done\n");
     }
-    else if(gp->own_bstats_bwd)
-    {
+    //printf("done\n");
+  }
+  else if(gp->own_bstats_bwd)
+  {
+    int nImg = conv_desc.N;
+    int nBfm = conv_desc.K/VLEN;
+    int nFM = conv_desc.K;
+    int fh = gp->oHeight;
+    int fw = gp->oWidth;
+    int ph = gp->pad_h;
+    int pw = gp->pad_w;
+    int sh = gp->stride_h;
+    int sw = gp->stride_w;
+    int iph = gp->ipad_h;
+    int ipw = gp->ipad_w;
+
+    void *deloutptr = deloutp->getBuffer();
+    float *dgb_ptr = (float*)(sout_ptr + offset*sizeof(float));
+    float *del_gamma_imgp = dgb_ptr;
+    float *del_beta_imgp = del_gamma_imgp + conv_desc.N * conv_desc.K;
+    float (* __restrict del_gamma_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_gamma_imgp;
+    float (* __restrict del_beta_img)[nImg][VLEN] = (float (*)[nImg][VLEN])del_beta_imgp;
+    float (* __restrict del_output)[nBfm][fh][fw][VLEN]  = (float (*)[*][*][*][VLEN])deloutptr;
+    float (* __restrict bmean)[VLEN]                       = (float (*)[VLEN])bmean1;
+    float (* __restrict brstd)[VLEN]                       = (float (*)[VLEN])brstd1;
+    float (* __restrict input_r)[nBfm][fh][fw][VLEN]     = (float (*)[*][*][*][VLEN])sout_ptr;
+    float (* __restrict gamma)[VLEN]                       = (float (*)[VLEN])gamma_ptr;
 #if 1
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
 #endif
-      {
+    {
 #if 1
 #pragma omp for
 #pragma vector aligned
 #endif
-        for(int img=0; img < nImg; img++) {
-          for(int fm=0; fm < nBfm; fm++) {
-            float lcl_gamma[VLEN];
-            float lcl_beta[VLEN];
+      for(int img=0; img < nImg; img++) {
+        for(int fm=0; fm < nBfm; fm++) {
+          float lcl_gamma[VLEN];
+          float lcl_beta[VLEN];
 #if 1
 #pragma omp simd
 #pragma vector aligned
 #endif
-            for(int v=0; v < VLEN; v++) {
-              lcl_gamma[v] = 0.0f;
-              lcl_beta[v] = 0.0f;
-            }
-            for(int h=0; h < fh; h++) {
-              for(int w=0; w < fw; w++) {
+          for(int v=0; v < VLEN; v++) {
+            lcl_gamma[v] = 0.0f;
+            lcl_beta[v] = 0.0f;
+          }
+          for(int h=0; h < fh; h++) {
+            for(int w=0; w < fw; w++) {
 #if 1
 #pragma omp simd
 #pragma vector aligned
 #endif
-                for(int v=0; v < VLEN; v++) {
-                  lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][h][w][v] * brstd[fm][v];
-                  lcl_beta[v] += del_output[img][fm][h][w][v];
-                }
+              for(int v=0; v < VLEN; v++) {
+                lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][h][w][v] * brstd[fm][v];
+                lcl_beta[v] += del_output[img][fm][h][w][v];
               }
             }
+          }
 #if 1
 #pragma omp simd
 #pragma vector aligned
@@ -893,19 +921,13 @@ memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));
 #pragma vector nontemporal
 #endif
 #endif
-            for(int v=0; v < VLEN; v++) {
-              del_gamma_img[fm][img][v] = lcl_gamma[v];
-              del_beta_img[fm][img][v]  = lcl_beta[v];
-            }
+          for(int v=0; v < VLEN; v++) {
+            del_gamma_img[fm][img][v] = lcl_gamma[v];
+            del_beta_img[fm][img][v]  = lcl_beta[v];
           }
         }
       }
     }
-
-    delgamma_ptr = delgammap->getBuffer();
-    delbeta_ptr = delbetap->getBuffer();
-
-    reduce_delgamma_delbeta(dgb_ptr, (float*)delgamma_ptr, (float*)delbeta_ptr, conv_desc.K);
   }
 
   // deloutput
