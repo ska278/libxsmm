@@ -251,6 +251,9 @@ LIBXSMM_INLINE void naive_conv_fp(naive_conv_t* param, float* input, float* outp
     for (ifm = 0; ifm < nIfm; ++ifm) {
       for (ij = 0; ij < ifh; ++ij) {
         for (ii = 0; ii < ifw; ++ii) {
+#if defined(USE_FUSED_ELTWISE_RELU_INPUT)
+
+#endif
 #if defined(USE_FUSED_BATCH_NORM_FWD) || defined(USE_FUSED_BATCH_NORM_RELU_FWD)
 	  LIBXSMM_VLA_ACCESS(4,  input_st_t, img, ifm, ij, ii, nIfm, ifhp, ifwp) = LIBXSMM_VLA_ACCESS(4,  input_t, img, ifm, ij, ii, nIfm, ifhp, ifwp);
 #endif

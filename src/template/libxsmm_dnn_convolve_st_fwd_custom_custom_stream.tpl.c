@@ -29,7 +29,7 @@
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
 
-//#define FUSED_BN_CONV_WRAPPER
+#define FUSED_BN_CONV_WRAPPER
 
 #ifdef FUSED_BN_CONV_WRAPPER
 void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, element_input_type * myinput_st, int oi, int oj)
@@ -838,6 +838,8 @@ if (n_segments) {
           }
 
           /* Run the stream of convolutions for this segment */
+	  if(variant[pool_index] < 2)
+	  {
           for (conv_i = 0; conv_i < n_convs; conv_i++) {
             offset_i = stream[i];
             offset_w = stream[i+1];
@@ -849,11 +851,23 @@ if (n_segments) {
             pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
             pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
             po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
-	    if(variant[pool_index] < 2)
-	    {
-              kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
-	    }
-	    else
+            kernel( input_base + offset_i, weight_base + offset_w, output_base + offset_o, input_base + pi, weight_base + pw, output_base + po, &scale_factor, max_vals);
+	    pool_index++;
+            i+=LOCAL_ENTRIES_PER_CONV;
+          }
+	  }
+	  else {
+          for (conv_i = 0; conv_i < n_convs; conv_i++) {
+            offset_i = stream[i];
+            offset_w = stream[i+1];
+            offset_o = stream[i+2];
+            offset_i_st = stream[i+3];
+            oi = stream[i+4];
+            oj = stream[i+5];
+            ifm1 = stream[i+6];
+            pi = stream[i+LOCAL_ENTRIES_PER_CONV+0];
+            pw = stream[i+LOCAL_ENTRIES_PER_CONV+1];
+            po = stream[i+LOCAL_ENTRIES_PER_CONV+2];
 	    {
 #ifdef FUSED_BN_CONV_WRAPPER
             if (((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_BATCH_NORM_RELU_FWD) > 0)) {
@@ -868,6 +882,7 @@ if (n_segments) {
 	    pool_index++;
             i+=LOCAL_ENTRIES_PER_CONV;
           }
+        }
         }
       }
     }
