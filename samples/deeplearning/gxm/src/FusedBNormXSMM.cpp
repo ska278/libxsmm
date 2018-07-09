@@ -38,8 +38,6 @@
 
 #define VLEN 16
 
-#define NO_APPX_RCP
-
 void FusedBNormXSMM::forwardPropagate(vector<TensorBuf *> inpb, TensorBuf *gammapb, TensorBuf *betapb, float *gmeanp, float *grstdp, TensorBuf *outpb, int tid)
 {
   int nImg = gp->batch_size;
