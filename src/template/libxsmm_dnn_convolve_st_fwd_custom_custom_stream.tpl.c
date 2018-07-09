@@ -29,7 +29,7 @@
 /* Evangelos Georganas (Intel Corp.)
  ******************************************************************************/
 
-#define FUSED_BN_CONV_WRAPPER
+//#define FUSED_BN_CONV_WRAPPER
 
 #ifdef FUSED_BN_CONV_WRAPPER
 void wrapper_kernel(libxsmm_convfunction k, element_input_type * input1, const element_filter_type * weight1, element_output_type * output1, element_input_type * input2, const element_filter_type * weight2, element_output_type* output2, float * sf, float * mv, libxsmm_dnn_layer* handle, int ifm1, int padded_w, int padded_h, int img, int BLOCKSIFM, int ltid, int offset_i, int pi, element_input_type * myinput_st, int oi, int oj)
