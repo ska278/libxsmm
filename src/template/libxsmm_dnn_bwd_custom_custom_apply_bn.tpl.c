@@ -44,19 +44,25 @@ ifm_idx = ifm1;
 {
   element_input_type * myinput;
   element_input_type * myinput_st;
+  element_input_type * myinput_left;
   if (handle->padding_flag == 1) {
     LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st_bwd2->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     LIBXSMM_VLA_DECL(5, element_input_type, input_di, (element_input_type*)handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    LIBXSMM_VLA_DECL(5, element_input_type, input_left, (element_input_type*)handle->grad_input_left->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_di, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    myinput_left = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_left, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
+    myinput_left = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_di, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     my_ldw = padded_w;
     my_pad_h = handle->desc.pad_h;
     my_pad_w = handle->desc.pad_w;
   } else {
     LIBXSMM_VLA_DECL(6, element_input_type, input_st, (element_input_type*)handle->reg_input_st_bwd2->data, BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     LIBXSMM_VLA_DECL(5, element_input_type, input_di, (element_input_type*)handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    LIBXSMM_VLA_DECL(5, element_input_type, input_left, (element_input_type*)handle->grad_input_left->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     myinput = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_di, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+    myinput_left = (element_input_type*) &LIBXSMM_VLA_ACCESS(5, input_left, img, ifm_idx, 0, 0, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
     myinput_st = (element_input_type*) &LIBXSMM_VLA_ACCESS(6, input_st, img, ifm_idx, 0, 0, 0, 0,
         BLOCKSIFM, handle->ifhp, handle->ifwp, handle->ifmblock, handle->fm_lp_block);
     my_ldw = handle->ifwp;
@@ -77,6 +83,11 @@ ifm_idx = ifm1;
       {
         int _my_h = my_h + my_pad_h;
         int _my_w = my_w + my_pad_w;
+	if(handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_ELEMENTWISE_BWD)
+	{
+	  myinput_left[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] = myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp];
+	}
+
         mylcl_gamma_beta0[my_c] +=
           (myinput_st[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp] - mybmean2[my_c]) * 
 	  (myinput[my_c + (my_w + handle->desc.pad_w_in)* handle->ifmblock + (my_h + handle->desc.pad_h_in) * handle->ifmblock * handle->ifwp]) * mybrstd2[my_c];

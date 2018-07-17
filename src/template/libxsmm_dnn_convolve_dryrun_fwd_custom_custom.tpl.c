@@ -44,6 +44,78 @@
 #define CHWK 3
 #define HWCK 4
 
+
+const char * get_segment_type(int segment_type)
+{
+  if(segment_type == IMG_LOOP_INIT) return "IMG_LOOP_INIT";
+  if(segment_type == OFM_LOOP_INIT) return "OFM_LOOP_INIT";
+  if(segment_type == OFM_LOOP_CLOSE) return "OFM_LOOP_CLOSE";
+  if(segment_type == CONVOLUTION_KERNEL) return "CONVOLUTION_KERNEL";
+  if(segment_type == IFM_LOOP_CLOSE_S) return "IFM_LOOP_CLOSE_S";
+  if(segment_type == IFM_LOOP_FIRST_TOUCH) return "IFM_LOOP_FIRST_TOUCH";
+  if(segment_type == IMG_LOOP_CLOSE) return "IMG_LOOP_CLOSE";
+  return "";
+}
+
+const char * get_loop_order(int loop_order)
+{
+  if(loop_order == MIXED) return "MIXED";
+  if(loop_order == KHWC) return "KHWC";
+  if(loop_order == HWKC) return "HWKC";
+  if(loop_order == CHWK) return "CHWK";
+  if(loop_order == HWCK) return "HWCK";
+  return "";
+}
+
+
+
+typedef struct EXPANDED_SEGMENT {
+  int loop_order;
+  int segment_type;
+  char kernel_variant;
+  int ofmb;
+  int ojb;
+  int oj;
+  int oi;
+  int ofm1;
+  int ifmb;
+  int ifm1;
+  int ci0;
+  int ci1;
+  int ci2;
+  int ci3;
+  int fwd_ofh_rb;
+  int fwd_ofw_rb;
+  int bwd_ofh_rb;
+  int bwd_ofw_rb;
+} expanded_segment_t;
+
+void print_segment_stream(segment_t * stream, int size, const char * dir)
+{
+    int _idx;
+    printf("compressed_%s:\tsegment_type\tn_convs\taux_index\n", dir);
+
+    for(_idx = 0 ; _idx < size ; _idx++)
+    {
+      printf("compressed_%s:\t%s\t%d\t%d\n", dir, 
+                            get_segment_type(stream[_idx].segment_type),
+                             stream[_idx].n_convs,
+  			   stream[_idx].aux_index);
+    }
+}
+
+void print_dbg_stream(expanded_segment_t * stream, int size, const char * dir)
+{
+    int _idx;
+    printf("%s:\tloop_type\tsegment_type\tkernel_variant\tofmb\tojb\toj\toi\tofm1\tifmb\tifm1\tinput_offset\tweight_offset\toutput_offset\tinput_st_offset\tfwd_ofh_rb\tfwd_ofw_rb\tbwd_ofh_rb\tbwd_ofw_rb\n",dir);
+    for(_idx = 0 ; _idx < size ; _idx++)
+    {
+      expanded_segment_t s = stream[_idx];
+      printf("%s:\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", dir, get_loop_order(s.loop_order), get_segment_type(s.segment_type), s.kernel_variant, s.ofmb, s.ojb, s.oj, s.oi, s.ofm1, s.ifmb, s.ifm1, s.ci0, s.ci1, s.ci2, s.ci3, s.fwd_ofh_rb, s.fwd_ofw_rb, s.bwd_ofh_rb, s.bwd_ofw_rb);
+    }
+}
+
+
 #if !defined(_OPENMP)
 int ltid;
 #endif
@@ -78,6 +150,7 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   int total_calls;
   int n_code_segments;
   int mark_ofm_init, mark_ofm_close, mark_img_init, mark_img_close, mark_ifm_close, mark_ifm_init;
+  expanded_segment_t * dbg_expanded_stream;
   int *tmp_expanded_stream, tmp_stream_index;
   segment_t *encoded_code_segments = NULL;
   int expanded_size;
@@ -285,6 +358,8 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   handle->n_fwd_code_segments[ltid] = n_code_segments;
   expanded_size = local_entries/LOCAL_ENTRIES_PER_CONV + n_code_segments;
   tmp_expanded_stream = (int*)(0 < expanded_size ? malloc(expanded_size * sizeof(int)) : 0);
+  dbg_expanded_stream = (expanded_segment_t*)(0 < expanded_size ? malloc(expanded_size * sizeof(expanded_segment_t)) : 0);
+  memset(dbg_expanded_stream, 0, expanded_size*sizeof(expanded_segment_t));
   tmp_stream_index = 0;
   if (n_code_segments) {
     encoded_code_segments = (segment_t*) libxsmm_aligned_malloc(n_code_segments * sizeof(segment_t), 64);
@@ -296,8 +371,17 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
   if (loop_order == MIXED) {
     if (handle->use_lp_kernel == 0) { /* Well, in this case leave loop as is...  */
       for (img = my_img_start; img < my_img_end; img++) {
-        if (mark_img_init== 1 && 0 != tmp_expanded_stream) {
+        if (mark_img_init== 1 && 0 != tmp_expanded_stream && 0 != dbg_expanded_stream) {
           tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_INIT;
+          dbg_expanded_stream[tmp_stream_index].segment_type = IMG_LOOP_INIT;
+          dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+          dbg_expanded_stream[tmp_stream_index].ofmb=0;
+          dbg_expanded_stream[tmp_stream_index].ojb=0;
+          dbg_expanded_stream[tmp_stream_index].oj=0;
+          dbg_expanded_stream[tmp_stream_index].oi=0;
+          dbg_expanded_stream[tmp_stream_index].ofm1=0;
+          dbg_expanded_stream[tmp_stream_index].ifmb=0;
+          dbg_expanded_stream[tmp_stream_index].ifm1=0;
           tmp_stream_index++;
         }
         for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
@@ -325,11 +409,29 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
 		      {
 		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0) {
                           tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
+                          dbg_expanded_stream[tmp_stream_index].segment_type = IFM_LOOP_FIRST_TOUCH;
+                          dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                          dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                          dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                          dbg_expanded_stream[tmp_stream_index].oj=oj;
+                          dbg_expanded_stream[tmp_stream_index].oi=oi;
+                          dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                          dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                          dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                           tmp_stream_index++;
 			}
 		      }
                       if (0 != tmp_expanded_stream && mark_ofm_init == 1 && ifm1 == 0 && oj == 0 && oi == 0) {
                         tmp_expanded_stream[tmp_stream_index] = OFM_LOOP_INIT;
+                        dbg_expanded_stream[tmp_stream_index].segment_type = OFM_LOOP_INIT;
+                        dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                        dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                        dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                        dbg_expanded_stream[tmp_stream_index].oj=oj;
+                        dbg_expanded_stream[tmp_stream_index].oi=oi;
+                        dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                        dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                        dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                         tmp_stream_index++;
                       }
 
@@ -368,16 +470,46 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         bn_indices[local_entries/LOCAL_ENTRIES_PER_CONV] =  img * handle->ofmblock + ofm1 * handle->ofmblock * handle->desc.N;
                       }
 
-                      local_entries += LOCAL_ENTRIES_PER_CONV;
 
                       if (0 != tmp_expanded_stream) {
                         tmp_expanded_stream[tmp_stream_index] = CONVOLUTION_KERNEL;
+                        dbg_expanded_stream[tmp_stream_index].segment_type = CONVOLUTION_KERNEL;
+                        dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                        dbg_expanded_stream[tmp_stream_index].kernel_variant=kernel_variant[local_entries/LOCAL_ENTRIES_PER_CONV];
+                        dbg_expanded_stream[tmp_stream_index].ci0 = compute_indices[local_entries + 0];
+                        dbg_expanded_stream[tmp_stream_index].ci1 = compute_indices[local_entries + 1];
+                        dbg_expanded_stream[tmp_stream_index].ci2 = compute_indices[local_entries + 2];
+                        dbg_expanded_stream[tmp_stream_index].ci3 = compute_indices[local_entries + 3];
+			dbg_expanded_stream[tmp_stream_index].fwd_ofh_rb = handle->fwd_ofh_rb;
+			dbg_expanded_stream[tmp_stream_index].fwd_ofw_rb = handle->fwd_ofw_rb;
+			dbg_expanded_stream[tmp_stream_index].bwd_ofh_rb = handle->bwd_ofh_rb;
+			dbg_expanded_stream[tmp_stream_index].bwd_ofw_rb = handle->bwd_ofw_rb;
+                        dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                        dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                        dbg_expanded_stream[tmp_stream_index].oj=oj;
+                        dbg_expanded_stream[tmp_stream_index].oi=oi;
+                        dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                        dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                        dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                         tmp_stream_index++;
+	              }
+                      local_entries += LOCAL_ENTRIES_PER_CONV;
+                      if (0 != tmp_expanded_stream) {
                         if (mark_ofm_close == 1 && ifm1 == BLOCKSIFM-BLOCKSIFM_BLOCKING && oj >= (handle->ofh - handle->fwd_ofh_rb) && oi == (handle->ofw - handle->fwd_ofw_rb)) {
                           tmp_expanded_stream[tmp_stream_index] = OFM_LOOP_CLOSE;
+                          dbg_expanded_stream[tmp_stream_index].segment_type = OFM_LOOP_CLOSE;
+                          dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                          dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                          dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                          dbg_expanded_stream[tmp_stream_index].oj=oj;
+                          dbg_expanded_stream[tmp_stream_index].oi=oi;
+                          dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                          dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                          dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                           tmp_stream_index++;
                         }
                       }
+
                     }
                   }
                 }
@@ -394,6 +526,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
       for (img = my_img_start; img < my_img_end; img++) {
         if (0 != tmp_expanded_stream && mark_img_init== 1) {
           tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_INIT;
+          dbg_expanded_stream[tmp_stream_index].segment_type = IMG_LOOP_INIT;
+          dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+          dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+          dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+          dbg_expanded_stream[tmp_stream_index].oj=oj;
+          dbg_expanded_stream[tmp_stream_index].oi=oi;
+          dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+          dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+          dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
           tmp_stream_index++;
         }
         for (ofmb = my_ofm_start; ofmb < my_ofm_end; ofmb += handle->block_fwd_ofm) {
@@ -422,12 +563,30 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
 		        if(ofmb == my_ofm_start && ojb == 0 && ofm1 == ofmb && oj == ojb && oi == 0)
 			{
                           tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
+                          dbg_expanded_stream[tmp_stream_index].segment_type = IFM_LOOP_FIRST_TOUCH;
+                          dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                          dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                          dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                          dbg_expanded_stream[tmp_stream_index].oj=oj;
+                          dbg_expanded_stream[tmp_stream_index].oi=oi;
+                          dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                          dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                          dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                           tmp_stream_index++;
 			}
 		      }
 
                       if (0 != tmp_expanded_stream && mark_ofm_init == 1 && ifm1 == 0 && oj == 0 && oi == 0) {
                         tmp_expanded_stream[tmp_stream_index] = OFM_LOOP_INIT;
+                        dbg_expanded_stream[tmp_stream_index].segment_type = OFM_LOOP_INIT;
+                        dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                        dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                        dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                        dbg_expanded_stream[tmp_stream_index].oj=oj;
+                        dbg_expanded_stream[tmp_stream_index].oi=oi;
+                        dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                        dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                        dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                         tmp_stream_index++;
                       }
 
@@ -467,20 +626,56 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                         bn_indices[local_entries/LOCAL_ENTRIES_PER_CONV] =  img * handle->ofmblock + ofm1 * handle->ofmblock * handle->desc.N;
                       }
 
-                      local_entries += LOCAL_ENTRIES_PER_CONV;
 
                       if (0 != tmp_expanded_stream) {
                         tmp_expanded_stream[tmp_stream_index] = CONVOLUTION_KERNEL;
+                        dbg_expanded_stream[tmp_stream_index].segment_type = CONVOLUTION_KERNEL;
+                        dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                        dbg_expanded_stream[tmp_stream_index].kernel_variant=kernel_variant[local_entries/LOCAL_ENTRIES_PER_CONV];
+                        dbg_expanded_stream[tmp_stream_index].ci0 = compute_indices[local_entries + 0];
+                        dbg_expanded_stream[tmp_stream_index].ci1 = compute_indices[local_entries + 1];
+                        dbg_expanded_stream[tmp_stream_index].ci2 = compute_indices[local_entries + 2];
+                        dbg_expanded_stream[tmp_stream_index].ci3 = compute_indices[local_entries + 3];
+	                dbg_expanded_stream[tmp_stream_index].fwd_ofh_rb = handle->fwd_ofh_rb;
+	                dbg_expanded_stream[tmp_stream_index].fwd_ofw_rb = handle->fwd_ofw_rb;
+	                dbg_expanded_stream[tmp_stream_index].bwd_ofh_rb = handle->bwd_ofh_rb;
+	                dbg_expanded_stream[tmp_stream_index].bwd_ofw_rb = handle->bwd_ofw_rb;
+                        dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                        dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                        dbg_expanded_stream[tmp_stream_index].oj=oj;
+                        dbg_expanded_stream[tmp_stream_index].oi=oi;
+                        dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                        dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                        dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                         tmp_stream_index++;
                         if (mark_ifm_close == 1 && ifm1 >= BLOCKSIFM-BLOCKSIFM_BLOCKING) {
                           tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_CLOSE_S;
+                          dbg_expanded_stream[tmp_stream_index].segment_type = IFM_LOOP_CLOSE_S;
+                          dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                          dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                          dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                          dbg_expanded_stream[tmp_stream_index].oj=oj;
+                          dbg_expanded_stream[tmp_stream_index].oi=oi;
+                          dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                          dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                          dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                           tmp_stream_index++;
                         }
                         if (mark_ofm_close == 1 && ifm1 == BLOCKSIFM-BLOCKSIFM_BLOCKING && oj >= (handle->ofh - handle->fwd_ofh_rb) && oi == (handle->ofw - handle->fwd_ofw_rb)) {
                           tmp_expanded_stream[tmp_stream_index] = OFM_LOOP_CLOSE;
+                          dbg_expanded_stream[tmp_stream_index].segment_type = OFM_LOOP_CLOSE;
+                          dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
+                          dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                          dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                          dbg_expanded_stream[tmp_stream_index].oj=oj;
+                          dbg_expanded_stream[tmp_stream_index].oi=oi;
+                          dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                          dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                          dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                           tmp_stream_index++;
                         }
                       }
+                      local_entries += LOCAL_ENTRIES_PER_CONV;
                     }
                   }
                 }
@@ -490,6 +685,8 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
         }
         if (mark_img_close== 1) {
           tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_CLOSE;
+          dbg_expanded_stream[tmp_stream_index].segment_type = IMG_LOOP_CLOSE;
+          dbg_expanded_stream[tmp_stream_index].loop_order= MIXED;
           tmp_stream_index++;
         }
       }
@@ -501,6 +698,8 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
     for (img = my_img_start; img < my_img_end; img++) {
       if (0 != tmp_expanded_stream && mark_img_init== 1) {
         tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_INIT;
+        dbg_expanded_stream[tmp_stream_index].segment_type = IMG_LOOP_INIT;
+        dbg_expanded_stream[tmp_stream_index].loop_order= HWKC;
         tmp_stream_index++;
       }
 
@@ -530,11 +729,29 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
 		      if(ofmb == my_ofm_start && ojb == 0 && oj == ojb && oi == 0 && ofm1 == ofmb)
 		      {
                         tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_FIRST_TOUCH;
+                        dbg_expanded_stream[tmp_stream_index].segment_type = IFM_LOOP_FIRST_TOUCH;
+                        dbg_expanded_stream[tmp_stream_index].loop_order= HWKC;
+                        dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                        dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                        dbg_expanded_stream[tmp_stream_index].oj=oj;
+                        dbg_expanded_stream[tmp_stream_index].oi=oi;
+                        dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                        dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                        dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                         tmp_stream_index++;
 	              }
 		    }
                     if (0 != tmp_expanded_stream && mark_ofm_init == 1 && ifm1 == 0 && oj == 0 && oi == 0) {
                       tmp_expanded_stream[tmp_stream_index] = OFM_LOOP_INIT;
+                      dbg_expanded_stream[tmp_stream_index].segment_type = OFM_LOOP_INIT;
+                      dbg_expanded_stream[tmp_stream_index].loop_order= HWKC;
+                      dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                      dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                      dbg_expanded_stream[tmp_stream_index].oj=oj;
+                      dbg_expanded_stream[tmp_stream_index].oi=oi;
+                      dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                      dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                      dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                       tmp_stream_index++;
                     }
 
@@ -573,22 +790,58 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
                       bn_indices[local_entries/LOCAL_ENTRIES_PER_CONV] = img * handle->ofmblock + ofm1 * handle->ofmblock * handle->desc.N;
                     }
 
-                    local_entries += LOCAL_ENTRIES_PER_CONV;
 
                     if (0 != tmp_expanded_stream) {
                       tmp_expanded_stream[tmp_stream_index] = CONVOLUTION_KERNEL;
+                      dbg_expanded_stream[tmp_stream_index].segment_type = CONVOLUTION_KERNEL;
+                      dbg_expanded_stream[tmp_stream_index].loop_order= HWKC;
+                      dbg_expanded_stream[tmp_stream_index].kernel_variant=kernel_variant[local_entries/LOCAL_ENTRIES_PER_CONV];
+                      dbg_expanded_stream[tmp_stream_index].ci0 = compute_indices[local_entries + 0];
+                      dbg_expanded_stream[tmp_stream_index].ci1 = compute_indices[local_entries + 1];
+                      dbg_expanded_stream[tmp_stream_index].ci2 = compute_indices[local_entries + 2];
+                      dbg_expanded_stream[tmp_stream_index].ci3 = compute_indices[local_entries + 3];
+	              dbg_expanded_stream[tmp_stream_index].fwd_ofh_rb = handle->fwd_ofh_rb;
+	              dbg_expanded_stream[tmp_stream_index].fwd_ofw_rb = handle->fwd_ofw_rb;
+	              dbg_expanded_stream[tmp_stream_index].bwd_ofh_rb = handle->bwd_ofh_rb;
+	              dbg_expanded_stream[tmp_stream_index].bwd_ofw_rb = handle->bwd_ofw_rb;
+                      dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                      dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                      dbg_expanded_stream[tmp_stream_index].oj=oj;
+                      dbg_expanded_stream[tmp_stream_index].oi=oi;
+                      dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                      dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                      dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                       tmp_stream_index++;
 
                       if (mark_ifm_close == 1 && ifm1 >= BLOCKSIFM-BLOCKSIFM_BLOCKING) {
                         tmp_expanded_stream[tmp_stream_index] = IFM_LOOP_CLOSE_S;
+                        dbg_expanded_stream[tmp_stream_index].segment_type = IFM_LOOP_CLOSE_S;
+                        dbg_expanded_stream[tmp_stream_index].loop_order= HWKC;
+                        dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                        dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                        dbg_expanded_stream[tmp_stream_index].oj=oj;
+                        dbg_expanded_stream[tmp_stream_index].oi=oi;
+                        dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                        dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                        dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                         tmp_stream_index++;
                       }
 
                       if (mark_ofm_close == 1 && ifm1 == BLOCKSIFM-BLOCKSIFM_BLOCKING && oj >= handle->ofh - handle->fwd_ofh_rb && oi == handle->ofw - handle->fwd_ofw_rb) {
                         tmp_expanded_stream[tmp_stream_index] = OFM_LOOP_CLOSE;
+                        dbg_expanded_stream[tmp_stream_index].segment_type = OFM_LOOP_CLOSE;
+                        dbg_expanded_stream[tmp_stream_index].loop_order= HWKC;
+                        dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+                        dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+                        dbg_expanded_stream[tmp_stream_index].oj=oj;
+                        dbg_expanded_stream[tmp_stream_index].oi=oi;
+                        dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+                        dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+                        dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
                         tmp_stream_index++;
                       }
                     }
+                    local_entries += LOCAL_ENTRIES_PER_CONV;
                   }
                 }
               }
@@ -598,6 +851,15 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
       }
       if (mark_img_close== 1) {
         tmp_expanded_stream[tmp_stream_index] = IMG_LOOP_CLOSE;
+        dbg_expanded_stream[tmp_stream_index].segment_type = IMG_LOOP_CLOSE;
+        dbg_expanded_stream[tmp_stream_index].loop_order= HWKC;
+        dbg_expanded_stream[tmp_stream_index].ofmb=ofmb;
+        dbg_expanded_stream[tmp_stream_index].ojb=ojb;
+        dbg_expanded_stream[tmp_stream_index].oj=oj;
+        dbg_expanded_stream[tmp_stream_index].oi=oi;
+        dbg_expanded_stream[tmp_stream_index].ofm1=ofm1;
+        dbg_expanded_stream[tmp_stream_index].ifmb=ifmb;
+        dbg_expanded_stream[tmp_stream_index].ifm1=ifm1;
         tmp_stream_index++;
       }
     }
@@ -802,6 +1064,16 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
     }
   }
 
+  if(ltid == 0 && handle->use_fwd_for_bwd == 0)
+  {
+    print_segment_stream(encoded_code_segments, encoded_stream_index,"FWD");
+    print_dbg_stream(dbg_expanded_stream, expanded_size,"FWD");
+  }
+  else if(ltid == 0 && handle->use_fwd_for_bwd == 1)
+  {
+    print_segment_stream(encoded_code_segments, encoded_stream_index,"BWD");
+    print_dbg_stream(dbg_expanded_stream, expanded_size,"BWD");
+  }
 
   free(tmp_expanded_stream);
 
