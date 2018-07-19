@@ -439,17 +439,20 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
               if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) {
 #if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                 LIBXSMM_VLA_DECL(5, element_input_type, input, (element_input_type*) handle->reg_input->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
-                LIBXSMM_VLA_DECL(5, element_input_type, split, (element_input_type*) handle->reg_input_split->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 LIBXSMM_VLA_DECL(5, element_input_type, del_input_2, (element_input_type*) handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 element_input_type *orig_input_ptr;
                 element_input_type *del_input_ptr;
                 element_input_type *split_input_ptr;
+
+                if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_SPLIT_BWD) > 0) {
+                  LIBXSMM_VLA_DECL(5, element_input_type, split, (element_input_type*) handle->reg_input_split->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                  split_input_ptr = &LIBXSMM_VLA_ACCESS(5, split, img, /*ifm1*/code_stream[pc].aux_index, handle->desc.pad_h_in, handle->desc.pad_w_in, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+		}
                 __m512 zero_reg  = _mm512_setzero_ps();
                 __m512 orig_reg;
                 __mmask16 mask;
                 orig_input_ptr = &LIBXSMM_VLA_ACCESS(5, input, img, /*ifm1*/code_stream[pc].aux_index, handle->desc.pad_h_in, handle->desc.pad_w_in, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 del_input_ptr = &LIBXSMM_VLA_ACCESS(5, del_input_2, img, /*ifm1*/code_stream[pc].aux_index, handle->desc.pad_h_in, handle->desc.pad_w_in, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
-                split_input_ptr = &LIBXSMM_VLA_ACCESS(5, split, img, /*ifm1*/code_stream[pc].aux_index, handle->desc.pad_h_in, handle->desc.pad_w_in, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 for (ij = 0; ij < handle->desc.H; ij++) {
                   for (ii = 0; ii < handle->desc.W * 16; ii += 16) {
                     orig_reg  = LIBXSMM_INTRINSICS_MM512_LOAD_PS(orig_input_ptr + ii);
@@ -544,17 +547,19 @@ if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_MAX_STATS) > 0) {
               if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_RELU_BWD) > 0) {
 #if defined(LIBXSMM_INTRINSICS_AVX512) /*__AVX512F__*/
                 LIBXSMM_VLA_DECL(5, element_input_type, input, (element_input_type*) handle->reg_input->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
-                LIBXSMM_VLA_DECL(5, element_input_type, split, (element_input_type*) handle->reg_input_split->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 LIBXSMM_VLA_DECL(5, element_input_type, del_input_2, (element_input_type*) handle->grad_input->data, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 element_input_type *orig_input_ptr;
                 element_input_type *del_input_ptr;
                 element_input_type *split_input_ptr;
+                if ((handle->fuse_ops & LIBXSMM_DNN_CONV_FUSE_SPLIT_BWD) > 0) {
+                  LIBXSMM_VLA_DECL(5, element_input_type, split, (element_input_type*) handle->reg_input_split->data,  handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                  split_input_ptr = &LIBXSMM_VLA_ACCESS(5, split, img, /*ifm1*/code_stream[pc].aux_index, handle->desc.pad_h_in, handle->desc.pad_w_in, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+		}
                 __m512 zero_reg  = _mm512_setzero_ps();
                 __m512 orig_reg;
                 __mmask16 mask;
                 orig_input_ptr = &LIBXSMM_VLA_ACCESS(5, input, img, /*ifm1*/code_stream[pc].aux_index, handle->desc.pad_h_in, handle->desc.pad_w_in, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 del_input_ptr = &LIBXSMM_VLA_ACCESS(5, del_input_2, img, /*ifm1*/code_stream[pc].aux_index, handle->desc.pad_h_in, handle->desc.pad_w_in, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
-                split_input_ptr = &LIBXSMM_VLA_ACCESS(5, split, img, /*ifm1*/code_stream[pc].aux_index, handle->desc.pad_h_in, handle->desc.pad_w_in, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 for (ij = 0; ij < handle->desc.H; ij++) {
                   for (ii = 0; ii < handle->desc.W * 16; ii += 16) {
                     orig_reg  = LIBXSMM_INTRINSICS_MM512_LOAD_PS(orig_input_ptr + ii);
