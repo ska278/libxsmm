@@ -853,7 +853,6 @@ memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));
         }
       }
     }
-    //printf("done\n");
   }
   else if(gp->own_bstats_bwd)
   {

@@ -90,32 +90,6 @@ typedef struct EXPANDED_SEGMENT {
   int bwd_ofw_rb;
 } expanded_segment_t;
 
-void print_segment_stream(segment_t * stream, int size, const char * dir)
-{
-    int _idx;
-    printf("compressed_%s:\tsegment_type\tn_convs\taux_index\n", dir);
-
-    for(_idx = 0 ; _idx < size ; _idx++)
-    {
-      printf("compressed_%s:\t%s\t%d\t%d\n", dir, 
-                            get_segment_type(stream[_idx].segment_type),
-                             stream[_idx].n_convs,
-  			   stream[_idx].aux_index);
-    }
-}
-
-void print_dbg_stream(expanded_segment_t * stream, int size, const char * dir)
-{
-    int _idx;
-    printf("%s:\tloop_type\tsegment_type\tkernel_variant\tofmb\tojb\toj\toi\tofm1\tifmb\tifm1\tinput_offset\tweight_offset\toutput_offset\tinput_st_offset\tfwd_ofh_rb\tfwd_ofw_rb\tbwd_ofh_rb\tbwd_ofw_rb\n",dir);
-    for(_idx = 0 ; _idx < size ; _idx++)
-    {
-      expanded_segment_t s = stream[_idx];
-      printf("%s:\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", dir, get_loop_order(s.loop_order), get_segment_type(s.segment_type), s.kernel_variant, s.ofmb, s.ojb, s.oj, s.oi, s.ofm1, s.ifmb, s.ifm1, s.ci0, s.ci1, s.ci2, s.ci3, s.fwd_ofh_rb, s.fwd_ofw_rb, s.bwd_ofh_rb, s.bwd_ofw_rb);
-    }
-}
-
-
 #if !defined(_OPENMP)
 int ltid;
 #endif
@@ -1062,17 +1036,6 @@ for (ltid = 0; ltid < handle->desc.threads; ltid++)
         }
       }
     }
-  }
-
-  if(ltid == 0 && handle->use_fwd_for_bwd == 0)
-  {
-    print_segment_stream(encoded_code_segments, encoded_stream_index,"FWD");
-    print_dbg_stream(dbg_expanded_stream, expanded_size,"FWD");
-  }
-  else if(ltid == 0 && handle->use_fwd_for_bwd == 1)
-  {
-    print_segment_stream(encoded_code_segments, encoded_stream_index,"BWD");
-    print_dbg_stream(dbg_expanded_stream, expanded_size,"BWD");
   }
 
   free(tmp_expanded_stream);
