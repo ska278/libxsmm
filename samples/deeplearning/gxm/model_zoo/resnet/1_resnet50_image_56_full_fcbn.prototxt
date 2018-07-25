@@ -85,10 +85,10 @@ node {
   }
 }
 node {
-  name: "node_64_1_convbn4"
-  type: "FusedConvBN"
+  name: "node_64_1_conv4"
+  type: "Convolution"
   bottom: "conv1_pool"
-  top: "node_64_1_convbn4"
+  top: "node_64_1_conv4"
   param {
     lr_mult: 1.0
     decay_mult: 1.0
@@ -97,14 +97,13 @@ node {
     lr_mult: 1.0
     decay_mult: 0.0
   }
-  fused_conv_bn_param {
+  convolution_param {
     data_type: FLOAT
     engine: XSMM
     num_output: 256
     pad: 0
-    bstats_fwd: true
-    bn_bwd: false
     kernel_size: 1
+    bias_term: false
     stride: 1
     weight_filler {
       type: "msra"
@@ -124,7 +123,7 @@ node {
     stride: 1
     engine: XSMM
   }
-  bottom: "node_64_1_convbn4"
+  bottom: "node_64_1_conv4"
   top: "node_64_1_bn4"
 }
 node {
@@ -1292,6 +1291,8 @@ node {
     bn_relu_fwd: true
     bn_bwd: true
     bstats_relu_bwd: true
+    eltwise: true
+    split: true
     kernel_size: 1
     stride: 1
     weight_filler {
@@ -1716,6 +1717,8 @@ node {
     bn_relu_fwd: true
     bn_bwd: true
     bstats_relu_bwd: true
+    eltwise: true
+    split: true
     kernel_size: 1
     stride: 1
     weight_filler {

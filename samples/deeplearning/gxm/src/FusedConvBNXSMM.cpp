@@ -738,13 +738,15 @@ memset(dgamma_dbeta, 0, 2*conv_desc.N * conv_desc.C*sizeof(float));
   dout_ptr = deloutp[0]->getBuffer();
   dout_prv_ptr = deloutp[0]->getPrivBuffer();
 
-  dout_res_ptr = deloutp[1]->getBuffer();
+  if(gp->split)
+    dout_res_ptr = deloutp[1]->getBuffer();
 
   //delinput
   din_ptr = delinp[0]->getBuffer();
   din_prv_ptr = delinp[0]->getPrivBuffer();
 
-  din_res_ptr = delinp[1]->getBuffer();
+  if(gp->eltwise)
+    din_res_ptr = delinp[1]->getBuffer();
 
   dout_converted_in_BP = false;
 
