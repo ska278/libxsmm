@@ -661,17 +661,8 @@ void FusedBNormXSMM::backPropagate(vector<TensorBuf*> inpb, TensorBuf* outpb, Te
                 del_output[img][fm][hp][wp][v] = (output[img][fm][hp][wp][v] == 0.0) ? 0.0 : del_output[img][fm][hp][wp][v];
                 lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][hp][wp][v] * brstd[fm][v];
                 lcl_beta[v] += del_output[img][fm][hp][wp][v];
-
-		if(img == 0 && fm == 0 && v == 0)
-		{
-		  printf("%0.16f,", del_output[img][fm][hp][wp][v]);
-		}
               }
             }
-	    if(img == 0 && fm == 0)
-	    {
-	      printf("\n");
-	    }
           }
 #pragma omp simd
 #pragma vector aligned
@@ -774,16 +765,8 @@ void FusedBNormXSMM::backPropagate(vector<TensorBuf*> inpb, TensorBuf* outpb, Te
               for(int v=0; v < VLEN; v++) {
                 lcl_gamma[v] += (input_r[img][fm][h][w][v] - bmean[fm][v]) * del_output[img][fm][hp][wp][v] * brstd[fm][v];
                 lcl_beta[v] += del_output[img][fm][hp][wp][v];
-		if(img == 0 && fm == 0 && v == 0)
-		{
-		  printf("%0.16f,", del_output[img][fm][hp][wp][v]);
-		}
               }
             }
-	    if(img == 0 && fm == 0)
-	    {
-	      printf("\n");
-	    }
           }
 #pragma omp simd
 #pragma vector aligned
