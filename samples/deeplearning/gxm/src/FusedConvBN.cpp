@@ -546,7 +546,7 @@ void FusedConvBNNode::fillBuffer(TensorBuf* tBuf, int buftype, long long int siz
     if(nname_.find("bn3") == nname_.npos)
       value = 1;
     else
-      value = 1.;
+      value = 0.;
   }
   else
     value = 0.;
@@ -733,11 +733,18 @@ void FusedConvBNNode::forwardPropagate()
 
     if(eptr_->get_current_batch() % STATFREQ == 0)
     {
-      string s = nname_ + "_Inp";
+      string s = nname_ + "_Inp0";
       ptr = (float*)tenBotData_[0]->getBuffer();
       pptr = (float*)tenBotData_[0]->getPrivBuffer();
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, nImg*ifm*ifhp*ifwp);
+
+      if(gparams_.eltwise)
+      {
+        string s = nname_ + "_Inp1";
+        ptr = (float*)tenBotData_[1]->getBuffer();
+        MeanOfLayer((char*)s.c_str(), ptr, nImg*ifm*ifhp*ifwp);
+      }
 
       if(gparams_.bn_fwd || gparams_.bn_relu_fwd)
       {
@@ -753,11 +760,18 @@ void FusedConvBNNode::forwardPropagate()
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, ifm*ofm*kh*kw);
 
-      s = nname_ + "_Outp";
+      s = nname_ + "_Outp0";
       ptr = (float*)tenTopData_[0]->getBuffer();
       pptr = (float*)tenTopData_[0]->getPrivBuffer();
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
+
+      if(gparams_.split)
+      {
+        string s = nname_ + "_Outp1";
+        ptr = (float*)tenTopData_[1]->getBuffer();
+        MeanOfLayer((char*)s.c_str(), ptr, nImg*ifm*ifhp*ifwp);
+      }
 
       s = nname_ + "_sump";
       int offset = nImg*ofm*ofhp*ofwp;
@@ -786,11 +800,11 @@ void FusedConvBNNode::forwardPropagate()
         ptr = (float*)tenRstdevData_->getBuffer();
         MeanOfLayer((char*)s.c_str(), ptr, ifm);
 
-        s = nname_ + "_gammap";
+        s = nname_ + "_prev_gammap";
         float* gamma = (float*)pgammab->getBuffer();
         MeanOfLayer((char*)s.c_str(), gamma, ifm);
 
-        s = nname_ + "_betap";
+        s = nname_ + "_prev_betap";
         float* beta = (float*)pbetab->getBuffer();
         MeanOfLayer((char*)s.c_str(), beta, ifm);
       }
@@ -878,13 +892,18 @@ void FusedConvBNNode::backPropagate()
   {
     if(eptr_->get_current_batch() % STATFREQ == 0)// && gparams_.ipad_h)
     {
-      string s = nname_ + "_delOutp";
-
+      string s = nname_ + "_delOutp0";
       ptr = (float*)tenTopDiff_[0]->getBuffer();
       pptr = (float*)tenTopDiff_[0]->getPrivBuffer();
       p = (pptr == NULL) ? ptr : pptr;
-      printf("FusedConvBN deloutp %p\n",p);
       MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
+
+      if(gparams_.split)
+      {
+        string s = nname_ + "_delOutp1";
+        ptr = (float*)tenTopDiff_[1]->getBuffer();
+        MeanOfLayer((char*)s.c_str(), ptr, nImg*ifm*ifhp*ifwp);
+      }
 
       s = nname_ + "_Wt";
       ptr = (float*)tenWeightData_->getBuffer();
@@ -924,15 +943,21 @@ void FusedConvBNNode::backPropagate()
         MeanOfLayer((char*)s.c_str(), p, ofm);
       }
 
-      s = nname_ + "_delInp";
+      s = nname_ + "_delInp0";
       ptr = (float*)tenBotDiff_[0]->getBuffer();
       pptr = (float*)tenBotDiff_[0]->getPrivBuffer();
       p = (pptr == NULL) ? ptr : pptr;
       MeanOfLayer((char*)s.c_str(), p, nImg*ifm*ifhp*ifwp);
 
+      if(gparams_.eltwise)
+      {
+        s = nname_ + "_delInp1";
+        ptr = (float*)tenBotDiff_[1]->getBuffer();
+        MeanOfLayer((char*)s.c_str(), ptr, nImg*ifm*ifhp*ifwp);
+      }
 
       s = nname_ + "_savedOutp";
-      ptr = (float*)tenTopData_->getBuffer();
+      ptr = (float*)tenTopData_[0]->getBuffer();
       p = ptr + nImg*ofm*ofhp*ofwp + 2*nImg*ofm + 2*ofm;
       MeanOfLayer((char*)s.c_str(), p, nImg*ofm*ofhp*ofwp);
     }
