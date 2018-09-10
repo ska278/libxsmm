@@ -40,7 +40,6 @@
 #if defined(LIBXSMM_OFFLOAD_TARGET)
 # pragma offload_attribute(pop)
 #endif
-#include <math.h>
 
 LIBXSMM_API libxsmm_dnn_pooling* libxsmm_dnn_create_pooling(libxsmm_dnn_pooling_desc pooling_desc, libxsmm_dnn_err_t* status) {
   libxsmm_dnn_pooling* handle = 0;
@@ -76,8 +75,8 @@ LIBXSMM_API libxsmm_dnn_pooling* libxsmm_dnn_create_pooling(libxsmm_dnn_pooling_
       }
       /* setting ofh and ofw */
 
-      handle->ofh = ceil((float)(handle->desc.H + 2 * handle->desc.pad_h - handle->desc.R) / handle->desc.u) + 1;
-      handle->ofw = ceil((float)(handle->desc.W + 2 * handle->desc.pad_w - handle->desc.S) / handle->desc.v) + 1;
+      handle->ofh = (handle->desc.H + 2 * handle->desc.pad_h - handle->desc.R) / handle->desc.u + 1;
+      handle->ofw = (handle->desc.W + 2 * handle->desc.pad_w - handle->desc.S) / handle->desc.v + 1;
       /* create barrier */
       handle->barrier = libxsmm_barrier_create(handle->desc.threads, 1);
       /* calculate scratch size for local pooling copies of one feature map block per thread */

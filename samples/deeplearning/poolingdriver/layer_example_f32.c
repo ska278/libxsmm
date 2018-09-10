@@ -187,10 +187,10 @@ LIBXSMM_INLINE void naive_pooling_fp(naive_pooling_t* param, const float* input_
   const int sw = param->stride_w;
   const int r = param->R;
   const int s = param->S;
-  const int ofh = ifh/sh;
-  const int ofw = ifw/sw;
   const int pad_h = param->pad_h;
   const int pad_w = param->pad_w;
+  const int ofh = (ifh + 2*pad_h - r)/sh + 1;
+  const int ofw = (ifw + 2*pad_w - s)/sw + 1;
 
   int img, fm;
 
@@ -274,10 +274,10 @@ LIBXSMM_INLINE void naive_pooling_bp(naive_pooling_t* param, float* dinput_ptr, 
   const int sw = param->stride_w;
   const int r = param->R;
   const int s = param->S;
-  const int ofh = ifh/sh;
-  const int ofw = ifw/sw;
   const int pad_h = param->pad_h;
   const int pad_w = param->pad_w;
+  const int ofh = (ifh + 2*pad_h - r)/sh + 1;
+  const int ofw = (ifw + 2*pad_w - s)/sw + 1;
 
   int img, fm;
 
@@ -439,8 +439,8 @@ int main(int argc, char* argv[])
   stride_h = stride;
 
   /* deriving some values for naive code */
-  ofh = (int)(ceil((float)(ifh + 2 * pad_h - kh) / (float)stride_h)) + 1;
-  ofw = (int)(ceil((float)(ifw + 2 * pad_w - kw) / (float)stride_w)) + 1;
+  ofh = (ifh + 2 * pad_h - kh) / stride_h + 1;
+  ofw = (ifw + 2 * pad_w - kw) / stride_w + 1;
   ifhp = ifh + 2 * pad_h_in;
   ifwp = ifw + 2 * pad_w_in;
   ofhp = ofh + 2 * pad_h_out;
